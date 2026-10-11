@@ -22,6 +22,8 @@ import '../widgets/route_planner_dialog.dart';
 import '../widgets/spotlight_tour_overlay.dart';
 import '../models/user_role.dart';
 import '../services/notification_service.dart';
+import '../services/profile_service.dart';
+import '../services/schedule_service.dart';
 import '../widgets/notification_center_popover.dart';
 import 'admin_dashboard_tab.dart';
 import 'dev_console_screen.dart';
@@ -124,43 +126,31 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoadingEvents = true);
     }
     try {
-      var user = Supabase.instance.client.auth.currentUser;
-      if (user == null) {
-        // 等待 Auth Session 初始化完成 (解決首頁剛開啟時讀取為空的 Bug)
-        await Future.delayed(const Duration(milliseconds: 500));
-        user = Supabase.instance.client.auth.currentUser;
+      final DateTime rangeStart;
+      final DateTime rangeEnd;
+      if (_calendarViewMode == 'month_grid' || _calendarViewMode == 'agenda') {
+        // 月網格與議程清單模式：查詢全月份資料 (延伸前後各 14 天)
+        rangeStart = DateTime(_selectedDate.year, _selectedDate.month, 1, 0, 0, 0).subtract(const Duration(days: 14));
+        rangeEnd = DateTime(_selectedDate.year, _selectedDate.month + 2, 0, 23, 59, 59);
+      } else {
+        // 日時間軸模式：查詢單日涵蓋行程
+        rangeStart = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 0, 0, 0);
+        rangeEnd = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
       }
 
-      if (user != null) {
-        DateTime rangeStart;
-        DateTime rangeEnd;
-
-        if (_calendarViewMode == 'month_grid' || _calendarViewMode == 'agenda') {
-          // 月網格與議程清單模式：查詢全月份資料 (延伸前後各 14 天)
-          rangeStart = DateTime(_selectedDate.year, _selectedDate.month, 1, 0, 0, 0).subtract(const Duration(days: 14)).toUtc();
-          rangeEnd = DateTime(_selectedDate.year, _selectedDate.month + 2, 0, 23, 59, 59).toUtc();
-        } else {
-          // 日時間軸模式：查詢單日涵蓋行程
-          rangeStart = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 0, 0, 0).toUtc();
-          rangeEnd = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59).toUtc();
-        }
-
-        final data = await Supabase.instance.client
-            .from('schedule_events')
-            .select()
-            .eq('profile_id', user.id)
-            .lte('start_at', rangeEnd.toIso8601String())
-            .gte('end_at', rangeStart.toIso8601String())
-            .order('start_at');
-
-        if (mounted) {
-          setState(() {
-            _events = (data as List).map((json) => ScheduleEvent.fromJson(json)).toList();
-          });
-        }
+      final List<ScheduleEvent>? events = await ScheduleService.instance.fetchOwnEventsInRange(
+        rangeStart: rangeStart,
+        rangeEnd: rangeEnd,
+      );
+      // events 是 null 代表沒有登入者，保留畫面上原本的行程
+      if (events != null && mounted) {
+        setState(() {
+          _events = events;
+        });
       }
     } catch (e) {
-      // ignore
+      // 讀取失敗時保留畫面上原本的行程
+      debugPrint('⚠️ [HomeScreen] 讀取行程失敗: $e');
     } finally {
       if (mounted) setState(() => _isLoadingEvents = false);
     }
@@ -335,56 +325,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserProfile() async {
-    if (isOfflineMode) {
-      final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _userName = prefs.getString('profile_name') ?? '王大同 業務代表';
-        _userEmail = 'offline@insurance.helper';
-        _userAvatarUrl = prefs.getString('profile_avatar_url') ?? '';
-        _userRole = UserRole.agent;
-        _activeViewRole = UserRole.agent;
-      });
-      return;
-    }
+    final UserProfileSummary? profile = await ProfileService.instance.loadCurrentUserSummary();
+    // profile 是 null 代表沒有登入者，保留畫面上原本的資料
+    if (profile == null || !mounted) return;
 
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user != null) {
-        // Query from profiles table
-        final data = await supabase
-            .from('profiles')
-            .select('full_name, email, avatar_url, role')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (mounted) {
-          setState(() {
-            if (data != null && data['full_name'] != null) {
-              _userName = data['full_name'];
-            } else {
-              _userName = user.userMetadata?['full_name'] ?? '新業務代表';
-            }
-            _userEmail = data?['email'] ?? user.email ?? '';
-            _userAvatarUrl = data?['avatar_url'] ?? '';
-            if (data != null && data['role'] != null) {
-              final fetchedRole = UserRole.fromString(data['role'] as String);
-              _userRole = fetchedRole;
-              _activeViewRole = fetchedRole;
-            }
-          });
-        }
+    setState(() {
+      _userName = profile.name;
+      _userEmail = profile.email;
+      _userAvatarUrl = profile.avatarUrl;
+      // 有讀到角色才更新，讀取失敗時維持原本的角色
+      final UserRole? fetchedRole = profile.role;
+      if (fetchedRole != null) {
+        _userRole = fetchedRole;
+        _activeViewRole = fetchedRole;
       }
-    } catch (e) {
-      if (mounted) {
-        final user = Supabase.instance.client.auth.currentUser;
-        setState(() {
-          _userName = user?.userMetadata?['full_name'] ?? user?.email ?? '業務代表';
-          _userEmail = user?.email ?? '';
-          _userAvatarUrl = '';
-        });
-      }
-    }
+    });
   }
 
   // Sign out handler
