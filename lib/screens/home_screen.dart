@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../main.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
@@ -30,6 +29,8 @@ import 'admin_dashboard_tab.dart';
 import 'dev_console_screen.dart';
 import 'relationship_topology_tab.dart';
 import 'data_dashboard_tab.dart';
+import 'home/home_menu.dart';
+import 'home/home_sidebar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,19 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime _selectedDate = DateTime.now(); // Default to dynamic current time
   String _activeMenu = '今日行程';
 
-  String _getLocalizedMenuTitle(String menu) {
-    if (menu == '👑 團隊戰情室') return '👑 團隊戰情室';
-    if (menu == '🛠️ 實體服務診斷') return '🛠️ 實體服務診斷';
-    if (menu == '今日行程') return context.l10n('today_schedule');
-    if (menu == '客戶管理') return context.l10n('customer_mgmt');
-    if (menu == '專案拜訪') return context.l10n('project_visits');
-    if (menu == '人脈拓撲') return context.l10n('relationship_topology');
-    if (menu == '數據戰情') return context.l10n('data_dashboard');
-    if (menu == '個人帳號') return context.l10n('personal_account');
-    if (menu == '系統設定') return context.l10n('system_settings');
-    if (menu == '垃圾桶') return context.l10n('trash_bin');
-    return menu;
-  }
   bool _isSidebarCollapsed = false;
   bool _isSidebarHovered = false;
 
@@ -272,6 +260,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // 「懸停自動展開」：側邊欄收合時，滑鼠移進去暫時展開，移出再收回
+  void _handleSidebarPointerEnter() {
+    final bool isHoverExpandActive = AppSettings.instance.isSidebarHoverExpandEnabled;
+    if (isHoverExpandActive && _isSidebarCollapsed && !_isSidebarHovered) {
+      setState(() {
+        _isSidebarHovered = true;
+      });
+    }
+  }
+
+  void _handleSidebarPointerExit() {
+    final bool isHoverExpandActive = AppSettings.instance.isSidebarHoverExpandEnabled;
+    if (isHoverExpandActive && _isSidebarHovered) {
+      setState(() {
+        _isSidebarHovered = false;
+      });
+    }
+  }
+
   void _handleSettingsChanged() {
     if (mounted) {
       setState(() {
@@ -421,221 +428,33 @@ class _HomeScreenState extends State<HomeScreen> {
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
 
-    // Sidebar navigation content
+    // 側邊欄（電腦版放左邊，手機版放在抽屜裡）
     Widget sidebarContent() {
-      final isHoverExpandActive = AppSettings.instance.isSidebarHoverExpandEnabled;
-      return MouseRegion(
-        onEnter: (_) {
-          if (isHoverExpandActive && _isSidebarCollapsed && !_isSidebarHovered) {
-            setState(() {
-              _isSidebarHovered = true;
-            });
-          }
+      return HomeSidebar(
+        activeMenu: _activeMenu,
+        isCollapsed: _effectiveSidebarCollapsed,
+        isWideScreen: isWideScreen,
+        userName: _userName,
+        userEmail: _userEmail,
+        userAvatarUrl: _userAvatarUrl,
+        userRole: _userRole,
+        activeViewRole: _activeViewRole,
+        onMenuSelected: _changeActiveMenu,
+        onReturnToDevView: () {
+          setState(() {
+            _activeViewRole = UserRole.dev;
+            _activeMenu = '🛠️ 實體服務診斷';
+          });
         },
-        onExit: (_) {
-          if (isHoverExpandActive && _isSidebarHovered) {
-            setState(() {
-              _isSidebarHovered = false;
-            });
-          }
+        onToggleCollapse: () {
+          setState(() {
+            _isSidebarCollapsed = !_isSidebarCollapsed;
+            _isSidebarHovered = false; // 手動收合／展開時，重設懸停狀態
+          });
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          color: sidebarBg,
-          width: _effectiveSidebarCollapsed ? 80 : 260,
-          child: Column(
-            children: [
-              // Header Profile Area
-              InkWell(
-                onTap: () {
-                  _changeActiveMenu('個人帳號');
-                  if (MediaQuery.of(context).size.width < 768) {
-                    Navigator.of(context).pop(); // Close drawer on mobile
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: borderColor, width: 1),
-                    ),
-                  ),
-                  child: _effectiveSidebarCollapsed
-                      ? Center(
-                          child: CircleAvatar(
-                            backgroundColor: primaryColor,
-                            radius: 20,
-                            backgroundImage: _getAvatarProvider(_userAvatarUrl),
-                            child: _userAvatarUrl.isEmpty
-                                ? Text(
-                                    _userName.isNotEmpty ? _userName.substring(0, 1) : '?',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                        )
-                      : Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: primaryColor,
-                              radius: 20,
-                              backgroundImage: _getAvatarProvider(_userAvatarUrl),
-                              child: _userAvatarUrl.isEmpty
-                                  ? Text(
-                                      _userName.isNotEmpty ? _userName.substring(0, 1) : '?',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _userName,
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    isOfflineMode ? '離線模式' : _userEmail,
-                                    style: TextStyle(
-                                      color: isOfflineMode ? Colors.amber : subTextColor,
-                                      fontSize: 11,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (_userRole == UserRole.dev && _activeViewRole != UserRole.dev) ...[
-                                    const SizedBox(height: 6),
-                                    InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          _activeViewRole = UserRole.dev;
-                                          _activeMenu = '🛠️ 實體服務診斷';
-                                        });
-                                        CustomToast.show(context, '已退出模擬，返回核心開發者控制台', ToastType.success);
-                                      },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF6366F1).withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.4)),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.developer_board_rounded, size: 12, color: Color(0xFF6366F1)),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                '🛠️ ${_activeViewRole.shortLabel}模式 (切回工程師)',
-                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF6366F1)),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-
-              // Navigation Items (Dynamically transformed by _activeViewRole)
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  children: [
-                    if (_activeViewRole == UserRole.admin) ...[
-                      _buildSidebarItem(Icons.admin_panel_settings_outlined, '👑 團隊戰情室', isDark, primaryColor),
-                      _buildSidebarItem(Icons.people_outline, '客戶管理', isDark, primaryColor),
-                      _buildSidebarItem(Icons.assignment_outlined, '專案拜訪', isDark, primaryColor),
-                      _buildSidebarItem(Icons.hub_outlined, '人脈拓撲', isDark, primaryColor),
-                      _buildSidebarItem(Icons.bar_chart_outlined, '數據戰情', isDark, primaryColor),
-                      _buildSidebarItem(Icons.newspaper_outlined, '新聞頭條', isDark, primaryColor),
-                      _buildSidebarItem(Icons.account_circle_outlined, '個人帳號', isDark, primaryColor),
-                      _buildSidebarItem(Icons.settings_outlined, '系統設定', isDark, primaryColor),
-                    ] else if (_activeViewRole == UserRole.dev) ...[
-                      _buildSidebarItem(Icons.developer_board_outlined, '🛠️ 實體服務診斷', isDark, primaryColor),
-                      _buildSidebarItem(Icons.account_circle_outlined, '個人帳號', isDark, primaryColor),
-                      _buildSidebarItem(Icons.settings_outlined, '系統設定', isDark, primaryColor),
-                    ] else ...[
-                      _buildSidebarItem(Icons.calendar_today_outlined, '今日行程', isDark, primaryColor),
-                      _buildSidebarItem(Icons.people_outline, '客戶管理', isDark, primaryColor),
-                      _buildSidebarItem(Icons.assignment_outlined, '專案拜訪', isDark, primaryColor),
-                      _buildSidebarItem(Icons.hub_outlined, '人脈拓撲', isDark, primaryColor),
-                      _buildSidebarItem(Icons.bar_chart_outlined, '數據戰情', isDark, primaryColor),
-                      _buildSidebarItem(Icons.newspaper_outlined, '新聞頭條', isDark, primaryColor),
-                      _buildSidebarItem(Icons.delete_outline, '垃圾桶', isDark, primaryColor),
-                      _buildSidebarItem(Icons.account_circle_outlined, '個人帳號', isDark, primaryColor),
-                      _buildSidebarItem(Icons.settings_outlined, '系統設定', isDark, primaryColor),
-                    ],
-                  ],
-                ),
-              ),
-
-              // Collapse button (Desktop only)
-              if (isWideScreen)
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _isSidebarCollapsed = !_isSidebarCollapsed;
-                      _isSidebarHovered = false; // Reset hover if manually toggled
-                    });
-                  },
-                  icon: Icon(
-                    _effectiveSidebarCollapsed ? Icons.chevron_right : Icons.chevron_left,
-                    color: subTextColor,
-                  ),
-                ),
-
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: borderColor, width: 1),
-                  ),
-                ),
-                child: _effectiveSidebarCollapsed
-                    ? IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.redAccent),
-                        onPressed: _handleSignOut,
-                      )
-                    : Material(
-                        color: Colors.transparent,
-                        child: ListTile(
-                          leading: const Icon(Icons.logout, color: Colors.redAccent),
-                          title: Text(context.l10n('logout_system'), style: const TextStyle(color: Colors.redAccent)),
-                          onTap: _handleSignOut,
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
+        onPointerEnter: _handleSidebarPointerEnter,
+        onPointerExit: _handleSidebarPointerExit,
+        onSignOut: _handleSignOut,
       );
     }
 
@@ -647,7 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? null
               : AppBar(
                   title: Text(
-                    _getLocalizedMenuTitle(_activeMenu),
+                    localizedMenuTitle(context, _activeMenu),
                     style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
                   ),
                   iconTheme: IconThemeData(color: textColor),
@@ -808,60 +627,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Helper to build sidebar item
-  Widget _buildSidebarItem(IconData icon, String title, bool isDark, Color primaryColor) {
-    final bool isActive = _activeMenu == title;
-    final Color activeBg = primaryColor.withOpacity(0.15);
-    final Color inactiveText = isDark ? Colors.white70 : Colors.black87;
-
-    final String displayTitle = _getLocalizedMenuTitle(title);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: InkWell(
-        onTap: () {
-          _changeActiveMenu(title);
-          if (MediaQuery.of(context).size.width < 768) {
-            Navigator.of(context).pop(); // Close drawer on mobile
-          }
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? activeBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: _effectiveSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-            children: [
-              Icon(
-                icon,
-                color: isActive ? primaryColor : inactiveText,
-                size: 20,
-              ),
-              if (!_effectiveSidebarCollapsed) ...[
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    displayTitle,
-                    style: TextStyle(
-                      color: isActive ? primaryColor : inactiveText,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // Web Header (Desktop top bar)
   Widget _buildWebHeader(bool isDark, Color textColor, Color subTextColor, Color borderColor) {
     return Container(
@@ -874,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            _getLocalizedMenuTitle(_activeMenu),
+            localizedMenuTitle(context, _activeMenu),
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -3001,20 +2766,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-// Helper to parse Base64 or Network URL image provider
-ImageProvider? _getAvatarProvider(String avatarUrl) {
-  if (avatarUrl.isEmpty) return null;
-  if (avatarUrl.startsWith('data:image/') || avatarUrl.startsWith('data:application/')) {
-    try {
-      final base64String = avatarUrl.split(',').last;
-      return MemoryImage(base64Decode(base64String));
-    } catch (e) {
-      return null;
-    }
-  }
-  return NetworkImage(avatarUrl);
 }
 
 class _TimelineEventLayout {
