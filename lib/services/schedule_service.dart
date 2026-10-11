@@ -100,13 +100,25 @@ class ScheduleService {
     }
   }
 
-  /// 首頁「今日行程」用：讀取登入者在指定時間範圍內的行程。
+  /// 首頁「今日行程」用：依目前的視圖，讀取登入者在對應日期範圍內的行程。
   /// 和 fetchEvents 不同：不做 Google 日曆對齊、不寫入本地快取；讀取失敗會把錯誤往外丟，由畫面決定怎麼處理。
   /// 回傳 null 代表目前沒有登入者，畫面應保留原本的資料。
-  Future<List<ScheduleEvent>?> fetchOwnEventsInRange({
-    required DateTime rangeStart,
-    required DateTime rangeEnd,
+  Future<List<ScheduleEvent>?> fetchOwnEventsForView({
+    required DateTime selectedDate,
+    required String viewMode,
   }) async {
+    final DateTime rangeStart;
+    final DateTime rangeEnd;
+    if (viewMode == 'month_grid' || viewMode == 'agenda') {
+      // 月網格與議程清單：從當月 1 號往前 14 天，讀到下個月的最後一天
+      rangeStart = DateTime(selectedDate.year, selectedDate.month, 1, 0, 0, 0).subtract(const Duration(days: 14));
+      rangeEnd = DateTime(selectedDate.year, selectedDate.month + 2, 0, 23, 59, 59);
+    } else {
+      // 日時間軸：只讀選定那一天
+      rangeStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 0, 0, 0);
+      rangeEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59);
+    }
+
     User? user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       // 等待登入狀態初始化完成（解決首頁剛開啟時讀取為空的問題）
