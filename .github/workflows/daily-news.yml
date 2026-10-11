@@ -12,23 +12,23 @@ jobs:
     steps:
       - name: 🚀 Trigger Supabase Edge Function (fetch-insurance-news)
         env:
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEWS_CRON_SECRET: ${{ secrets.NEWS_CRON_SECRET }}
         run: |
           echo "Sending POST request to fetch-insurance-news Edge Function..."
           
-          # 沒設定 Secret 就直接失敗，避免不帶金鑰呼叫、問題被藏起來
-          if [ -z "$SERVICE_KEY" ]; then
-            echo "❌ Error: GitHub Secret SUPABASE_SERVICE_ROLE_KEY 尚未設定"
+          # 沒設定 Secret 就直接失敗，避免不帶密碼呼叫、問題被藏起來
+          if [ -z "$NEWS_CRON_SECRET" ]; then
+            echo "❌ Error: GitHub Secret NEWS_CRON_SECRET 尚未設定"
             exit 1
           fi
 
+          # 函式不檢查 JWT（Verify JWT 關閉），改由函式比對 x-news-cron-secret 排程密碼
           # User-Agent 標上來源 repo，方便在 Supabase 函式紀錄分辨是誰觸發的
           response=$(curl -s -w "\n%{http_code}" -X POST \
             -A "jingxuan-app/daily-news" \
             "https://algufuoxkeizxwkofmmp.supabase.co/functions/v1/fetch-insurance-news" \
             -H "Content-Type: application/json" \
-            -H "apikey: $SERVICE_KEY" \
-            -H "Authorization: Bearer $SERVICE_KEY")
+            -H "x-news-cron-secret: $NEWS_CRON_SECRET")
           
           http_code=$(echo "$response" | tail -n 1)
           body=$(echo "$response" | sed '$d')

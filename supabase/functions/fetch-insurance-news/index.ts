@@ -4,10 +4,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+// 排程專用密碼：只有帶著這把密碼的請求（GitHub Actions 每日排程）才能觸發新聞更新
+const NEWS_CRON_SECRET = Deno.env.get('NEWS_CRON_SECRET') ?? '';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-news-cron-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
 };
 
@@ -249,6 +251,24 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // 伺服器設定不完整時直接停止，避免用錯誤的權限寫入資料庫
+  if (!NEWS_CRON_SECRET || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[fetch-insurance-news] 缺少 NEWS_CRON_SECRET 或 SUPABASE_SERVICE_ROLE_KEY 環境變數');
+    return new Response(
+      JSON.stringify({ success: false, error: 'Server configuration error' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
+  }
+
+  // 檢查呼叫者身分：密碼對不上就拒絕，防止任何人用網站公開的金鑰重複觸發、消耗 Groq 額度
+  const requestSecret: string = req.headers.get('x-news-cron-secret') ?? '';
+  if (requestSecret !== NEWS_CRON_SECRET) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Unauthorized' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+    );
+  }
+
   try {
     console.log('[fetch-insurance-news] 開始抓取多源 RSS 新聞 (包含 Google News, 金管會, 金融新聞)...');
 
@@ -320,11 +340,8 @@ serve(async (req) => {
     console.log('[fetch-insurance-news] 呼叫 Groq AI 聚類歸納與今日大勢趨勢...');
     const result = await clusterNewsWithGroq(uniqueItems);
 
-    // 初始化 Supabase Service Role Client (支援 Deno Secret 與 Request Header 雙軌 Auth 回退)
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-    const serviceKey = SUPABASE_SERVICE_ROLE_KEY || bearerToken || Deno.env.get('SUPABASE_ANON_KEY') || '';
-    const supabaseClient = createClient(SUPABASE_URL, serviceKey);
+    // 寫入新聞一律使用伺服器端的 service role 金鑰，不使用呼叫者帶來的 token
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     // 使用台灣時間 (Asia/Taipei UTC+8) 取得當前正確日期 YYYY-MM-DD，解決 UTC 22:00 (台灣時間 06:00) 日期誤判為前一日之 Bug
     const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
 
