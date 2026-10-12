@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
@@ -7,7 +8,6 @@ import '../services/app_settings.dart';
 import '../models/schedule_event.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/voice_scheduler_fab.dart';
-import 'login_screen.dart';
 import 'customer_management_tab.dart';
 import 'visit_projects_tab.dart';
 import 'settings_screen.dart';
@@ -16,6 +16,9 @@ import 'trash_bin_screen.dart';
 import 'insurance_news_tab.dart';
 import '../widgets/spotlight_tour_overlay.dart';
 import '../models/user_role.dart';
+import '../router/app_router.dart';
+import '../router/app_routes.dart';
+import '../services/auth_status_service.dart';
 import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../services/schedule_service.dart';
@@ -23,15 +26,19 @@ import 'admin_dashboard_tab.dart';
 import 'dev_console_screen.dart';
 import 'relationship_topology_tab.dart';
 import 'data_dashboard_tab.dart';
-import 'home/home_placeholder_page.dart';
 import 'home/home_sidebar.dart';
 import 'home/home_top_bar.dart';
+import 'home/not_found_page.dart';
 import 'home/schedule/schedule_dialogs.dart';
 import 'home/schedule/schedule_page.dart';
 import 'home/schedule/schedule_page_state.dart';
 
+/// 登入後的外殼（側邊欄＋頂欄＋內容區）。
+/// 目前顯示哪一頁由網址決定：路由把網址轉成選單名稱 [activeMenu] 傳進來。
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String activeMenu;
+
+  const HomeScreen({super.key, required this.activeMenu});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -39,7 +46,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   DateTime _selectedDate = DateTime.now(); // Default to dynamic current time
-  String _activeMenu = '今日行程';
+  String get _activeMenu => widget.activeMenu;
 
   bool _isSidebarCollapsed = false;
   bool _isSidebarHovered = false;
@@ -80,10 +87,27 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     _loadUserProfile();
-    _loadSavedMenu().then((_) {
+    _loadSavedViewMode().then((_) {
       if (mounted) _fetchEventsForSelectedDate(silent: true);
     });
     _fetchEventsForSelectedDate();
+    _showRouteNoticeAfterBuild();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 網址換頁時，守門規則可能留了提示（例如沒有權限開啟此頁）
+    _showRouteNoticeAfterBuild();
+  }
+
+  void _showRouteNoticeAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final String? warningMessage = RouteNotice.takeWarning();
+      if (warningMessage != null && mounted) {
+        CustomToast.show(context, warningMessage, ToastType.warning);
+      }
+    });
   }
 
   @override
@@ -225,16 +249,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadSavedMenu() async {
+  // 讀回上次選的行事曆視圖（日／月／議程）；在哪一頁改由網址記住
+  Future<void> _loadSavedViewMode() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedMenu = prefs.getString('last_active_menu');
       final savedViewMode = prefs.getString('calendar_view_mode');
-      if (savedMenu != null && mounted) {
-        setState(() {
-          _activeMenu = savedMenu;
-        });
-      }
       if (savedViewMode != null && mounted) {
         setState(() {
           _calendarViewMode = savedViewMode;
@@ -257,17 +276,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _changeActiveMenu(String menu) async {
+  // 換頁＝前往該選單的網址
+  void _changeActiveMenu(String menu) {
     if (!mounted) return;
-    setState(() {
-      _activeMenu = menu;
-    });
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_active_menu', menu);
-    } catch (e) {
-      // ignore
-    }
+    context.go(AppRoutes.pathForMenu(menu));
   }
 
   Future<void> _loadUserProfile() async {
@@ -290,16 +302,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Sign out handler
   Future<void> _handleSignOut() async {
+    // 離線預覽：結束預覽後，守門規則會自動帶回登入頁
     if (isOfflineMode) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      AuthStatusService.instance.leaveOfflinePreview();
       return;
     }
 
     try {
       await Supabase.instance.client.auth.signOut();
-      // AuthGateway reactively handles returning to LoginScreen.
+      // 登出後守門規則會自動帶回登入頁
     } catch (e) {
       if (mounted) {
         CustomToast.show(context, '登出失敗: $e', ToastType.error);
@@ -339,8 +350,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onReturnToDevView: () {
           setState(() {
             _activeViewRole = UserRole.dev;
-            _activeMenu = '🛠️ 實體服務診斷';
           });
+          context.go(AppRoutes.dev);
         },
         onToggleCollapse: () {
           setState(() {
@@ -444,13 +455,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case '新聞頭條':
         return const InsuranceNewsTab();
       case '客戶管理':
-        return CustomerManagementTab(
-          onMenuChanged: (String menu) {
-            setState(() {
-              _activeMenu = menu;
-            });
-          },
-        );
+        return const CustomerManagementTab();
       case '專案拜訪':
         return const VisitProjectsTab();
       case '人脈拓撲':
@@ -467,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case '系統設定':
         return const SettingsScreen();
       default:
-        return HomePlaceholderPage(activeMenu: _activeMenu);
+        return const NotFoundPage();
     }
   }
 
@@ -475,14 +480,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _switchViewRole(UserRole newRole) {
     setState(() {
       _activeViewRole = newRole;
-      if (newRole == UserRole.admin) {
-        _activeMenu = '👑 團隊戰情室';
-      } else if (newRole == UserRole.dev) {
-        _activeMenu = '🛠️ 實體服務診斷';
-      } else {
-        _activeMenu = '今日行程';
-      }
     });
+    if (newRole == UserRole.admin) {
+      context.go(AppRoutes.admin);
+    } else if (newRole == UserRole.dev) {
+      context.go(AppRoutes.dev);
+    } else {
+      context.go(AppRoutes.schedule);
+    }
   }
 }
 

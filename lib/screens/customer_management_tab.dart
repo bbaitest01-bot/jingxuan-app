@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../main.dart';
+import '../router/app_routes.dart';
 import '../services/app_settings.dart';
 import '../services/tag_categorizer.dart';
 import '../services/tag_manager_service.dart';
@@ -22,8 +24,7 @@ import '../services/customer_relationship_service.dart';
 
 
 class CustomerManagementTab extends StatefulWidget {
-  final ValueChanged<String>? onMenuChanged;
-  const CustomerManagementTab({super.key, this.onMenuChanged});
+  const CustomerManagementTab({super.key});
 
   @override
   State<CustomerManagementTab> createState() => _CustomerManagementTabState();
@@ -47,6 +48,12 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
 
   @override
   bool get wantKeepAlive => true;
+
+  // 提示上的「前往垃圾桶」：前往垃圾桶網址
+  void _goToTrashBin() {
+    if (!mounted) return;
+    context.go(AppRoutes.trash);
+  }
 
   @override
   void initState() {
@@ -233,7 +240,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           final user = supabase.auth.currentUser;
           if (user == null) throw Exception('使用者未登入');
 
-          final extension = imageName != null && imageName.contains('.') 
+          final extension = imageName.contains('.') 
               ? imageName.split('.').last 
               : 'jpg';
           final cleanExtension = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(extension) ? extension : 'jpg';
@@ -324,7 +331,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           final user = supabase.auth.currentUser;
           if (user == null) throw Exception('使用者未登入');
 
-          final extension = imageName != null && imageName.contains('.') 
+          final extension = imageName.contains('.') 
               ? imageName.split('.').last 
               : 'jpg';
           final cleanExtension = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(extension) ? extension : 'jpg';
@@ -403,9 +410,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           ToastType.success,
           actionLabel: context.l10n('trash_bin_goto'),
           onActionPressed: () {
-            if (widget.onMenuChanged != null) {
-              widget.onMenuChanged!('垃圾桶');
-            }
+            _goToTrashBin();
           },
         );
       }
@@ -498,9 +503,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           ToastType.success,
           actionLabel: context.l10n('trash_bin_goto'),
           onActionPressed: () {
-            if (widget.onMenuChanged != null) {
-              widget.onMenuChanged!('垃圾桶');
-            }
+            _goToTrashBin();
           },
         );
       }
@@ -528,9 +531,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           ToastType.success,
           actionLabel: context.l10n('trash_bin_goto'),
           onActionPressed: () {
-            if (widget.onMenuChanged != null) {
-              widget.onMenuChanged!('垃圾桶');
-            }
+            _goToTrashBin();
           },
         );
       }
@@ -1204,7 +1205,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
                           ),
                         ),
                       ),
-                      if (selectedImageBytes != null || (!isImageCleared && isEdit && customer?['avatar_url'] != null && customer!['avatar_url'].isNotEmpty)) ...[
+                      if (selectedImageBytes != null || (!isImageCleared && isEdit && customer['avatar_url'] != null && customer['avatar_url'].isNotEmpty)) ...[
                         const SizedBox(height: 8),
                         Center(
                           child: TextButton.icon(
@@ -1456,69 +1457,6 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           },
         );
       },
-    );
-  }
-
-  // Helper: Build Categorized Tag Section (2x Enlarged Chips)
-  Widget _buildCategorizedTagSection(
-    BuildContext context, {
-    required String title,
-    required List<String> tags,
-    required bool isDark,
-    required TextEditingController tagsController,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white70 : Colors.black54,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: tags.map((pTag) {
-            final style = TagCategorizer.getStyle(pTag, isDark);
-            return InkWell(
-              onTap: () {
-                final current = tagsController.text.trim();
-                if (!current.contains(pTag)) {
-                  tagsController.text = current.isEmpty ? pTag : '$current, $pTag';
-                }
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: style.backgroundColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: style.textColor.withOpacity(0.4), width: 1.5),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add, size: 16, color: style.textColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      pTag,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: style.textColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
 
@@ -2689,74 +2627,6 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 14, color: Colors.white),
-      label: Text(label, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withOpacity(0.15),
-        foregroundColor: color,
-        shadowColor: Colors.transparent,
-        side: BorderSide(color: color.withOpacity(0.3), width: 1),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String title, String value) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color iconColor = isDark ? Colors.white30 : Colors.black45;
-    final Color valueColor = value == '未填寫' 
-        ? (isDark ? Colors.white30 : Colors.black38) 
-        : primaryColor;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: iconColor),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(color: iconColor, fontSize: 11),
-              ),
-              const SizedBox(height: 2),
-              GestureDetector(
-                onTap: () {
-                  if (value != '未填寫') {
-                    Clipboard.setData(ClipboardData(text: value));
-                    CustomToast.show(context, '已複製 $title: $value', ToastType.success);
-                  }
-                },
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    color: valueColor,
-                    fontSize: 13,
-                    decoration: value == '未填寫' ? null : TextDecoration.underline,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showEditCustomerRelationshipsDialog(Map<String, dynamic> customer) async {
     final customerId = customer['id'].toString();
     String? currentReferralId = customer['referral_source_id']?.toString();
@@ -3292,7 +3162,6 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = AppSettings.instance.primaryColor;
     final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
 
     return Card(
