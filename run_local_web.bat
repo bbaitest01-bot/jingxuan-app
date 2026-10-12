@@ -26,10 +26,11 @@ echo [3/3] Starting HTTP Server on Port 8080...
 echo You can preview the web app at http://localhost:8080
 echo Keep this window open. Press Ctrl+C to stop.
 echo.
+REM --proxy: files that do not exist (e.g. /customers) fall back to index.html for URL routing
 where npx >nul 2>nul
 if %ERRORLEVEL% equ 0 (
-  npx -y http-server build/web -p 8080
+  npx -y http-server build/web -p 8080 --proxy http://localhost:8080?
 ) else (
-  python -m http.server 8080 --directory build/web
+  python tool/serve_spa.py 8080 build/web
 )
 pause

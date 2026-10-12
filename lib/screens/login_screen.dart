@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
-import '../models/user_role.dart';
 import '../widgets/forgot_password_dialog.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/custom_toast.dart';
-import 'home_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../router/app_routes.dart';
+import '../services/auth_error_messages.dart';
+import '../services/auth_status_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -23,7 +24,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _teamCodeController = TextEditingController(text: 'TAIPEI-01');
-  UserRole _selectedRole = UserRole.agent;
   bool _isLoading = false;
   bool _isSignUp = false;
   bool _obscurePassword = true;
@@ -38,7 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _checkUrlErrors() {
     if (kIsWeb) {
-      final uri = Uri.base;
+      // 守門規則把驗證錯誤參數帶到登入頁網址上，從目前路由讀取
+      final uri = GoRouterState.of(context).uri;
       final error = uri.queryParameters['error'];
       final errorCode = uri.queryParameters['error_code'];
 
@@ -99,23 +100,14 @@ class _LoginScreenState extends State<LoginScreen> {
           redirectTo = 'http://localhost:8080';
         }
 
-        final prefs = await SharedPreferences.getInstance();
-        final bool enableAutoApproval =
-            prefs.getBool('enable_auto_approval') ?? false;
-        // Default to active during development so users do not get blocked by approval dialogs
-        final String status = enableAutoApproval ? 'active' : 'pending';
-
+        // 只送姓名與邀請碼；角色、帳號狀態、團隊一律由資料庫建立帳號時決定，前端不能指定
         final response = await supabase.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
           emailRedirectTo: redirectTo,
           data: {
             'full_name': _nameController.text.trim(),
-            'role': UserRole.agent
-                .value, // Public registration is strictly locked to 'agent'
             'team_code': _teamCodeController.text.trim(),
-            'team_name': '國泰台北第一通訊處',
-            'status': status,
           },
         );
 
@@ -135,42 +127,9 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // Ensure profiles table has explicit profile record for new user
-        if (response.user != null) {
-          try {
-            await supabase.from('profiles').upsert({
-              'id': response.user!.id,
-              'email': _emailController.text.trim(),
-              'full_name': _nameController.text.trim(),
-              'role': UserRole.agent.value,
-              'status': status,
-              'team_name': '國泰台北第一通訊處',
-            });
-          } catch (_) {}
-        }
-
         if (mounted) {
-          if (status == 'pending') {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('📋 帳號提交成功（待審核）'),
-                content: Text(
-                  '您的帳號已成功註冊！\n'
-                  '申請通訊處：國泰台北第一通訊處 (${_teamCodeController.text.trim()})\n'
-                  '申請身分：${UserRole.agent.labelZh}\n\n'
-                  '目前為企業嚴格模式，需等待同通訊處團隊主管審核開通後方可登入使用。',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('我知道了'),
-                  ),
-                ],
-              ),
-            );
-          } else if (response.session == null) {
-            // Email confirmation required by Supabase project
+          // 需要驗證信箱時（Supabase 沒有直接給登入狀態），提醒使用者去收驗證信
+          if (response.session == null) {
             showDialog(
               context: context,
               builder: (ctx) => AlertDialog(
@@ -179,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   '您的帳號已成功建立！\n'
                   '驗證信已寄送至：${_emailController.text.trim()}\n\n'
                   '📌 登入指引：\n'
-                  '1. 請至 Email 收件匣點擊驗證連結。\n'
+                  '1. 請至 Email 收件匣點擊驗證連結（沒收到請檢查垃圾郵件）。\n'
                   '2. 💡【重要提示】若您目前使用「無痕模式」，點擊 Email 連結後請將開啟的網址「複製並貼回此無痕視窗」，驗證方可生效。\n'
                   '3. 完成驗證後，點擊下方「返回登入」即可直接輸入密碼登入！',
                 ),
@@ -213,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
           } else {
             CustomToast.show(
               context,
-              '註冊成功！帳號已開通並自動登入。',
+              '註冊成功！已自動登入。',
               ToastType.success,
             );
           }
@@ -230,15 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on AuthException catch (e) {
       if (mounted) {
-        String msg = e.message;
-        if (msg.contains('User already registered') ||
-            msg.contains('already exists')) {
-          msg = '此 Email 已被註冊！請直接切換至「業務員登入」或點擊「忘記密碼」。';
-        } else if (msg.contains('Password should be at least')) {
-          msg = '密碼長度不足，請輸入至少 6 位字元。';
-        } else if (msg.contains('Invalid login credentials')) {
-          msg = '帳號尚未註冊或密碼錯誤，請重新確認。';
-        } else if (msg.contains('Email not confirmed')) {
+        // 信箱還沒驗證：提示並提供「重發驗證信」；其他錯誤翻成中文顯示
+        if (e.message.contains('Email not confirmed')) {
           CustomToast.show(
             context,
             '電子信箱尚未完成驗證！請至 Email 收件匣點擊「最新的」驗證連結。',
@@ -263,14 +215,14 @@ class _LoginScreenState extends State<LoginScreen> {
               } catch (resendErr) {
                 if (mounted) {
                   CustomToast.show(
-                      context, '重發失敗: $resendErr', ToastType.error);
+                      context, '重發失敗：${translateAuthError(resendErr)}', ToastType.error);
                 }
               }
             },
           );
           return;
         }
-        CustomToast.show(context, msg, ToastType.error);
+        CustomToast.show(context, translateAuthError(e), ToastType.error);
       }
     } catch (e) {
       if (mounted) {
@@ -295,6 +247,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+
+    // Google 登入會離開網站再回到首頁，網址上的 from 會不見，先存起來，回來後才能導回原本的頁面
+    final String? fromLocation = GoRouterState.of(context).uri.queryParameters['from'];
+    await AuthStatusService.instance.saveReturnLocation(fromLocation);
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -824,11 +781,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
+                          // 離線預覽：標記已跳過登入，守門規則就會放行到今日行程
                           onPressed: () {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                  builder: (context) => const HomeScreen()),
-                            );
+                            AuthStatusService.instance.enterOfflinePreview();
+                            context.go(AppRoutes.schedule);
                           },
                           child: const Text(
                             '直接跳過登入',

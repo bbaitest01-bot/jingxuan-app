@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../widgets/custom_toast.dart';
-import 'login_screen.dart';
 
 class PendingApprovalScreen extends StatefulWidget {
   final String userEmail;
@@ -57,14 +56,8 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
   Future<void> _handleSignOut() async {
     try {
-      if (!isOfflineMode) {
-        await Supabase.instance.client.auth.signOut();
-      }
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
+      // 登出後守門規則會自動帶回登入頁
+      await Supabase.instance.client.auth.signOut();
     } catch (e) {
       if (mounted) {
         CustomToast.show(context, '登出失敗: $e', ToastType.error);

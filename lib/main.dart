@@ -1,12 +1,12 @@
 // Force Vercel rebuild - 2026-07-15 17:38
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/pending_approval_screen.dart';
-import 'screens/reset_password_screen.dart';
+import 'router/app_router.dart';
 import 'services/app_settings.dart';
+import 'services/auth_status_service.dart';
 import 'services/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -17,6 +17,8 @@ String offlineReason = '';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 網址不帶 #（/customers 而不是 /#/customers）
+  usePathUrlStrategy();
   await initializeDateFormatting('zh_TW', null);
   await initializeDateFormatting('en_US', null);
 
@@ -70,11 +72,22 @@ void main() async {
     }
   }
 
+  // 先讀好登入狀態與帳號狀態，路由守門才能在第一個畫面就判斷正確
+  await AuthStatusService.instance.start();
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // 路由只建立一次；切換主題或語言重畫時沿用同一個，才不會跳回登入頁
+  late final GoRouter _router = createAppRouter();
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +145,8 @@ class MyApp extends StatelessWidget {
           ),
         );
 
-        return MaterialApp(
+        return MaterialApp.router(
+          routerConfig: _router,
           title: '保險客戶管理助手',
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
@@ -156,110 +170,7 @@ class MyApp extends StatelessWidget {
                 ? const Locale('zh', 'TW')
                 : const Locale('en', 'US');
           },
-          home: const AuthGateway(),
         );
-      },
-    );
-  }
-}
-
-class AuthGateway extends StatefulWidget {
-  const AuthGateway({super.key});
-
-  @override
-  State<AuthGateway> createState() => _AuthGatewayState();
-}
-
-class _AuthGatewayState extends State<AuthGateway> {
-  bool _isPasswordRecovery = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isOfflineMode) {
-      // In offline mode, route directly to LoginScreen which shows the skip button
-      return const LoginScreen();
-    }
-
-    return StreamBuilder<AuthState>(
-      stream: Supabase.instance.client.auth.onAuthStateChange,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF00ADB5),
-              ),
-            ),
-          );
-        }
-
-        final event = snapshot.data?.event;
-        if (event == AuthChangeEvent.passwordRecovery) {
-          _isPasswordRecovery = true;
-        }
-
-        // Full-screen dedicated reset password screen (Isolated & Non-bypassable)
-        if (_isPasswordRecovery) {
-          return ResetPasswordScreen(
-            onCompleted: () {
-              if (mounted) {
-                setState(() {
-                  _isPasswordRecovery = false;
-                });
-              }
-            },
-          );
-        }
-
-        final session = snapshot.data?.session ??
-            Supabase.instance.client.auth.currentSession;
-        if (session != null) {
-          OfflineDataStore.ensureOwner(session.user.id);
-          // Check profile status from Supabase to enforce pending approval gate
-          return FutureBuilder<Map<String, dynamic>?>(
-            future: Supabase.instance.client
-                .from('profiles')
-                .select('status, role')
-                .eq('id', session.user.id)
-                .maybeSingle(),
-            builder: (context, profileSnap) {
-              if (profileSnap.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00ADB5)),
-                  ),
-                );
-              }
-              final profileData = profileSnap.data;
-              final status = profileData?['status'] as String?;
-              final role = profileData?['role'] as String? ?? 'agent';
-
-              // A missing or unknown status must never grant access.
-              if (profileData == null ||
-                  status == null ||
-                  status == 'deleted' ||
-                  status == 'suspended') {
-                return _AccessDeniedScreen(
-                  onSignOut: () => Supabase.instance.client.auth.signOut(),
-                );
-              }
-
-              // Pending users wait for approval unless they are the development account.
-              if (status == 'pending' && role != 'dev') {
-                return PendingApprovalScreen(
-                  userEmail: session.user.email ?? '',
-                  onRefreshStatus: () {
-                    if (mounted) setState(() {});
-                  },
-                );
-              }
-              return const HomeScreen();
-            },
-          );
-        } else {
-          OfflineDataStore.clear();
-          return const LoginScreen();
-        }
       },
     );
   }
@@ -283,40 +194,5 @@ class OfflineDataStore {
     customers = [];
     customerRelationships = [];
     scheduleEvents = [];
-  }
-}
-
-class _AccessDeniedScreen extends StatelessWidget {
-  const _AccessDeniedScreen({required this.onSignOut});
-
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_outline_rounded,
-                  size: 48, color: Color(0xFFEF4444)),
-              const SizedBox(height: 16),
-              const Text('此帳號目前無法使用系統',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('帳號可能已停用、刪除，或尚未完成設定；請聯絡管理員。',
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: onSignOut,
-                child: const Text('返回登入頁'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

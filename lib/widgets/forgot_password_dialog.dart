@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../services/app_localizations.dart';
+import '../services/auth_error_messages.dart';
 
 class ForgotPasswordDialog extends StatefulWidget {
   final String initialEmail;
@@ -78,7 +79,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = '發送失敗: $e';
+          _errorMessage = '發送失敗：${translateAuthError(e)}';
           _isLoading = false;
         });
       }

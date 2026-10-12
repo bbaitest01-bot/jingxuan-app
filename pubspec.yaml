@@ -76,6 +76,11 @@ dependencies:
   googleapis: ^13.2.0
   extension_google_sign_in_as_googleapis_auth: ^2.0.12
 
+  # URL routing (clean web URLs, login/role guards)
+  go_router: ^18.0.2
+  flutter_web_plugins:
+    sdk: flutter
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
