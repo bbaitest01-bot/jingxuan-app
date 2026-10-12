@@ -14,6 +14,9 @@ class CustomerCollectionView extends StatelessWidget {
   final Set<String> selectedCustomerIds;
   final CustomerCardActions actions;
 
+  /// false 時列表直接出現、不播淡入動畫（顯示上次暫存的資料時用）
+  final bool animateEntrance;
+
   const CustomerCollectionView({
     super.key,
     required this.customers,
@@ -24,6 +27,7 @@ class CustomerCollectionView extends StatelessWidget {
     required this.isSelectionMode,
     required this.selectedCustomerIds,
     required this.actions,
+    required this.animateEntrance,
   });
 
   @override
@@ -45,6 +49,7 @@ class CustomerCollectionView extends StatelessWidget {
         isSelectionMode: isSelectionMode,
         selectedCustomerIds: selectedCustomerIds,
         actions: actions,
+        animateEntrance: animateEntrance,
       );
     }
     return CustomerGridView(
@@ -54,6 +59,7 @@ class CustomerCollectionView extends StatelessWidget {
       isSelectionMode: isSelectionMode,
       selectedCustomerIds: selectedCustomerIds,
       actions: actions,
+      animateEntrance: animateEntrance,
     );
   }
 }

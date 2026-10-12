@@ -45,6 +45,24 @@ class CustomerService {
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
+  // 上次讀到的客戶名單與它屬於哪個登入者：回到客戶管理時先顯示，不用等重新讀取
+  List<Map<String, dynamic>>? _cachedCustomers;
+  String? _cachedForUserId;
+
+  /// 目前登入者上次讀到的客戶名單；沒有讀過、或換了人時回傳 null
+  List<Map<String, dynamic>>? cachedCustomersForCurrentUser() {
+    final List<Map<String, dynamic>>? cachedCustomers = _cachedCustomers;
+    if (cachedCustomers == null) return null;
+    if (_cachedForUserId == null || _cachedForUserId != currentUserId) return null;
+    return List<Map<String, dynamic>>.from(cachedCustomers);
+  }
+
+  /// 清掉暫存的客戶名單（登出或換人時呼叫）
+  void clearCache() {
+    _cachedCustomers = null;
+    _cachedForUserId = null;
+  }
+
   /// 目前登入者的 id；沒有登入時是 null
   String? get currentUserId => _supabase.auth.currentUser?.id;
 
@@ -68,7 +86,7 @@ class CustomerService {
         .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response.map((data) {
+    final List<Map<String, dynamic>> customers = List<Map<String, dynamic>>.from(response.map((data) {
       final profile = data['profiles'] as Map<String, dynamic>?;
       final String agentFullName = profile?['full_name'] as String? ?? '';
       final String agentEmail = profile?['email'] as String? ?? '';
@@ -100,6 +118,11 @@ class CustomerService {
         'deleted_at': data['deleted_at'],
       };
     }));
+
+    // 存一份給下次回到客戶管理時先顯示
+    _cachedCustomers = List<Map<String, dynamic>>.from(customers);
+    _cachedForUserId = currentUserId;
+    return customers;
   }
 
   /// 依搜尋文字與開發者範圍，篩出畫面要顯示的客戶
@@ -152,6 +175,18 @@ class CustomerService {
       fileOptions: const FileOptions(contentType: 'image/jpeg'),
     );
     return _supabase.storage.from('customer-photos').getPublicUrl(fileName);
+  }
+
+  /// 決定存檔時的大頭貼網址：清除照片就是空字串；選了新照片就先上傳；都沒有就沿用原本的網址。
+  /// 上傳失敗會丟出例外
+  Future<String> resolveAvatarUrl(CustomerFormData form, String existingAvatarUrl) async {
+    if (form.isImageCleared) return '';
+    final Uint8List? imageBytes = form.imageBytes;
+    final String? imageName = form.imageName;
+    if (imageBytes != null && imageName != null) {
+      return uploadAvatar(imageBytes, imageName);
+    }
+    return existingAvatarUrl;
   }
 
   /// 新增一位客戶（歸屬目前登入者）
