@@ -13,6 +13,11 @@ void main() {
     expect(translateAuthError(error), '帳號尚未註冊或密碼錯誤，請重新確認。');
   });
 
+  test('新密碼與舊密碼相同翻成中文', () {
+    const AuthException error = AuthException('New password should be different from the old password.', statusCode: '422');
+    expect(translateAuthError(error), '新密碼不能與舊密碼相同，請換一組新密碼。');
+  });
+
   test('對不到的錯誤保留原文', () {
     const AuthException error = AuthException('Something unexpected');
     expect(translateAuthError(error), 'Something unexpected');

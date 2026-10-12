@@ -21,6 +21,10 @@ String translateAuthError(Object error) {
   if (message.contains('User already registered') || message.contains('already exists')) {
     return '此 Email 已被註冊！請直接切換至「業務員登入」或點擊「忘記密碼」。';
   }
+  // 重設密碼時，新密碼和舊密碼一樣
+  if (message.contains('should be different from the old password')) {
+    return '新密碼不能與舊密碼相同，請換一組新密碼。';
+  }
   if (message.contains('Password should be at least')) {
     return '密碼長度不足，請輸入至少 6 位字元。';
   }

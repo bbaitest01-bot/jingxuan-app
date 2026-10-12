@@ -1,16 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
-import '../widgets/forgot_password_dialog.dart';
-import '../widgets/google_sign_in_button.dart';
-import '../widgets/custom_toast.dart';
-import 'package:go_router/go_router.dart';
 import '../router/app_routes.dart';
 import '../services/auth_error_messages.dart';
 import '../services/auth_status_service.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../services/login_service.dart';
+import '../widgets/custom_toast.dart';
+import '../widgets/forgot_password_dialog.dart';
+import 'login/login_form_card.dart';
+import 'login/login_offline_banner.dart';
+import 'login/signup_verify_dialog.dart';
 
+/// 登入頁（網址 /login）的外框：保管表單狀態，處理登入、註冊、Google 登入。
+/// 畫面區塊在 `login/` 資料夾；呼叫 Supabase 在 `LoginService`。
+/// 登入成功後不用自己換頁，守門規則會自動導到今日行程（或原本要去的網址）。
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -68,16 +73,12 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // 按下登入／註冊：檢查表單後，依目前模式註冊或登入
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (isOfflineMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('離線模式下無法註冊/登入。請填寫您的 .env 金鑰，或使用上方橫幅的「直接跳過登入」。'),
-          backgroundColor: Colors.amber,
-        ),
-      );
+      CustomToast.show(context, '離線模式下無法註冊/登入。請填寫您的 .env 金鑰，或使用上方橫幅的「直接跳過登入」。', ToastType.warning);
       return;
     }
 
@@ -86,100 +87,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final supabase = Supabase.instance.client;
       if (_isSignUp) {
-        // Sign up
-        String? redirectTo;
-        if (kIsWeb) {
-          final origin = Uri.base.origin;
-          redirectTo =
-              (origin.contains('localhost') && !origin.contains(':8080'))
-                  ? 'http://localhost:8080'
-                  : origin;
-        } else {
-          redirectTo = 'http://localhost:8080';
-        }
-
-        // 只送姓名與邀請碼；角色、帳號狀態、團隊一律由資料庫建立帳號時決定，前端不能指定
-        final response = await supabase.auth.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-          emailRedirectTo: redirectTo,
-          data: {
-            'full_name': _nameController.text.trim(),
-            'team_code': _teamCodeController.text.trim(),
-          },
-        );
-
-        // Precise check: Supabase returns user with empty identities list if email is already registered
-        if (response.user != null &&
-            (response.user!.identities?.isEmpty ?? false)) {
-          if (mounted) {
-            CustomToast.show(
-              context,
-              '⚠️ 此 Email (${_emailController.text.trim()}) 已經被註冊過囉！已為您帶入帳號並切換至登入模式。',
-              ToastType.warning,
-            );
-            setState(() {
-              _isSignUp = false;
-            });
-          }
-          return;
-        }
-
-        if (mounted) {
-          // 需要驗證信箱時（Supabase 沒有直接給登入狀態），提醒使用者去收驗證信
-          if (response.session == null) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('✉️ 帳號建立成功 (需驗證 Email)'),
-                content: Text(
-                  '您的帳號已成功建立！\n'
-                  '驗證信已寄送至：${_emailController.text.trim()}\n\n'
-                  '📌 登入指引：\n'
-                  '1. 請至 Email 收件匣點擊驗證連結（沒收到請檢查垃圾郵件）。\n'
-                  '2. 💡【重要提示】若您目前使用「無痕模式」，點擊 Email 連結後請將開啟的網址「複製並貼回此無痕視窗」，驗證方可生效。\n'
-                  '3. 完成驗證後，點擊下方「返回登入」即可直接輸入密碼登入！',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _isSignUp = false;
-                      });
-                    },
-                    child: const Text('返回登入'),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00ADB5),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () async {
-                      final url = Uri.parse('https://mail.google.com/');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url);
-                      }
-                    },
-                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                    label: const Text('開啟信箱'),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            CustomToast.show(
-              context,
-              '註冊成功！已自動登入。',
-              ToastType.success,
-            );
-          }
-        }
+        await _signUp();
       } else {
-        // Sign in
-        await supabase.auth.signInWithPassword(
+        await LoginService.instance.signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
@@ -191,35 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         // 信箱還沒驗證：提示並提供「重發驗證信」；其他錯誤翻成中文顯示
         if (e.message.contains('Email not confirmed')) {
-          CustomToast.show(
-            context,
-            '電子信箱尚未完成驗證！請至 Email 收件匣點擊「最新的」驗證連結。',
-            ToastType.warning,
-            actionLabel: '重發驗證信',
-            onActionPressed: () async {
-              final email = _emailController.text.trim();
-              if (email.isEmpty) {
-                CustomToast.show(
-                    context, '請先在上方填寫您的 Email 帳號', ToastType.warning);
-                return;
-              }
-              try {
-                await Supabase.instance.client.auth.resend(
-                  type: OtpType.signup,
-                  email: email,
-                );
-                if (mounted) {
-                  CustomToast.show(context, '全新驗證信已寄出！請至 Email 收件匣點擊最新信件。',
-                      ToastType.success);
-                }
-              } catch (resendErr) {
-                if (mounted) {
-                  CustomToast.show(
-                      context, '重發失敗：${translateAuthError(resendErr)}', ToastType.error);
-                }
-              }
-            },
-          );
+          _showEmailNotConfirmedToast();
           return;
         }
         CustomToast.show(context, translateAuthError(e), ToastType.error);
@@ -237,14 +120,73 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Email 註冊：已註冊過就切回登入模式；需要驗證信箱就顯示說明視窗
+  Future<void> _signUp() async {
+    final SignUpResult result = await LoginService.instance.signUp(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
+      fullName: _nameController.text.trim(),
+      teamCode: _teamCodeController.text.trim(),
+    );
+    if (!mounted) return;
+
+    if (result.isAlreadyRegistered) {
+      CustomToast.show(
+        context,
+        '⚠️ 此 Email (${_emailController.text.trim()}) 已經被註冊過囉！已為您帶入帳號並切換至登入模式。',
+        ToastType.warning,
+      );
+      setState(() {
+        _isSignUp = false;
+      });
+      return;
+    }
+
+    if (result.needsEmailVerification) {
+      showSignupVerifyDialog(
+        context,
+        email: _emailController.text.trim(),
+        onBackToLogin: () {
+          setState(() {
+            _isSignUp = false;
+          });
+        },
+      );
+    } else {
+      CustomToast.show(context, '註冊成功！已自動登入。', ToastType.success);
+    }
+  }
+
+  // 信箱尚未驗證的提示，附「重發驗證信」
+  void _showEmailNotConfirmedToast() {
+    CustomToast.show(
+      context,
+      '電子信箱尚未完成驗證！請至 Email 收件匣點擊「最新的」驗證連結。',
+      ToastType.warning,
+      actionLabel: '重發驗證信',
+      onActionPressed: () async {
+        final email = _emailController.text.trim();
+        if (email.isEmpty) {
+          CustomToast.show(context, '請先在上方填寫您的 Email 帳號', ToastType.warning);
+          return;
+        }
+        try {
+          await LoginService.instance.resendSignupEmail(email);
+          if (mounted) {
+            CustomToast.show(context, '全新驗證信已寄出！請至 Email 收件匣點擊最新信件。', ToastType.success);
+          }
+        } catch (resendErr) {
+          if (mounted) {
+            CustomToast.show(context, '重發失敗：${translateAuthError(resendErr)}', ToastType.error);
+          }
+        }
+      },
+    );
+  }
+
   Future<void> _handleGoogleSignIn() async {
     if (isOfflineMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('離線模式下無法使用 Google 登入。請使用上方橫幅的「直接跳過登入」。'),
-          backgroundColor: Colors.amber,
-        ),
-      );
+      CustomToast.show(context, '離線模式下無法使用 Google 登入。請使用上方橫幅的「直接跳過登入」。', ToastType.warning);
       return;
     }
 
@@ -258,32 +200,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final supabase = Supabase.instance.client;
-      String? redirectTo;
-      if (kIsWeb) {
-        final origin = Uri.base.origin;
-        redirectTo = (origin.contains('localhost') && !origin.contains(':8080'))
-            ? 'http://localhost:8080'
-            : origin;
-      } else {
-        redirectTo = 'http://localhost:8080';
-      }
-
-      await supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: redirectTo,
-        queryParams: {
-          'prompt': 'select_account',
-        },
-      );
+      await LoginService.instance.signInWithGoogle();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Google 登入發起失敗: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        CustomToast.show(context, 'Google 登入發起失敗: $e', ToastType.error);
       }
     } finally {
       if (mounted) {
@@ -294,6 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // 「常用信箱網域」：把選到的網域接在信箱後面（已經有 @ 就換掉原本的網域）
   void _appendEmailDomain(String domain) {
     final currentText = _emailController.text.trim();
     if (currentText.isEmpty) {
@@ -308,6 +229,25 @@ class _LoginScreenState extends State<LoginScreen> {
       TextPosition(offset: _emailController.text.length),
     );
     setState(() {});
+  }
+
+  // 切換登入／註冊模式；切到註冊時邀請碼空白就帶入預設值
+  void _toggleSignUpMode() {
+    setState(() {
+      _isSignUp = !_isSignUp;
+      if (_isSignUp && _teamCodeController.text.trim().isEmpty) {
+        _teamCodeController.text = 'TAIPEI-01';
+      }
+    });
+  }
+
+  void _openForgotPasswordDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => ForgotPasswordDialog(
+        initialEmail: _emailController.text.trim(),
+      ),
+    );
   }
 
   @override
@@ -372,369 +312,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Form Card
-                      Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(
-                            color: Color(0xFF1E293B), // Border color Slate 800
-                            width: 1,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                _isSignUp ? '建立業務帳號' : '業務員登入',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Name Input (Only shown on Sign Up)
-                              if (_isSignUp) ...[
-                                TextFormField(
-                                  controller: _nameController,
-                                  textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(
-                                    labelText: '姓名 (綽號就好惹~)',
-                                    hintText: '例：王大明',
-                                    prefixIcon: Icon(Icons.person_outline),
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return '請輸入姓名';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-
-                              // Email Input Label & Quick Domain Selector
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    '電子信箱',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                  PopupMenuButton<String>(
-                                    onSelected: _appendEmailDomain,
-                                    tooltip: '快速套用常用電子信箱網域',
-                                    offset: const Offset(0, 32),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    color: const Color(0xFF1E293B),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF00ADB5)
-                                            .withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: const Color(0xFF00ADB5)
-                                              .withOpacity(0.3),
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.alternate_email_rounded,
-                                              size: 14,
-                                              color: Color(0xFF00ADB5)),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            '常用信箱網域 ▾',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF00ADB5),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    itemBuilder: (BuildContext context) =>
-                                        <PopupMenuEntry<String>>[
-                                      const PopupMenuItem<String>(
-                                        value: '@gmail.com',
-                                        child: Row(
-                                          children: [
-                                            Text('🌐 ',
-                                                style: TextStyle(fontSize: 14)),
-                                            Text('Google ',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)),
-                                            Expanded(
-                                              child: Text('(@gmail.com)',
-                                                  style: TextStyle(
-                                                      color: Colors.white60,
-                                                      fontSize: 12),
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const PopupMenuItem<String>(
-                                        value: '@yahoo.com.tw',
-                                        child: Row(
-                                          children: [
-                                            Text('✉️ ',
-                                                style: TextStyle(fontSize: 14)),
-                                            Text('Yahoo 台灣 ',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)),
-                                            Expanded(
-                                              child: Text('(@yahoo.com.tw)',
-                                                  style: TextStyle(
-                                                      color: Colors.white60,
-                                                      fontSize: 12),
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const PopupMenuItem<String>(
-                                        value: '@outlook.com',
-                                        child: Row(
-                                          children: [
-                                            Text('💼 ',
-                                                style: TextStyle(fontSize: 14)),
-                                            Text('Outlook ',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)),
-                                            Expanded(
-                                              child: Text('(@outlook.com)',
-                                                  style: TextStyle(
-                                                      color: Colors.white60,
-                                                      fontSize: 12),
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const PopupMenuItem<String>(
-                                        value: '@icloud.com',
-                                        child: Row(
-                                          children: [
-                                            Text('🍏 ',
-                                                style: TextStyle(fontSize: 14)),
-                                            Text('Apple iCloud ',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white)),
-                                            Expanded(
-                                              child: Text('(@icloud.com)',
-                                                  style: TextStyle(
-                                                      color: Colors.white60,
-                                                      fontSize: 12),
-                                                  overflow:
-                                                      TextOverflow.ellipsis),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Email Input
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  hintText: '請輸入 Email 帳號',
-                                  prefixIcon: Icon(Icons.email_outlined),
-                                  border: OutlineInputBorder(),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return '請輸入 Email';
-                                  }
-                                  if (!RegExp(
-                                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                      .hasMatch(value.trim())) {
-                                    return '請輸入有效的 Email 格式';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Password Input
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) {
-                                  if (!_isLoading) {
-                                    _handleSubmit();
-                                  }
-                                },
-                                decoration: InputDecoration(
-                                  labelText: '密碼',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  border: const OutlineInputBorder(),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                      color: Colors.white54,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return '請輸入密碼';
-                                  }
-                                  if (value.length < 6) {
-                                    return '密碼長度需至少 6 個字元';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              if (!_isSignUp) ...[
-                                const SizedBox(height: 12),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (context) =>
-                                            ForgotPasswordDialog(
-                                          initialEmail:
-                                              _emailController.text.trim(),
-                                        ),
-                                      );
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 8),
-                                      minimumSize: Size.zero,
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: const Text(
-                                      '忘記密碼？',
-                                      style: TextStyle(
-                                        color: Color(0xFF00ADB5),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-
-                              // Submit Button
-                              ElevatedButton(
-                                onPressed: _isLoading ? null : _handleSubmit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00ADB5),
-                                  foregroundColor: Colors.white,
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                  Colors.white),
-                                        ),
-                                      )
-                                    : Text(_isSignUp ? '註冊帳號' : '登入'),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Divider
-                              const Row(
-                                children: [
-                                  Expanded(
-                                      child: Divider(color: Colors.white24)),
-                                  Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 12),
-                                    child: Text(
-                                      '或使用第三方帳號',
-                                      style: TextStyle(
-                                          fontSize: 12, color: Colors.white54),
-                                    ),
-                                  ),
-                                  Expanded(
-                                      child: Divider(color: Colors.white24)),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Google Sign-In Button
-                              GoogleStyleSignInButton(
-                                onPressed: _handleGoogleSignIn,
-                                label: '使用 Google 繼續',
-                                isLoading: _isLoading,
-                              ),
-                              const SizedBox(height: 12),
-
-                              // Toggle Sign In / Sign Up
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isSignUp = !_isSignUp;
-                                    if (_isSignUp) {
-                                      if (_teamCodeController.text
-                                          .trim()
-                                          .isEmpty) {
-                                        _teamCodeController.text = 'TAIPEI-01';
-                                      }
-                                      // Removed auto-name filling from email prefix
-                                    }
-                                  });
-                                },
-                                child: Text(
-                                  _isSignUp ? '已有帳號？返回登入' : '沒有帳號？立即註冊一個',
-                                  style: const TextStyle(
-                                    color: Color(0xFF00ADB5),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      LoginFormCard(
+                        isSignUp: _isSignUp,
+                        isLoading: _isLoading,
+                        obscurePassword: _obscurePassword,
+                        nameController: _nameController,
+                        emailController: _emailController,
+                        passwordController: _passwordController,
+                        onSubmit: _handleSubmit,
+                        onGoogleSignIn: _handleGoogleSignIn,
+                        onToggleObscurePassword: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                        onToggleSignUp: _toggleSignUpMode,
+                        onForgotPassword: _openForgotPasswordDialog,
+                        onDomainSelected: _appendEmailDomain,
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -750,55 +344,13 @@ class _LoginScreenState extends State<LoginScreen> {
               top: 0,
               left: 0,
               right: 0,
-              child: Material(
-                color: Colors.amber.shade900.withOpacity(0.95),
-                child: SafeArea(
-                  bottom: false,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '⚠️ 離線預覽模式已啟用 ($offlineReason)',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          // 離線預覽：標記已跳過登入，守門規則就會放行到今日行程
-                          onPressed: () {
-                            AuthStatusService.instance.enterOfflinePreview();
-                            context.go(AppRoutes.schedule);
-                          },
-                          child: const Text(
-                            '直接跳過登入',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                ),
+              child: LoginOfflineBanner(
+                reason: offlineReason,
+                // 離線預覽：標記已跳過登入，守門規則就會放行到今日行程
+                onSkipLogin: () {
+                  AuthStatusService.instance.enterOfflinePreview();
+                  context.go(AppRoutes.schedule);
+                },
               ),
             ),
         ],
