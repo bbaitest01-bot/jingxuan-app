@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
+import '../services/auth_error_messages.dart';
 import '../widgets/custom_toast.dart';
 import '../main.dart';
 
@@ -76,7 +77,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = '密碼重設失敗: $e';
+          _errorMessage = '密碼重設失敗：${translateAuthError(e)}';
           _isLoading = false;
         });
       }
