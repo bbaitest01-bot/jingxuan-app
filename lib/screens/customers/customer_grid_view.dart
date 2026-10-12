@@ -32,6 +32,9 @@ class CustomerGridView extends StatelessWidget {
   final Set<String> selectedCustomerIds;
   final CustomerCardActions actions;
 
+  /// false 時卡片直接出現、不播淡入動畫
+  final bool animateEntrance;
+
   const CustomerGridView({
     super.key,
     required this.customers,
@@ -40,6 +43,7 @@ class CustomerGridView extends StatelessWidget {
     required this.isSelectionMode,
     required this.selectedCustomerIds,
     required this.actions,
+    this.animateEntrance = true,
   });
 
   @override
@@ -133,6 +137,7 @@ class CustomerGridView extends StatelessWidget {
 
         return StaggeredFadeIn(
           index: index,
+          animate: animateEntrance,
           child: cardWidget,
         );
       },

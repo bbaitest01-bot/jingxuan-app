@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../router/app_routes.dart';
+import 'customer_service.dart';
 
 /// 某一個時間點的登入狀態快照，給網址守門規則判斷要不要導向。
 /// 只放判斷需要的資料，方便在測試裡直接建立各種情境。
@@ -101,11 +102,14 @@ class AuthStatusService extends ChangeNotifier {
     if (session == null) {
       _clearProfile();
       OfflineDataStore.clear();
+      // 登出時清掉暫存的客戶名單，下一個登入的人看不到
+      CustomerService.instance.clearCache();
       return;
     }
 
     OfflineDataStore.ensureOwner(session.user.id);
     if (_profileUserId != session.user.id) {
+      CustomerService.instance.clearCache();
       await _loadProfile(session.user.id);
     }
   }

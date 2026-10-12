@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../main.dart';
@@ -36,6 +35,9 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
   bool _isLoading = false;
   late String _viewMode;
 
+  // 列表是否播放淡入動畫：先顯示上次暫存的資料時不播，避免畫面看起來在閃
+  bool _animateEntrance = true;
+
   // 多選（批量管理）狀態
   bool _isSelectionMode = false;
   Set<String> _selectedCustomerIds = {};
@@ -60,7 +62,21 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     _viewMode = AppSettings.instance.defaultCustomerViewMode;
     _searchController.addListener(_filterCustomers);
     _checkDevRole();
-    _fetchCustomers();
+    _showCachedThenRefresh();
+  }
+
+  // 有上次讀到的客戶名單就先顯示（不出現載入骨架），再在背景重新讀取；沒有就正常讀取
+  void _showCachedThenRefresh() {
+    final List<Map<String, dynamic>>? cachedCustomers =
+        isOfflineMode ? null : CustomerService.instance.cachedCustomersForCurrentUser();
+    if (cachedCustomers == null) {
+      _fetchCustomers();
+      return;
+    }
+    _allCustomers = cachedCustomers;
+    _animateEntrance = false;
+    _filterCustomers();
+    _fetchCustomers(silent: true);
   }
 
   @override
@@ -84,11 +100,13 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     } catch (_) {}
   }
 
-  // 讀取客戶（離線預覽模式沒有資料）
-  Future<void> _fetchCustomers() async {
-    setState(() {
-      _isLoading = true;
-    });
+  // 讀取客戶（離線預覽模式沒有資料）。[silent] 為 true 時在背景讀取：不顯示載入骨架，失敗也保留畫面上的資料
+  Future<void> _fetchCustomers({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     if (isOfflineMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -109,6 +127,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       if (userId != null) _currentUserId = userId;
 
       final List<Map<String, dynamic>> customers = await CustomerService.instance.fetchActiveCustomers();
+      if (!mounted) return;
       setState(() {
         _allCustomers = customers;
       });
@@ -117,14 +136,17 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       if (mounted) {
         CustomToast.show(context, '讀取資料庫失敗: $e', ToastType.error);
       }
+      if (silent || !mounted) return;
       setState(() {
         _allCustomers = [];
       });
       _filterCustomers();
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -156,23 +178,17 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       _isLoading = true;
     });
 
-    String finalAvatarUrl = existingAvatarUrl;
-    final Uint8List? imageBytes = form.imageBytes;
-    final String? imageName = form.imageName;
-    if (form.isImageCleared) {
-      finalAvatarUrl = '';
-    } else if (imageBytes != null && imageName != null) {
-      try {
-        finalAvatarUrl = await CustomerService.instance.uploadAvatar(imageBytes, imageName);
-      } catch (e) {
-        if (mounted) {
-          CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
-        }
-        setState(() {
-          _isLoading = false;
-        });
-        return;
+    final String finalAvatarUrl;
+    try {
+      finalAvatarUrl = await CustomerService.instance.resolveAvatarUrl(form, existingAvatarUrl);
+    } catch (e) {
+      if (mounted) {
+        CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
       }
+      setState(() {
+        _isLoading = false;
+      });
+      return;
     }
 
     try {
@@ -307,29 +323,12 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
 
   // 為勾選的客戶（沒勾選就用目前篩選結果）建立拜訪專案
   void _openCreateProjectDialog() {
-    final List<Map<String, dynamic>> targetCustomers = _selectedCustomerIds.isNotEmpty
-        ? _allCustomers.where((c) => _selectedCustomerIds.contains(c['id'].toString())).toList()
-        : _filteredCustomers;
-
-    if (targetCustomers.isEmpty) {
-      CustomToast.show(context, '目前未選取目標客戶，請先勾選或篩選客戶', ToastType.warning);
-      return;
-    }
-
-    showCreateProjectDialog(
+    showCreateProjectForCustomers(
       context,
-      targetCustomers: targetCustomers,
-      filteredCount: _filteredCustomers.length,
+      allCustomers: _allCustomers,
+      filteredCustomers: _filteredCustomers,
+      selectedCustomerIds: _selectedCustomerIds,
       onCreated: _exitSelectionMode,
-    );
-  }
-
-  // 批次匯入 CSV／Excel：匯入完成後重新讀取客戶
-  void _openBatchImportDialog() {
-    showCustomerImportDialog(
-      context,
-      existingCustomers: _allCustomers,
-      onImported: _fetchCustomers,
     );
   }
 
@@ -435,7 +434,8 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
               });
             },
             onShareExport: () => _openExportDialog(selectedOnly: false),
-            onBatchImport: _openBatchImportDialog,
+            // 批次匯入完成後重新讀取客戶
+            onBatchImport: () => showCustomerImportDialog(context, existingCustomers: _allCustomers, onImported: _fetchCustomers),
             onToggleSelectionMode: _toggleSelectionMode,
             onAddCustomer: () => _openCustomerForm(),
           ),
@@ -467,6 +467,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
             child: CustomerCollectionView(
               customers: _filteredCustomers,
               isLoading: _isLoading,
+              animateEntrance: _animateEntrance,
               isListMode: _viewMode == 'list',
               isWideScreen: isWideScreen,
               screenWidth: screenWidth,

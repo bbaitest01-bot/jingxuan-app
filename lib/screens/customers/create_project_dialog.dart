@@ -5,6 +5,31 @@ import '../../services/app_settings.dart';
 import '../../services/customer_service.dart';
 import '../../widgets/custom_toast.dart';
 
+/// 決定要為哪些客戶建立專案：有勾選就用勾選的，沒有就用目前篩選結果；都沒有就提示並停止
+void showCreateProjectForCustomers(
+  BuildContext outerContext, {
+  required List<Map<String, dynamic>> allCustomers,
+  required List<Map<String, dynamic>> filteredCustomers,
+  required Set<String> selectedCustomerIds,
+  required VoidCallback onCreated,
+}) {
+  final List<Map<String, dynamic>> targetCustomers = selectedCustomerIds.isNotEmpty
+      ? allCustomers.where((c) => selectedCustomerIds.contains(c['id'].toString())).toList()
+      : filteredCustomers;
+
+  if (targetCustomers.isEmpty) {
+    CustomToast.show(outerContext, '目前未選取目標客戶，請先勾選或篩選客戶', ToastType.warning);
+    return;
+  }
+
+  showCreateProjectDialog(
+    outerContext,
+    targetCustomers: targetCustomers,
+    filteredCount: filteredCustomers.length,
+    onCreated: onCreated,
+  );
+}
+
 /// 為選取（或篩選）的客戶建立拜訪專案的視窗。
 /// 建立成功後呼叫 [onCreated]（外框用來結束多選），再關閉視窗。
 void showCreateProjectDialog(

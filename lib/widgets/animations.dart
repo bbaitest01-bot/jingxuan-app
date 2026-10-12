@@ -129,11 +129,15 @@ class StaggeredFadeIn extends StatefulWidget {
   final int index;
   final Duration delayStep;
 
+  /// false 時直接顯示、不播淡入動畫（例如顯示上次暫存的資料時）
+  final bool animate;
+
   const StaggeredFadeIn({
     super.key,
     required this.child,
     required this.index,
     this.delayStep = const Duration(milliseconds: 60),
+    this.animate = true,
   });
 
   @override
@@ -169,6 +173,12 @@ class _StaggeredFadeInState extends State<StaggeredFadeIn> with SingleTickerProv
         curve: Curves.easeOutCubic,
       ),
     );
+
+    // 不播動畫：直接停在播完的狀態
+    if (!widget.animate) {
+      _controller.value = 1.0;
+      return;
+    }
 
     // Stagger start time based on element index
     Future.delayed(widget.delayStep * widget.index, () {

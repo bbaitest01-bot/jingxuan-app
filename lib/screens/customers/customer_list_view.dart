@@ -15,6 +15,9 @@ class CustomerListView extends StatelessWidget {
   final Set<String> selectedCustomerIds;
   final CustomerCardActions actions;
 
+  /// false 時每一列直接出現、不播淡入動畫
+  final bool animateEntrance;
+
   const CustomerListView({
     super.key,
     required this.customers,
@@ -22,6 +25,7 @@ class CustomerListView extends StatelessWidget {
     required this.isSelectionMode,
     required this.selectedCustomerIds,
     required this.actions,
+    this.animateEntrance = true,
   });
 
   @override
@@ -33,6 +37,7 @@ class CustomerListView extends StatelessWidget {
         final customer = customers[index];
         return StaggeredFadeIn(
           index: index,
+          animate: animateEntrance,
           child: CustomerListRow(
             customer: customer,
             isWideScreen: isWideScreen,
