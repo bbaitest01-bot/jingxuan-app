@@ -1,28 +1,27 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../main.dart';
 import '../router/app_routes.dart';
-import '../services/app_settings.dart';
-import '../services/tag_categorizer.dart';
-import '../services/tag_manager_service.dart';
-import 'tag_manager_screen.dart';
 import '../services/app_localizations.dart';
-import '../widgets/animations.dart';
+import '../services/app_settings.dart';
+import '../services/customer_service.dart';
 import '../widgets/custom_toast.dart';
-import '../widgets/voice_recorder_widget.dart';
-import '../widgets/color_palette_picker.dart';
-import '../widgets/categorized_tag_accordion_selector.dart';
-import '../widgets/batch_import_customers_dialog.dart';
 import '../widgets/customer_detail_side_sheet.dart';
 import '../widgets/customer_share_export_dialog.dart';
-import '../services/customer_relationship_service.dart';
+import 'customers/create_project_dialog.dart';
+import 'customers/customer_batch_selection_bar.dart';
+import 'customers/customer_confirm_dialogs.dart';
+import 'customers/customer_form_dialog.dart';
+import 'customers/customer_collection_view.dart';
+import 'customers/customer_grid_view.dart';
+import 'customers/customer_import_dialog.dart';
+import 'customers/customer_relationships_dialog.dart';
+import 'customers/customer_toolbar.dart';
+import 'customers/customer_top_panels.dart';
 
-
+/// 客戶管理頁的外框：保管客戶資料、搜尋與多選狀態，並處理新增、編輯、刪除等動作。
+/// 畫面的各個區塊拆在 `customers/` 資料夾；讀寫資料庫在 `CustomerService`。
 class CustomerManagementTab extends StatefulWidget {
   const CustomerManagementTab({super.key});
 
@@ -33,15 +32,15 @@ class CustomerManagementTab extends StatefulWidget {
 class _CustomerManagementTabState extends State<CustomerManagementTab> with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _allCustomers = [];
   List<Map<String, dynamic>> _filteredCustomers = [];
-  final _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   bool _isLoading = false;
   late String _viewMode;
 
-  // Batch Selection State
+  // 多選（批量管理）狀態
   bool _isSelectionMode = false;
   Set<String> _selectedCustomerIds = {};
 
-  // Dev View Scope Filter State
+  // 開發者「僅我建立的／全系統客戶」切換
   bool _isDevUser = false;
   bool _devFilterOnlyMine = true;
   String? _currentUserId;
@@ -64,40 +63,33 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     _fetchCustomers();
   }
 
-  Future<void> _checkDevRole() async {
-    if (isOfflineMode) return;
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        _currentUserId = user.id;
-        final profile = await Supabase.instance.client
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .maybeSingle();
-        if (profile != null && profile['role'] == 'dev' && mounted) {
-          setState(() {
-            _isDevUser = true;
-          });
-          _filterCustomers();
-        }
-      }
-    } catch (_) {}
-  }
-
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  // Fetch customers (Handles both offline mock and online Supabase)
+  // 確認登入者是不是開發者；是的話顯示「僅我建立的／全系統客戶」切換
+  Future<void> _checkDevRole() async {
+    if (isOfflineMode) return;
+    try {
+      _currentUserId = CustomerService.instance.currentUserId;
+      final bool isDev = await CustomerService.instance.isCurrentUserDev();
+      if (isDev && mounted) {
+        setState(() {
+          _isDevUser = true;
+        });
+        _filterCustomers();
+      }
+    } catch (_) {}
+  }
+
+  // 讀取客戶（離線預覽模式沒有資料）
   Future<void> _fetchCustomers() async {
     setState(() {
       _isLoading = true;
     });
 
-    // 快速讀取真實資料 (零人工延遲)
     if (isOfflineMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -113,49 +105,12 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     }
 
     try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user != null) _currentUserId = user.id;
+      final String? userId = CustomerService.instance.currentUserId;
+      if (userId != null) _currentUserId = userId;
 
-      final response = await supabase
-          .from('customers')
-          .select('*, profiles:profile_id(id, full_name, email, role, team_name)')
-          .isFilter('deleted_at', null)
-          .order('created_at', ascending: false);
-
+      final List<Map<String, dynamic>> customers = await CustomerService.instance.fetchActiveCustomers();
       setState(() {
-        _allCustomers = List<Map<String, dynamic>>.from(response.map((data) {
-          final profile = data['profiles'] as Map<String, dynamic>?;
-          final String agentFullName = profile?['full_name'] as String? ?? '';
-          final String agentEmail = profile?['email'] as String? ?? '';
-          final String agentTeam = profile?['team_name'] as String? ?? 'TAIPEI-01';
-          final String displayAgent = agentFullName.isNotEmpty ? agentFullName : (agentEmail.isNotEmpty ? agentEmail : '未知業務員');
-
-          Map<String, dynamic> customAttrs = {};
-          if (data['custom_attributes'] is Map) {
-            customAttrs = Map<String, dynamic>.from(data['custom_attributes']);
-          }
-
-          return {
-            'id': data['id'],
-            'profile_id': data['profile_id']?.toString() ?? '',
-            'agent_name': displayAgent,
-            'agent_email': agentEmail,
-            'agent_team': agentTeam,
-            'name': data['name'],
-            'nickname': data['nickname'] ?? '',
-            'avatar_url': data['avatar_url'] ?? '',
-            'phone': data['phone'],
-            'email': data['email'],
-            'status': data['status'] ?? 'active',
-            // Convert postgres array text[] to List<String> safely
-            'tags': List<String>.from(data['tags'] ?? []),
-            'notes': data['notes'],
-            'custom_attributes': customAttrs,
-            'created_at': data['created_at'],
-            'deleted_at': data['deleted_at'],
-          };
-        }));
+        _allCustomers = customers;
       });
       _filterCustomers();
     } catch (e) {
@@ -173,121 +128,67 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     }
   }
 
-  // Filter customers locally by search controller text and dev scope
+  // 依搜尋文字與開發者範圍，重新篩選畫面上的客戶
   void _filterCustomers() {
-    final query = _searchController.text.trim().toLowerCase();
+    final String query = _searchController.text.trim().toLowerCase();
     setState(() {
-      var activeCustomers = _allCustomers.where((c) => c['deleted_at'] == null).toList();
-      
-      // Dev Scope Filter: If dev user and _devFilterOnlyMine is true, only show my own customers
-      if (_isDevUser && _devFilterOnlyMine && _currentUserId != null) {
-        activeCustomers = activeCustomers.where((c) => c['profile_id'] == _currentUserId).toList();
-      }
+      _filteredCustomers = CustomerService.instance.filterCustomers(
+        allCustomers: _allCustomers,
+        query: query,
+        onlyMine: _isDevUser && _devFilterOnlyMine,
+        currentUserId: _currentUserId,
+      );
+    });
+  }
 
-      if (query.isEmpty) {
-        _filteredCustomers = List.from(activeCustomers);
+  // 表單送出：有大頭貼先上傳，再新增或修改客戶；[customerId] 是 null 代表新增
+  Future<void> _saveCustomer(CustomerFormData form, {String? customerId, String existingAvatarUrl = ''}) async {
+    final bool isEdit = customerId != null;
+    final String action = isEdit ? '修改' : '新增';
+    if (isOfflineMode) {
+      if (mounted) {
+        CustomToast.show(context, '目前為離線預覽模式，無法$action客戶資料。', ToastType.warning);
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    String finalAvatarUrl = existingAvatarUrl;
+    final Uint8List? imageBytes = form.imageBytes;
+    final String? imageName = form.imageName;
+    if (form.isImageCleared) {
+      finalAvatarUrl = '';
+    } else if (imageBytes != null && imageName != null) {
+      try {
+        finalAvatarUrl = await CustomerService.instance.uploadAvatar(imageBytes, imageName);
+      } catch (e) {
+        if (mounted) {
+          CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+
+    try {
+      if (isEdit) {
+        await CustomerService.instance.updateCustomer(customerId, form, finalAvatarUrl);
       } else {
-        _filteredCustomers = activeCustomers.where((customer) {
-          final name = (customer['name'] ?? '').toString().toLowerCase();
-          final nickname = (customer['nickname'] ?? '').toString().toLowerCase();
-          final notes = (customer['notes'] ?? '').toString().toLowerCase();
-          final agentName = (customer['agent_name'] ?? '').toString().toLowerCase();
-          final List tags = customer['tags'] ?? [];
-          
-          final matchesName = name.contains(query) || nickname.contains(query);
-          final matchesNotes = notes.contains(query);
-          final matchesAgent = agentName.contains(query);
-          final matchesTags = tags.any((tag) => tag.toString().toLowerCase().contains(query));
-
-          return matchesName || matchesNotes || matchesTags || matchesAgent;
-        }).toList();
+        await CustomerService.instance.createCustomer(form, finalAvatarUrl);
       }
-    });
-  }
-
-  // Add / Create Customer logic
-  Future<void> _createCustomer({
-    required String name,
-    required String nickname,
-    required String avatarUrl,
-    required String phone,
-    required String email,
-    required List<String> tags,
-    required String notes,
-    Map<String, dynamic> customAttributes = const {},
-    Uint8List? imageBytes,
-    String? imageName,
-    required bool isImageCleared,
-  }) async {
-    if (isOfflineMode) {
-      if (mounted) {
-        CustomToast.show(context, '目前為離線預覽模式，無法新增客戶資料。', ToastType.warning);
-      }
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    String finalAvatarUrl = avatarUrl;
-    if (isImageCleared) {
-      finalAvatarUrl = '';
-    } else if (imageBytes != null && imageName != null) {
-      if (!isOfflineMode) {
-        try {
-          final supabase = Supabase.instance.client;
-          final user = supabase.auth.currentUser;
-          if (user == null) throw Exception('使用者未登入');
-
-          final extension = imageName.contains('.') 
-              ? imageName.split('.').last 
-              : 'jpg';
-          final cleanExtension = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(extension) ? extension : 'jpg';
-          final fileName = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$cleanExtension';
-
-          await supabase.storage.from('customer-photos').uploadBinary(
-            fileName,
-            imageBytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
-          finalAvatarUrl = supabase.storage.from('customer-photos').getPublicUrl(fileName);
-        } catch (e) {
-          if (mounted) {
-            CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
-          }
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
-      }
-    }
-
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) throw Exception('使用者未登入');
-
-      await supabase.from('customers').insert({
-        'profile_id': user.id,
-        'name': name,
-        'nickname': nickname,
-        'avatar_url': finalAvatarUrl,
-        'phone': phone,
-        'email': email,
-        'tags': tags,
-        'notes': notes,
-        'custom_attributes': customAttributes,
-      });
 
       await _fetchCustomers();
       if (mounted) {
-        CustomToast.show(context, '成功新增客戶 $name 檔案', ToastType.success);
+        CustomToast.show(context, '成功$action客戶 ${form.name} 檔案', ToastType.success);
       }
     } catch (e) {
       if (mounted) {
-        CustomToast.show(context, '新增失敗: $e', ToastType.error);
+        CustomToast.show(context, '$action失敗: $e', ToastType.error);
       }
       setState(() {
         _isLoading = false;
@@ -295,94 +196,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     }
   }
 
-  // Edit / Update Customer logic
-  Future<void> _updateCustomer({
-    required String id,
-    required String name,
-    required String nickname,
-    required String avatarUrl,
-    required String phone,
-    required String email,
-    required List<String> tags,
-    required String notes,
-    Map<String, dynamic> customAttributes = const {},
-    Uint8List? imageBytes,
-    String? imageName,
-    required bool isImageCleared,
-  }) async {
-    if (isOfflineMode) {
-      if (mounted) {
-        CustomToast.show(context, '目前為離線預覽模式，無法修改客戶資料。', ToastType.warning);
-      }
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    String finalAvatarUrl = avatarUrl;
-    if (isImageCleared) {
-      finalAvatarUrl = '';
-    } else if (imageBytes != null && imageName != null) {
-      if (!isOfflineMode) {
-        try {
-          final supabase = Supabase.instance.client;
-          final user = supabase.auth.currentUser;
-          if (user == null) throw Exception('使用者未登入');
-
-          final extension = imageName.contains('.') 
-              ? imageName.split('.').last 
-              : 'jpg';
-          final cleanExtension = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(extension) ? extension : 'jpg';
-          final fileName = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$cleanExtension';
-
-          await supabase.storage.from('customer-photos').uploadBinary(
-            fileName,
-            imageBytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
-          finalAvatarUrl = supabase.storage.from('customer-photos').getPublicUrl(fileName);
-        } catch (e) {
-          if (mounted) {
-            CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
-          }
-          setState(() {
-            _isLoading = false;
-          });
-          return;
-        }
-      }
-    }
-
-    try {
-      final supabase = Supabase.instance.client;
-      await supabase.from('customers').update({
-        'name': name,
-        'nickname': nickname,
-        'avatar_url': finalAvatarUrl,
-        'phone': phone,
-        'email': email,
-        'tags': tags,
-        'notes': notes,
-        'custom_attributes': customAttributes,
-      }).eq('id', id);
-
-      await _fetchCustomers();
-      if (mounted) {
-        CustomToast.show(context, '成功修改客戶 $name 檔案', ToastType.success);
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '修改失敗: $e', ToastType.error);
-      }
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  // Delete Customer logic (Soft Delete)
+  // 單一客戶移到垃圾桶
   Future<void> _deleteCustomer(String id) async {
     if (isOfflineMode) {
       if (mounted) {
@@ -395,13 +209,8 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       _isLoading = true;
     });
 
-
-
     try {
-      final supabase = Supabase.instance.client;
-      await supabase.from('customers').update({
-        'deleted_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', id);
+      await CustomerService.instance.moveCustomerToTrash(id);
       await _fetchCustomers();
       if (mounted) {
         CustomToast.show(
@@ -409,9 +218,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
           context.l10n('trash_bin_soft_delete_success'),
           ToastType.success,
           actionLabel: context.l10n('trash_bin_goto'),
-          onActionPressed: () {
-            _goToTrashBin();
-          },
+          onActionPressed: _goToTrashBin,
         );
       }
     } catch (e) {
@@ -424,99 +231,29 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     }
   }
 
-  // Show Batch Delete Confirmation Dialog
-  void _confirmBatchDeleteCustomers() {
-    final count = _selectedCustomerIds.length;
-    if (count == 0) return;
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 24),
-            const SizedBox(width: 10),
-            Text('確認批量移至垃圾桶', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Text(
-          '您確定要把選取的 $count 筆客戶資料移至垃圾桶嗎？\n移至垃圾桶後，您仍可隨時前往垃圾桶進行復原。',
-          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(context.l10n('cancel'), style: TextStyle(color: isDark ? Colors.white54 : Colors.black54)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _executeBatchDelete();
-            },
-            child: Text('確認移至垃圾桶 ($count)'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Execute Batch Soft Delete
+  // 多選客戶批量移到垃圾桶（離線預覽模式只改畫面上的資料）
   Future<void> _executeBatchDelete() async {
-    final idsToDelete = _selectedCustomerIds.toList();
-    final count = idsToDelete.length;
+    final List<String> idsToDelete = _selectedCustomerIds.toList();
+    final int count = idsToDelete.length;
 
     setState(() {
       _isLoading = true;
     });
 
     if (isOfflineMode) {
-      final now = DateTime.now().toUtc().toIso8601String();
       setState(() {
-        for (var id in idsToDelete) {
-          final idx = _allCustomers.indexWhere((c) => c['id'] == id);
-          if (idx != -1) {
-            _allCustomers[idx] = {
-              ..._allCustomers[idx],
-              'deleted_at': now,
-            };
-          }
-        }
+        _allCustomers = CustomerService.instance.markCustomersDeletedLocally(_allCustomers, idsToDelete);
         _isSelectionMode = false;
         _selectedCustomerIds.clear();
         _isLoading = false;
       });
       _filterCustomers();
-      if (mounted) {
-        CustomToast.show(
-          context,
-          '🟢 成功將 $count 筆客戶移至垃圾桶 (離線暫存)',
-          ToastType.success,
-          actionLabel: context.l10n('trash_bin_goto'),
-          onActionPressed: () {
-            _goToTrashBin();
-          },
-        );
-      }
+      _showBatchDeletedToast('🟢 成功將 $count 筆客戶移至垃圾桶 (離線暫存)');
       return;
     }
 
     try {
-      final supabase = Supabase.instance.client;
-      final now = DateTime.now().toUtc().toIso8601String();
-      await supabase
-          .from('customers')
-          .update({'deleted_at': now})
-          .filter('id', 'in', idsToDelete);
+      await CustomerService.instance.moveCustomersToTrash(idsToDelete);
 
       setState(() {
         _isSelectionMode = false;
@@ -524,282 +261,53 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       });
 
       await _fetchCustomers();
-      if (mounted) {
-        CustomToast.show(
-          context,
-          '🟢 成功將 $count 筆客戶移至垃圾桶',
-          ToastType.success,
-          actionLabel: context.l10n('trash_bin_goto'),
-          onActionPressed: () {
-            _goToTrashBin();
-          },
-        );
-      }
+      _showBatchDeletedToast('🟢 成功將 $count 筆客戶移至垃圾桶');
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       if (mounted) {
-        CustomToast.show(
-          context,
-          '🔴 批量刪除失敗: $e',
-          ToastType.error,
-        );
+        CustomToast.show(context, '🔴 批量刪除失敗: $e', ToastType.error);
       }
     }
   }
 
-  // Build Batch Selection Floating Control Bar
-  Widget _buildBatchSelectionBar(BuildContext context) {
-    final allFilteredCount = _filteredCustomers.length;
-    final selectedCount = _selectedCustomerIds.length;
-    final isAllSelected = selectedCount > 0 && selectedCount == allFilteredCount;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final isWideScreen = MediaQuery.of(context).size.width >= 768;
-
-    void onExport() {
-      final selectedList = _filteredCustomers
-          .where((c) => _selectedCustomerIds.contains(c['id'].toString()))
-          .toList();
-      CustomerShareExportDialog.show(
-        context,
-        customers: selectedList,
-        scopeDescription: '已勾選之 $selectedCount 位客戶',
-      );
-    }
-
-    void onExitSelection() {
-      setState(() {
-        _isSelectionMode = false;
-        _selectedCustomerIds.clear();
-      });
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isWideScreen ? 20 : 14,
-        vertical: isWideScreen ? 10 : 12,
-      ),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF0EA5E9), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0EA5E9).withOpacity(0.2),
-            blurRadius: 15,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: isWideScreen
-          ? Row(
-              children: [
-                Checkbox(
-                  value: isAllSelected,
-                  onChanged: (val) {
-                    setState(() {
-                      if (val == true) {
-                        _selectedCustomerIds = _filteredCustomers.map((c) => c['id'].toString()).toSet();
-                      } else {
-                        _selectedCustomerIds.clear();
-                      }
-                    });
-                  },
-                  activeColor: const Color(0xFF0EA5E9),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '全選 ($selectedCount / $allFilteredCount)',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: selectedCount == 0 ? null : onExport,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  icon: const Icon(Icons.ios_share_rounded, size: 18),
-                  label: Text('匯出選取 ($selectedCount)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: selectedCount == 0 ? null : _showCreateProjectDialog,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  icon: const Icon(Icons.assignment_outlined, size: 18),
-                  label: Text('建立專案 ($selectedCount)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: selectedCount == 0 ? null : _confirmBatchDeleteCustomers,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: Text('移至垃圾桶 ($selectedCount)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: onExitSelection,
-                  icon: const Icon(Icons.close, color: Colors.white70),
-                  tooltip: '退出多選',
-                ),
-              ],
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Top Row: Selection state and exit button
-                Row(
-                  children: [
-                    Checkbox(
-                      value: isAllSelected,
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == true) {
-                            _selectedCustomerIds = _filteredCustomers.map((c) => c['id'].toString()).toSet();
-                          } else {
-                            _selectedCustomerIds.clear();
-                          }
-                        });
-                      },
-                      activeColor: const Color(0xFF0EA5E9),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '已選 $selectedCount 位 / 共 $allFilteredCount 位',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    InkWell(
-                      onTap: onExitSelection,
-                      borderRadius: BorderRadius.circular(20),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
-                        child: Icon(Icons.close, color: Colors.white70, size: 20),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // Bottom Row: 3 equal-width action buttons (Plan A)
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: selectedCount == 0 ? null : onExport,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.ios_share_rounded, size: 15),
-                            SizedBox(width: 4),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  '匯出',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: selectedCount == 0 ? null : _showCreateProjectDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.assignment_outlined, size: 15),
-                            SizedBox(width: 4),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  '建立專案',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: selectedCount == 0 ? null : _confirmBatchDeleteCustomers,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.delete_outline_rounded, size: 15),
-                            SizedBox(width: 4),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  '移至垃圾桶',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+  void _showBatchDeletedToast(String message) {
+    if (!mounted) return;
+    CustomToast.show(
+      context,
+      message,
+      ToastType.success,
+      actionLabel: context.l10n('trash_bin_goto'),
+      onActionPressed: _goToTrashBin,
     );
   }
 
-  // Show Project Creation Dialog (Supports Multi-Selected or Filtered Customers)
-  void _showCreateProjectDialog() {
-    final targetCustomers = _selectedCustomerIds.isNotEmpty
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedCustomerIds.clear();
+    });
+  }
+
+  // 開啟新增／編輯客戶表單；[customer] 是 null 代表新增
+  void _openCustomerForm({Map<String, dynamic>? customer}) {
+    showCustomerFormDialog(
+      context,
+      customer: customer,
+      onSubmit: (CustomerFormData form) {
+        if (customer == null) {
+          _saveCustomer(form);
+        } else {
+          _saveCustomer(form, customerId: customer['id'], existingAvatarUrl: customer['avatar_url'] ?? '');
+        }
+      },
+    );
+  }
+
+  // 為勾選的客戶（沒勾選就用目前篩選結果）建立拜訪專案
+  void _openCreateProjectDialog() {
+    final List<Map<String, dynamic>> targetCustomers = _selectedCustomerIds.isNotEmpty
         ? _allCustomers.where((c) => _selectedCustomerIds.contains(c['id'].toString())).toList()
         : _filteredCustomers;
 
@@ -808,1818 +316,45 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       return;
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
-
-    final titleController = TextEditingController();
-    final purposeController = TextEditingController();
-
-    InputDecoration buildInputDecoration(String labelText, IconData iconData, {String? hintText}) {
-      return InputDecoration(
-        labelText: labelText,
-        labelStyle: TextStyle(color: subTextColor, fontSize: 13),
-        hintText: hintText,
-        hintStyle: TextStyle(color: subTextColor, fontSize: 13),
-        prefixIcon: Icon(iconData, color: primaryColor, size: 18),
-        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-        enabledBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide(color: Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-      );
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        bool isSubmitting = false;
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            Future<void> submitProject() async {
-              final title = titleController.text.trim();
-              final purpose = purposeController.text.trim();
-
-              if (title.isEmpty || purpose.isEmpty) {
-                CustomToast.show(context, '專案標題與建立目的為必填欄位', ToastType.warning);
-                return;
-              }
-
-              setDialogState(() {
-                isSubmitting = true;
-              });
-
-              if (isOfflineMode) {
-                try {
-                  final prefs = await SharedPreferences.getInstance();
-                  final String projectId = 'mock-proj-${DateTime.now().millisecondsSinceEpoch}';
-
-                  // 1. Save new project metadata
-                  final projectJson = {
-                    'id': projectId,
-                    'title': title,
-                    'purpose': purpose,
-                    'is_completed': false,
-                    'created_at': DateTime.now().toIso8601String(),
-                  };
-
-                  List<dynamic> localProjects = [];
-                  final storedProjects = prefs.getString('offline_visit_projects');
-                  if (storedProjects != null) {
-                    localProjects = jsonDecode(storedProjects);
-                  }
-                  localProjects.insert(0, projectJson);
-                  await prefs.setString('offline_visit_projects', jsonEncode(localProjects));
-
-                  // 2. Save project checklist customers
-                  final List<Map<String, dynamic>> projectCustomers = [];
-                  for (var i = 0; i < targetCustomers.length; i++) {
-                    final customer = targetCustomers[i];
-                    projectCustomers.add({
-                      'id': 'mock-vpc-${projectId}-$i',
-                      'visit_project_id': projectId,
-                      'customer_id': customer['id'],
-                      'is_visited': false,
-                      'created_at': DateTime.now().toIso8601String(),
-                      'customer': {
-                        'id': customer['id'],
-                        'name': customer['name'],
-                        'nickname': customer['nickname'],
-                        'phone': customer['phone'],
-                        'email': customer['email'],
-                        'tags': customer['tags'],
-                        'avatar_url': customer['avatar_url'],
-                        'notes': customer['notes'],
-                      }
-                    });
-                  }
-
-                  List<dynamic> localProjCustomers = [];
-                  final storedProjCustomers = prefs.getString('offline_visit_project_customers');
-                  if (storedProjCustomers != null) {
-                    localProjCustomers = jsonDecode(storedProjCustomers);
-                  }
-                  localProjCustomers.addAll(projectCustomers);
-                  await prefs.setString('offline_visit_project_customers', jsonEncode(localProjCustomers));
-
-                  if (mounted) {
-                    setState(() {
-                      _isSelectionMode = false;
-                      _selectedCustomerIds.clear();
-                    });
-                    CustomToast.show(context, '已成功為 ${targetCustomers.length} 筆客戶建立「$title」拜訪專案 (離線暫存)', ToastType.success);
-                    Navigator.pop(context);
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    CustomToast.show(context, '建立失敗: $e', ToastType.error);
-                  }
-                } finally {
-                  setDialogState(() {
-                    isSubmitting = false;
-                  });
-                }
-                return;
-              }
-
-              // Online Supabase Mode
-              try {
-                final supabase = Supabase.instance.client;
-                final user = supabase.auth.currentUser;
-                if (user == null) throw Exception('使用者未登入');
-
-                // 1. Insert into visit_projects
-                final projectResult = await supabase.from('visit_projects').insert({
-                  'profile_id': user.id,
-                  'title': title,
-                  'purpose': purpose,
-                }).select().single();
-
-                final String projectId = projectResult['id'];
-
-                // 2. Insert into visit_project_customers
-                final List<Map<String, dynamic>> projectCustomers = targetCustomers.map((customer) {
-                  return {
-                    'visit_project_id': projectId,
-                    'customer_id': customer['id'],
-                    'is_visited': false,
-                  };
-                }).toList();
-
-                await supabase.from('visit_project_customers').insert(projectCustomers);
-
-                if (mounted) {
-                  setState(() {
-                    _isSelectionMode = false;
-                    _selectedCustomerIds.clear();
-                  });
-                  CustomToast.show(context, '已成功為 ${targetCustomers.length} 筆客戶建立「$title」拜訪專案', ToastType.success);
-                  Navigator.pop(context);
-                }
-              } catch (e) {
-                if (mounted) {
-                  CustomToast.show(context, '建立專案失敗: $e', ToastType.error);
-                }
-              } finally {
-                setDialogState(() {
-                  isSubmitting = false;
-                });
-              }
-            }
-
-            return AlertDialog(
-              backgroundColor: dialogBg,
-              title: Text(
-                context.l10n('pv_dialog_title'),
-                style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
-              ),
-              content: SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: primaryColor.withOpacity(0.2), width: 1),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.people_outline, color: primaryColor, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                AppSettings.instance.language == 'en_US'
-                                    ? 'Selected Customers: ${_filteredCustomers.length}\n(This list will be used as the visit checklist)'
-                                    : '已篩選客戶數：${_filteredCustomers.length} 位\n(專案將以此名單作為拜訪 Checklist)',
-                                style: TextStyle(color: textColor, fontSize: 13, height: 1.4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: titleController,
-                        style: TextStyle(color: textColor),
-                        textInputAction: TextInputAction.next,
-                        decoration: buildInputDecoration(context.l10n('pv_name_label'), Icons.assignment_outlined),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: purposeController,
-                        style: TextStyle(color: textColor),
-                        maxLines: 3,
-                        decoration: buildInputDecoration(context.l10n('pv_purpose_label'), Icons.ads_click_outlined),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.pop(context),
-                  child: Text(context.l10n('cancel'), style: TextStyle(color: subTextColor)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: isSubmitting ? null : submitProject,
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : Text(context.l10n('pv_confirm_create')),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Display Add/Edit Dialog Form
-  void _showCustomerForm({Map<String, dynamic>? customer}) {
-    final isEdit = customer != null;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
-
-    final nameController = TextEditingController(text: isEdit ? customer['name'] : '');
-    final nicknameController = TextEditingController(text: isEdit ? customer['nickname'] : '');
-    final phoneController = TextEditingController(text: isEdit ? customer['phone'] : '');
-    final emailController = TextEditingController(text: isEdit ? customer['email'] : '');
-    final tagsController = TextEditingController(
-        text: isEdit ? (customer['tags'] as List).join(', ') : '');
-    final notesController = TextEditingController(text: isEdit ? customer['notes'] : '');
-
-    InputDecoration buildInputDecoration(String labelText, IconData iconData, {String? hintText}) {
-      return InputDecoration(
-        labelText: labelText,
-        labelStyle: TextStyle(color: subTextColor, fontSize: 13),
-        hintText: hintText,
-        hintStyle: TextStyle(color: subTextColor, fontSize: 13),
-        prefixIcon: Icon(iconData, color: primaryColor, size: 18),
-        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(12)),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-      );
-    }
-    showDialog(
-      context: context,
-      builder: (context) {
-        XFile? selectedImageFile;
-        Uint8List? selectedImageBytes;
-        bool isImageCleared = false;
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            void submitForm() {
-              final name = nameController.text.trim();
-              if (name.isEmpty) {
-                CustomToast.show(context, '客戶姓名為必填項目', ToastType.warning);
-                return;
-              }
-
-              final tagsList = tagsController.text
-                  .split(RegExp(r'[,，]'))
-                  .map((t) => t.trim())
-                  .where((t) => t.isNotEmpty)
-                  .toList();
-
-              if (isEdit) {
-                _updateCustomer(
-                  id: customer['id'],
-                  name: name,
-                  nickname: nicknameController.text.trim(),
-                  avatarUrl: customer['avatar_url'] ?? '',
-                  phone: phoneController.text.trim(),
-                  email: emailController.text.trim(),
-                  tags: tagsList,
-                  notes: notesController.text.trim(),
-                  imageBytes: selectedImageBytes,
-                  imageName: selectedImageFile?.name,
-                  isImageCleared: isImageCleared,
-                );
-              } else {
-                _createCustomer(
-                  name: name,
-                  nickname: nicknameController.text.trim(),
-                  avatarUrl: '',
-                  phone: phoneController.text.trim(),
-                  email: emailController.text.trim(),
-                  tags: tagsList,
-                  notes: notesController.text.trim(),
-                  imageBytes: selectedImageBytes,
-                  imageName: selectedImageFile?.name,
-                  isImageCleared: isImageCleared,
-                );
-              }
-              Navigator.pop(context);
-            }
-
-            return AlertDialog(
-              backgroundColor: dialogBg,
-              title: Text(
-                isEdit ? context.l10n('customer_edit_title') : context.l10n('customer_add_title'),
-                style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
-              ),
-              content: SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(40),
-                          onTap: () async {
-                            try {
-                              final picker = ImagePicker();
-                              final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-                              if (image != null) {
-                                final bytes = await image.readAsBytes();
-                                setDialogState(() {
-                                  selectedImageFile = image;
-                                  selectedImageBytes = bytes;
-                                  isImageCleared = false;
-                                });
-                              }
-                            } catch (e) {
-                              CustomToast.show(context, '選擇照片失敗: $e', ToastType.error);
-                            }
-                          },
-                          child: Stack(
-                            children: [
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundColor: primaryColor.withOpacity(0.12),
-                                backgroundImage: selectedImageBytes != null
-                                    ? MemoryImage(selectedImageBytes!)
-                                    : (!isImageCleared && isEdit && customer['avatar_url'] != null && customer['avatar_url'].isNotEmpty)
-                                        ? _getAvatarProvider(customer['avatar_url'])
-                                        : null,
-                                child: (selectedImageBytes == null && (isImageCleared || !isEdit || customer['avatar_url'] == null || customer['avatar_url'].isEmpty))
-                                    ? Icon(Icons.person, size: 40, color: primaryColor)
-                                    : null,
-                              ),
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: primaryColor,
-                                  child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (selectedImageBytes != null || (!isImageCleared && isEdit && customer['avatar_url'] != null && customer['avatar_url'].isNotEmpty)) ...[
-                        const SizedBox(height: 8),
-                        Center(
-                          child: TextButton.icon(
-                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
-                            label: Text(context.l10n('customer_clear_photo'), style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
-                            onPressed: () {
-                              setDialogState(() {
-                                selectedImageFile = null;
-                                selectedImageBytes = null;
-                                isImageCleared = true;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                      TextField(
-                        controller: nameController,
-                        style: TextStyle(color: textColor),
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => submitForm(),
-                        decoration: buildInputDecoration(context.l10n('customer_name_label'), Icons.person_outline),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: nicknameController,
-                        style: TextStyle(color: textColor),
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => submitForm(),
-                        decoration: buildInputDecoration(context.l10n('customer_nickname_label'), Icons.person_pin_outlined),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: phoneController,
-                        style: TextStyle(color: textColor),
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => submitForm(),
-                        decoration: buildInputDecoration(context.l10n('customer_phone_label'), Icons.phone_outlined),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: emailController,
-                        style: TextStyle(color: textColor),
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        onSubmitted: (_) => submitForm(),
-                        decoration: buildInputDecoration(context.l10n('customer_email_label'), Icons.email_outlined),
-                      ),
-                      const SizedBox(height: 16),
-                      // Sleek Collapsible Accordion Tag Selector (1-Tap Expand by Category)
-                      CategorizedTagAccordionSelector(
-                        tagsController: tagsController,
-                        isDark: isDark,
-                        primaryColor: primaryColor,
-                        onOpenQuickAdd: () async => _openQuickAddTagDialog(context, tagsController),
-                        onOpenTagManager: () async => TagManagerScreen.showAsDialog(context),
-                      ),
-                      const SizedBox(height: 16),
-                      // 語音備註輸入列
-                      VoiceRecorderWidget(
-                        primaryColor: primaryColor,
-                        isDark: isDark,
-                        onTranscribed: (text) {
-                          if (text.trim().isEmpty) return;
-                          final now = DateTime.now();
-                          final dateStr = '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-                          final current = notesController.text.trim();
-                          notesController.text = current.isEmpty
-                              ? '--- 🎙️ $dateStr 語音速記 ---\n$text'
-                              : '$current\n\n--- 🎙️ $dateStr 語音速記 ---\n$text';
-                          CustomToast.show(context, '✅ 語音速記已成功追加至備註！', ToastType.success);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: notesController,
-                        style: TextStyle(color: textColor),
-                        maxLines: 4,
-                        decoration: buildInputDecoration(context.l10n('customer_notes_label'), Icons.note_alt_outlined),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(context.l10n('cancel'), style: TextStyle(color: subTextColor)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: submitForm,
-                  child: Text(context.l10n('save')),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Show delete confirmation dialog
-  void _showDeleteConfirm(String id, String name) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: dialogBg,
-          title: Text(context.l10n('customer_delete_title'), style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
-          content: RichText(
-            text: TextSpan(
-              style: TextStyle(color: textColor, fontSize: 14),
-              children: [
-                TextSpan(text: context.l10n('customer_delete_confirm_p1') + name + context.l10n('customer_delete_confirm_p2') + '\n\n'),
-                TextSpan(
-                  text: '⚠️ 警告：這將連帶隱藏與該客戶相關的專案拜訪與行程紀錄！',
-                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.l10n('cancel'), style: TextStyle(color: subTextColor)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-              onPressed: () {
-                _deleteCustomer(id);
-                Navigator.pop(context);
-              },
-              child: Text(context.l10n('delete')),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Helper: Open Quick Add Tag Dialog with custom color palette
-  Future<void> _openQuickAddTagDialog(BuildContext dialogContext, TextEditingController tagsController) async {
-    final nameController = TextEditingController();
-    final categories = await TagManagerService.getCategories();
-    String selectedCatId = categories.isNotEmpty ? categories.first.id : 'cat_identity';
-    String? selectedColorHex;
-
-    if (!dialogContext.mounted) return;
-
-    return showDialog(
-      context: dialogContext,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (modalCtx, setModalState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
-                children: [
-                  Icon(Icons.local_offer, color: Color(0xFF10B981)),
-                  SizedBox(width: 8),
-                  Text('➕ 新增標籤與自訂顏色', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        labelText: '標籤名稱 (例: 企業戶, 高意願)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedCatId,
-                      decoration: InputDecoration(
-                        labelText: '歸屬大分類資料夾',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      items: categories.map((c) {
-                        return DropdownMenuItem(
-                          value: c.id,
-                          child: Text('📁 ${c.name}'),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => selectedCatId = val);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ColorPalettePicker(
-                      initialColorHex: selectedColorHex,
-                      onColorSelected: (hex) => selectedColorHex = hex,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () async {
-                    final name = nameController.text.trim();
-                    if (name.isEmpty) return;
-
-                    final res = await TagManagerService.addTag(
-                      categoryId: selectedCatId,
-                      name: name,
-                      colorHex: selectedColorHex,
-                    );
-
-                    Navigator.pop(ctx);
-
-                    if (!mounted) return;
-
-                    if (res == null) {
-                      CustomToast.show(context, '標籤「$name」已存在，已自動幫您選擇此標籤！', ToastType.warning);
-                    } else {
-                      CustomToast.show(context, '成功建立標籤「$name」並設定專屬色彩！', ToastType.success);
-                    }
-
-                    // Auto append tag
-                    final current = tagsController.text.trim();
-                    if (!current.contains(name)) {
-                      tagsController.text = current.isEmpty ? name : '$current, $name';
-                    }
-                  },
-                  child: const Text('確定建立並套用'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Show Batch Import CSV / Excel Dialog
-  void _showBatchImportDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => BatchImportCustomersDialog(
-        existingCustomers: _allCustomers,
-        onImport: (importedList, duplicateStrategy) async {
-          int processedCount = 0;
-          int failedCount = 0;
-
-          // 維護本機工作清單，防止同批次重複客戶覆蓋競態
-          List<Map<String, dynamic>> localWorkingCustomers = _allCustomers.map((c) => Map<String, dynamic>.from(c)).toList();
-
-          for (var item in importedList) {
-            final name = item['name']?.toString().trim() ?? '';
-            final phone = item['phone']?.toString().trim() ?? '';
-            final nickname = item['nickname']?.toString().trim() ?? '';
-            final email = item['email']?.toString().trim() ?? '';
-            final tags = List<String>.from(item['tags'] ?? []);
-            final notes = item['notes']?.toString().trim() ?? '';
-            final customAttrs = (item['custom_attributes'] is Map)
-                ? Map<String, dynamic>.from(item['custom_attributes'])
-                : <String, dynamic>{};
-
-            final existingIdx = localWorkingCustomers.indexWhere((c) =>
-                (phone.isNotEmpty && c['phone'] == phone) ||
-                (name.isNotEmpty && c['name'] == name));
-
-            if (existingIdx != -1) {
-              if (duplicateStrategy == 'skip') {
-                continue;
-              } else if (duplicateStrategy == 'overwrite') {
-                final existingId = localWorkingCustomers[existingIdx]['id'];
-                final existingAttrs = (localWorkingCustomers[existingIdx]['custom_attributes'] is Map)
-                    ? Map<String, dynamic>.from(localWorkingCustomers[existingIdx]['custom_attributes'])
-                    : <String, dynamic>{};
-                final mergedAttrs = {...existingAttrs, ...customAttrs};
-
-                final updatedCustomerMap = {
-                  ...localWorkingCustomers[existingIdx],
-                  'name': name,
-                  'nickname': nickname.isNotEmpty ? nickname : localWorkingCustomers[existingIdx]['nickname'],
-                  'phone': phone.isNotEmpty ? phone : localWorkingCustomers[existingIdx]['phone'],
-                  'email': email.isNotEmpty ? email : localWorkingCustomers[existingIdx]['email'],
-                  'tags': tags.isNotEmpty ? tags : localWorkingCustomers[existingIdx]['tags'],
-                  'notes': notes.isNotEmpty ? notes : localWorkingCustomers[existingIdx]['notes'],
-                  'custom_attributes': mergedAttrs,
-                };
-
-                if (isOfflineMode) {
-                  localWorkingCustomers[existingIdx] = updatedCustomerMap;
-                  processedCount++;
-                } else {
-                  try {
-                    await Supabase.instance.client.from('customers').update({
-                      'name': updatedCustomerMap['name'],
-                      'nickname': updatedCustomerMap['nickname'],
-                      'phone': updatedCustomerMap['phone'],
-                      'email': updatedCustomerMap['email'],
-                      'tags': updatedCustomerMap['tags'],
-                      'notes': updatedCustomerMap['notes'],
-                      'custom_attributes': mergedAttrs,
-                    }).eq('id', existingId);
-
-                    localWorkingCustomers[existingIdx] = updatedCustomerMap;
-                    processedCount++;
-                  } catch (e) {
-                    failedCount++;
-                  }
-                }
-                continue;
-              }
-            }
-
-            // 新增客戶
-            if (isOfflineMode) {
-              final newCust = {
-                'id': 'offline_${DateTime.now().millisecondsSinceEpoch}_$processedCount',
-                'name': name,
-                'nickname': nickname,
-                'phone': phone,
-                'email': email,
-                'tags': tags,
-                'notes': notes,
-                'custom_attributes': customAttrs,
-                'created_at': DateTime.now().toIso8601String(),
-              };
-              localWorkingCustomers.add(newCust);
-              processedCount++;
-            } else {
-              try {
-                final user = Supabase.instance.client.auth.currentUser;
-                if (user == null) throw Exception('使用者未登入');
-
-                final insertResp = await Supabase.instance.client.from('customers').insert({
-                  'profile_id': user.id,
-                  'name': name,
-                  'nickname': nickname,
-                  'avatar_url': '',
-                  'phone': phone,
-                  'email': email,
-                  'tags': tags,
-                  'notes': notes,
-                  'custom_attributes': customAttrs,
-                }).select('id').single();
-
-                localWorkingCustomers.add({
-                  'id': insertResp['id'],
-                  'name': name,
-                  'nickname': nickname,
-                  'phone': phone,
-                  'email': email,
-                  'tags': tags,
-                  'notes': notes,
-                  'custom_attributes': customAttrs,
-                });
-                processedCount++;
-              } catch (e) {
-                failedCount++;
-              }
-            }
-          }
-
-          await _fetchCustomers();
-          if (mounted) {
-            if (failedCount > 0) {
-              CustomToast.show(
-                context,
-                '⚠️ 批次處理完成：成功 $processedCount 筆，失敗 $failedCount 筆 (請檢查網路或權限)',
-                ToastType.warning,
-              );
-            } else {
-              CustomToast.show(
-                context,
-                '🎉 成功匯入並處理 $processedCount 筆客戶資料！',
-                ToastType.success,
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  // Show Share & Export Micro-Animation Modal
-  void _showShareExportModal() {
-    final query = _searchController.text.trim();
-    final String scopeDescription = query.isEmpty ? '全部客戶檔案' : '搜尋「$query」篩選結果';
-    CustomerShareExportDialog.show(
+    showCreateProjectDialog(
       context,
-      customers: _filteredCustomers,
-      scopeDescription: scopeDescription,
+      targetCustomers: targetCustomers,
+      filteredCount: _filteredCustomers.length,
+      onCreated: _exitSelectionMode,
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final bool isWideScreen = screenWidth >= 768;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-
-    final Color searchBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color searchBorder = isDark ? const Color(0xFF30363D) : Colors.grey.shade300;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color iconColor = isDark ? Colors.white54 : Colors.black45;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Search & Action Toolbar (Responsive for Desktop vs Mobile)
-          isWideScreen
-              ? Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: TextField(
-                          controller: _searchController,
-                          style: TextStyle(color: textColor),
-                          decoration: InputDecoration(
-                            hintText: context.l10n('customer_search_hint'),
-                            hintStyle: TextStyle(color: iconColor),
-                            prefixIcon: Icon(Icons.search, color: iconColor),
-                            fillColor: searchBg,
-                            filled: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: searchBorder),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: searchBorder),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: primaryColor, width: 1.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // View Mode Toggle Button
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: searchBg,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: searchBorder),
-                        ),
-                        child: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _viewMode = _viewMode == 'list' ? 'card' : 'list';
-                            });
-                          },
-                          icon: Icon(
-                            _viewMode == 'list'
-                                ? Icons.grid_view_outlined
-                                : Icons.view_list_outlined,
-                            color: primaryColor,
-                            size: 20,
-                          ),
-                          tooltip: _viewMode == 'list'
-                              ? context.l10n('view_3d_card')
-                              : context.l10n('view_list_view'),
-                          padding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Share / Export Button
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: searchBg,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: searchBorder),
-                        ),
-                        child: IconButton(
-                          onPressed: _showShareExportModal,
-                          icon: Icon(Icons.ios_share_outlined, color: primaryColor, size: 20),
-                          tooltip: '匯出與分享選項',
-                          padding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    if (_isDevUser) ...[
-                      _buildDevScopeSwitcher(isDark),
-                      const SizedBox(width: 12),
-                    ],
-                    OutlinedButton.icon(
-                      onPressed: _showBatchImportDialog,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: primaryColor,
-                        side: BorderSide(color: primaryColor, width: 1.5),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      ),
-                      icon: const Icon(Icons.file_upload_outlined, size: 20),
-                      label: const Text('批次匯入 📥', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isSelectionMode = !_isSelectionMode;
-                          if (!_isSelectionMode) {
-                            _selectedCustomerIds.clear();
-                          }
-                        });
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _isSelectionMode ? const Color(0xFF38BDF8) : primaryColor,
-                        side: BorderSide(color: _isSelectionMode ? const Color(0xFF0EA5E9) : primaryColor, width: 1.5),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        backgroundColor: _isSelectionMode ? const Color(0xFF0EA5E9).withOpacity(0.15) : Colors.transparent,
-                      ),
-                      icon: Icon(_isSelectionMode ? Icons.check_box_outlined : Icons.checklist_outlined, size: 20),
-                      label: Text(_isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _showCustomerForm(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        elevation: 2,
-                      ),
-                      icon: const Icon(Icons.add, size: 20),
-                      label: Text(context.l10n('customer_add_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 48,
-                            child: TextField(
-                              controller: _searchController,
-                              style: TextStyle(color: textColor),
-                              decoration: InputDecoration(
-                                hintText: context.l10n('customer_search_hint'),
-                                hintStyle: TextStyle(color: iconColor),
-                                prefixIcon: Icon(Icons.search, color: iconColor),
-                                fillColor: searchBg,
-                                filled: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: searchBorder),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: searchBorder),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: primaryColor, width: 1.5),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: searchBg,
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(color: searchBorder),
-                            ),
-                            child: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _viewMode = _viewMode == 'list' ? 'card' : 'list';
-                                });
-                              },
-                              icon: Icon(
-                                _viewMode == 'list'
-                                    ? Icons.grid_view_outlined
-                                    : Icons.view_list_outlined,
-                                color: primaryColor,
-                                size: 18,
-                              ),
-                              tooltip: _viewMode == 'list'
-                                  ? context.l10n('view_3d_card')
-                                  : context.l10n('view_list_view'),
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: searchBg,
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(color: searchBorder),
-                            ),
-                            child: IconButton(
-                              onPressed: _showShareExportModal,
-                              icon: Icon(Icons.ios_share_outlined, color: primaryColor, size: 18),
-                              tooltip: '匯出與分享選項',
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _showBatchImportDialog,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: primaryColor,
-                            side: BorderSide(color: primaryColor, width: 1.5),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          ),
-                          icon: const Icon(Icons.file_upload_outlined, size: 18),
-                          label: const Text('批次匯入 📥', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _isSelectionMode = !_isSelectionMode;
-                              if (!_isSelectionMode) {
-                                _selectedCustomerIds.clear();
-                              }
-                            });
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _isSelectionMode ? const Color(0xFF38BDF8) : primaryColor,
-                            side: BorderSide(color: _isSelectionMode ? const Color(0xFF0EA5E9) : primaryColor, width: 1.5),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            backgroundColor: _isSelectionMode ? const Color(0xFF0EA5E9).withOpacity(0.15) : Colors.transparent,
-                          ),
-                          icon: Icon(_isSelectionMode ? Icons.check_box_outlined : Icons.checklist_outlined, size: 18),
-                          label: Text(_isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showCustomerForm(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            elevation: 2,
-                          ),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(context.l10n('customer_add_btn'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        ),
-                      ],
-                    ),
-                    if (_isDevUser) ...[
-                      const SizedBox(height: 10),
-                      _buildDevScopeSwitcher(isDark),
-                    ],
-                  ],
-                ),
-          
-          const SizedBox(height: 16),
-
-          // 🟡 待補齊名片 / 語音草稿收件匣
-          _buildDraftCustomersInbox(isDark),
-
-          if (_isSelectionMode) _buildBatchSelectionBar(context),
-          
-          // Customer Grid/List Area
-          Expanded(
-            child: _isLoading
-                ? (_viewMode == 'list'
-                    ? _buildShimmerList(isWideScreen, screenWidth)
-                    : _buildShimmerGrid(isWideScreen, screenWidth))
-                : _filteredCustomers.isEmpty
-                    ? _buildEmptyState(isDark, primaryColor)
-                    : (_viewMode == 'list'
-                        ? _buildCustomerList(isWideScreen, screenWidth)
-                        : _buildCustomerGrid(isWideScreen, screenWidth)),
-          ),
-        ],
-      ),
+  // 批次匯入 CSV／Excel：匯入完成後重新讀取客戶
+  void _openBatchImportDialog() {
+    showCustomerImportDialog(
+      context,
+      existingCustomers: _allCustomers,
+      onImported: _fetchCustomers,
     );
   }
 
-  Widget _buildDevScopeSwitcher(bool isDark) {
-    if (!_isDevUser) return const SizedBox.shrink();
-
-    final Color activeBg = const Color(0xFF6366F1);
-    final Color inactiveText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () {
-              if (!_devFilterOnlyMine) {
-                setState(() => _devFilterOnlyMine = true);
-                _filterCustomers();
-              }
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _devFilterOnlyMine ? activeBg : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.person_rounded, size: 14, color: _devFilterOnlyMine ? Colors.white : inactiveText),
-                  const SizedBox(width: 4),
-                  Text(
-                    '👤 僅我建立的',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _devFilterOnlyMine ? Colors.white : inactiveText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () {
-              if (_devFilterOnlyMine) {
-                setState(() => _devFilterOnlyMine = false);
-                _filterCustomers();
-              }
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: !_devFilterOnlyMine ? activeBg : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.public_rounded, size: 14, color: !_devFilterOnlyMine ? Colors.white : inactiveText),
-                  const SizedBox(width: 4),
-                  Text(
-                    '🌐 全系統客戶 (Dev)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: !_devFilterOnlyMine ? Colors.white : inactiveText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 🟡 待補齊草稿名片收件匣 (嚴格只篩選 status == 'draft')
-  Widget _buildDraftCustomersInbox(bool isDark) {
-    final draftCustomers = _allCustomers.where((c) => c['status'] == 'draft').toList();
-
-    if (draftCustomers.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.contact_mail_rounded, color: Color(0xFFF59E0B), size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('🟡 待補齊名片 / 語音草稿收件匣', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(10)),
-                      child: Text('${draftCustomers.length} 位待確認', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text('語音助理在外速記產生之草稿檔案，點擊 1 秒補齊電話與標籤轉為正式客戶。', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF59E0B),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            onPressed: () {
-              if (draftCustomers.isNotEmpty) {
-                _showCustomerZoomDetails(draftCustomers.first);
-              }
-            },
-            icon: const Icon(Icons.edit_note_rounded, size: 16),
-            label: const Text('立即補齊轉正', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Grid/List Layout
-  Widget _buildCustomerGrid(bool isWideScreen, double screenWidth) {
-    int crossAxisCount = 1;
-    double childAspectRatio = 2.0;
-
-    if (isWideScreen) {
-      if (screenWidth > 1200) {
-        crossAxisCount = 3;
-        childAspectRatio = 1.6;
-      } else {
-        crossAxisCount = 2;
-        childAspectRatio = 1.5;
-      }
-    } else {
-      childAspectRatio = 1.65;
+  // 匯出與分享：[selectedOnly] 為 true 時只匯出勾選的客戶，否則匯出目前搜尋結果
+  void _openExportDialog({required bool selectedOnly}) {
+    List<Map<String, dynamic>> customers = _filteredCustomers;
+    final String query = _searchController.text.trim();
+    String scopeDescription = query.isEmpty ? '全部客戶檔案' : '搜尋「$query」篩選結果';
+    if (selectedOnly) {
+      customers = _filteredCustomers.where((c) => _selectedCustomerIds.contains(c['id'].toString())).toList();
+      scopeDescription = '已勾選之 ${_selectedCustomerIds.length} 位客戶';
     }
-
-    return GridView.builder(
-      padding: const EdgeInsets.only(top: 12, bottom: 24, left: 8, right: 8),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
-      ),
-      itemCount: _filteredCustomers.length,
-      itemBuilder: (context, index) {
-        final customer = _filteredCustomers[index];
-        final id = customer['id'].toString();
-        final isSelected = _selectedCustomerIds.contains(id);
-
-        Widget cardWidget = HoverAnimatedCard(
-          child: FlippingCustomerCard(
-            customer: customer,
-            onEdit: () => _showCustomerForm(customer: customer),
-            onDelete: () => _showDeleteConfirm(customer['id'], customer['name'] ?? ''),
-            onZoom: () => _showCustomerZoomDetails(customer),
-            onManageRelationships: () => _showEditCustomerRelationshipsDialog(customer),
-          ),
-        );
-
-        if (_isSelectionMode) {
-          cardWidget = Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFF0EA5E9) : Colors.transparent,
-                    width: 3,
-                  ),
-                ),
-                child: IgnorePointer(
-                  child: cardWidget,
-                ),
-              ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF0EA5E9) : const Color(0xFF1E293B).withOpacity(0.9),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: Icon(
-                      isSelected ? Icons.check : Icons.circle_outlined,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    setState(() {
-                      if (_selectedCustomerIds.contains(id)) {
-                        _selectedCustomerIds.remove(id);
-                      } else {
-                        _selectedCustomerIds.add(id);
-                      }
-                    });
-                  },
-                ),
-              ),
-            ],
-          );
-        }
-
-        return StaggeredFadeIn(
-          index: index,
-          child: cardWidget,
-        );
-      },
-    );
+    CustomerShareExportDialog.show(context, customers: customers, scopeDescription: scopeDescription);
   }
 
-  // Shimmer Skeleton Loader Grid Layout
-  Widget _buildShimmerGrid(bool isWideScreen, double screenWidth) {
-    int crossAxisCount = 1;
-    double childAspectRatio = 2.0;
-
-    if (isWideScreen) {
-      if (screenWidth > 1200) {
-        crossAxisCount = 3;
-        childAspectRatio = 1.6;
-      } else {
-        crossAxisCount = 2;
-        childAspectRatio = 1.5;
-      }
-    } else {
-      childAspectRatio = 1.8;
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.only(top: 12, bottom: 24, left: 8, right: 8),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
-      ),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        return const CustomerCardShimmer();
-      },
-    );
-  }
-
-  // Empty State Widget
-  Widget _buildEmptyState(bool isDark, Color primaryColor) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 64,
-            color: primaryColor.withOpacity(0.3),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            context.l10n('customer_empty_title'),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            context.l10n('customer_empty_desc'),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: isDark ? Colors.white30 : Colors.black54,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // List Layout
-  Widget _buildCustomerList(bool isWideScreen, double screenWidth) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 12, bottom: 24, left: 8, right: 8),
-      itemCount: _filteredCustomers.length,
-      itemBuilder: (context, index) {
-        final customer = _filteredCustomers[index];
-        return StaggeredFadeIn(
-          index: index,
-          child: _buildCustomerListRow(customer, isWideScreen, screenWidth),
-        );
-      },
-    );
-  }
-
-  // Shimmer Skeleton Loader List Layout
-  Widget _buildShimmerList(bool isWideScreen, double screenWidth) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(top: 12, bottom: 24, left: 8, right: 8),
-      itemCount: 8,
-      itemBuilder: (context, index) {
-        return const CustomerListShimmer();
-      },
-    );
-  }
-
-  // List Row UI
-  Widget _buildCustomerListRow(Map<String, dynamic> customer, bool isWideScreen, double screenWidth) {
-    final String name = customer['name'] ?? '';
-    final String nickname = customer['nickname'] ?? '';
-    final String phone = customer['phone'] ?? '未填寫';
-    final String email = customer['email'] ?? '未填寫';
-    final List tags = customer['tags'] ?? [];
-    final String notes = customer['notes'] ?? '';
-    final String avatarUrl = customer['avatar_url'] ?? '';
-
-    final String displayName = nickname.isNotEmpty ? '$name ($nickname)' : name;
-    final String nameInitial = name.isNotEmpty ? name.substring(0, 1) : '?';
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-    final Color nameColor = isDark ? Colors.white : Colors.black87;
-    final Color infoColor = isDark ? Colors.white54 : Colors.black54;
-    final Color iconColor = isDark ? Colors.white30 : Colors.black38;
-
-    Widget child;
-
-    if (isWideScreen) {
-      // Wide layout (Desktop/Tablet)
-      child = Row(
-        children: [
-          // 1. Avatar & Display Name
-          SizedBox(
-            width: 180,
-            child: Row(
-              children: [
-                if (_isSelectionMode) ...[
-            Checkbox(
-              value: _selectedCustomerIds.contains(customer['id'].toString()),
-              onChanged: (val) {
-                setState(() {
-                  final id = customer['id'].toString();
-                  if (val == true) {
-                    _selectedCustomerIds.add(id);
-                  } else {
-                    _selectedCustomerIds.remove(id);
-                  }
-                });
-              },
-              activeColor: const Color(0xFF0EA5E9),
-            ),
-            const SizedBox(width: 8),
-          ],
-          CircleAvatar(
-                  backgroundColor: primaryColor.withOpacity(0.12),
-                  radius: 20,
-                  backgroundImage: _getAvatarProvider(avatarUrl),
-                  child: avatarUrl.isEmpty
-                      ? Text(
-                          nameInitial,
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        displayName,
-                        style: TextStyle(
-                          color: nameColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (customer['agent_name'] != null && customer['agent_name'].toString().isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          '👤 業務員: ${customer['agent_name']}',
-                          style: const TextStyle(
-                            color: Color(0xFF6366F1),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // 2. Contact Info (Phone & Email)
-          SizedBox(
-            width: 180,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.phone, size: 12, color: iconColor),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        phone,
-                        style: TextStyle(color: infoColor, fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.email, size: 12, color: iconColor),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        email,
-                        style: TextStyle(color: infoColor, fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // 3. Tags Column (Wrap with dynamic flex)
-          Expanded(
-            flex: 2,
-            child: tags.isNotEmpty
-                ? Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: tags.take(4).map((tag) {
-                      final style = TagCategorizer.getStyle(tag.toString(), isDark);
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: style.backgroundColor,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          tag.toString(),
-                          style: TextStyle(
-                            color: style.textColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  )
-                : Text(
-                    '無標籤',
-                    style: TextStyle(color: infoColor, fontSize: 11, fontStyle: FontStyle.italic),
-                  ),
-          ),
-          const SizedBox(width: 12),
-
-          // 4. Notes preview
-          Expanded(
-            flex: 3,
-            child: Text(
-              notes.isNotEmpty ? notes : '無備註資料',
-              style: TextStyle(
-                color: notes.isNotEmpty ? infoColor : (isDark ? Colors.white24 : Colors.black38),
-                fontSize: 11,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          // 5. Actions row
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(Icons.fullscreen_rounded, color: primaryColor, size: 20),
-                tooltip: context.l10n('customer_card_zoom_tooltip'),
-                onPressed: () => _showCustomerZoomDetails(customer),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-              ),
-              IconButton(
-                icon: Icon(Icons.edit_outlined, color: infoColor, size: 18),
-                onPressed: () => _showCustomerForm(customer: customer),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                onPressed: () => _showDeleteConfirm(customer['id'], customer['name'] ?? ''),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(6),
-              ),
-            ],
-          ),
-        ],
-      );
-    } else {
-      // Narrow layout (Mobile/Compact)
-      child = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: primaryColor.withOpacity(0.12),
-                radius: 18,
-                backgroundImage: _getAvatarProvider(avatarUrl),
-                child: avatarUrl.isEmpty
-                    ? Text(
-                        nameInitial,
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: TextStyle(
-                        color: nameColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      phone,
-                      style: TextStyle(color: infoColor, fontSize: 10),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.fullscreen_rounded, color: primaryColor, size: 18),
-                onPressed: () => _showCustomerZoomDetails(customer),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-              ),
-              IconButton(
-                icon: Icon(Icons.edit_outlined, color: infoColor, size: 16),
-                onPressed: () => _showCustomerForm(customer: customer),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
-                onPressed: () => _showDeleteConfirm(customer['id'], customer['name'] ?? ''),
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(4),
-              ),
-            ],
-          ),
-          if (tags.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: tags.take(3).map((tag) {
-                final style = TagCategorizer.getStyle(tag.toString(), isDark);
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: style.backgroundColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    tag.toString(),
-                    style: TextStyle(
-                      color: style.textColor,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
-          if (notes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              notes,
-              style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black45,
-                fontSize: 10,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: HoverAnimatedCard(
-        child: Card(
-          margin: EdgeInsets.zero,
-          color: cardBg,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: cardBorder, width: 1),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 讀寫合一全景側邊抽屜 (Side Sheet)
-  void _showCustomerZoomDetails(Map<String, dynamic> customer) {
+  // 讀寫合一全景側邊抽屜 (Side Sheet)；抽屜裡改了資料就同步回列表
+  void _openCustomerDetails(Map<String, dynamic> customer) {
     CustomerDetailSideSheet.show(
       context,
       customer: customer,
       onCustomerUpdated: (updated) {
-        final idx = _allCustomers.indexWhere((c) => c['id'] == updated['id']);
-        if (idx != -1) {
+        final int index = _allCustomers.indexWhere((c) => c['id'] == updated['id']);
+        if (index != -1) {
           setState(() {
-            _allCustomers[idx] = updated;
+            _allCustomers[index] = updated;
           });
           _filterCustomers();
         }
@@ -2627,790 +362,132 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     );
   }
 
-  void _showEditCustomerRelationshipsDialog(Map<String, dynamic> customer) async {
-    final customerId = customer['id'].toString();
-    String? currentReferralId = customer['referral_source_id']?.toString();
-
-    List<Map<String, dynamic>> rels = await CustomerRelationshipService.fetchAllRelationships();
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final myRels = rels.where((r) =>
-              r['source_customer_id'].toString() == customerId ||
-              r['target_customer_id'].toString() == customerId
-            ).toList();
-
-            final otherCustomers = _allCustomers.where((c) => c['id'].toString() != customerId).toList();
-
-            String? selectedTargetId = otherCustomers.isNotEmpty ? otherCustomers.first['id'].toString() : null;
-            String selectedType = 'family';
-            final detailController = TextEditingController(text: '親眷');
-
-            return AlertDialog(
-              title: Row(
-                children: [
-                  const Icon(Icons.hub_rounded, color: Color(0xFF6366F1)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '👥 管理人脈與轉介紹：${customer['name']}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: SizedBox(
-                  width: 480,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF6366F1))),
-                      const SizedBox(height: 4),
-                      const Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String?>(
-                        value: otherCustomers.any((c) => c['id'].toString() == currentReferralId) ? currentReferralId : null,
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('無 (自開發 / 獨立客戶)'),
-                          ),
-                          ...otherCustomers.map((c) => DropdownMenuItem<String?>(
-                            value: c['id'].toString(),
-                            child: Text('${c['name']} ${c['phone'] != null && c['phone'].toString().isNotEmpty ? "(${c['phone']})" : ""}'),
-                          )),
-                        ],
-                        onChanged: (val) async {
-                          currentReferralId = val;
-                          await CustomerRelationshipService.updateReferralSource(
-                            customerId: customerId,
-                            referralSourceId: val,
-                          );
-                          setState(() {
-                            customer['referral_source_id'] = val;
-                          });
-                          setDialogState(() {});
-                          CustomToast.show(context, '✅ 已更新轉介紹來源', ToastType.success);
-                        },
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-                      const Divider(),
-                      const SizedBox(height: 8),
-
-                      const Text('🕸️ 維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
-                      const SizedBox(height: 4),
-                      const Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 10),
-
-                      if (myRels.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        )
-                      else
-                        ...myRels.map((r) {
-                          final bool isSource = r['source_customer_id'].toString() == customerId;
-                          final otherId = isSource ? r['target_customer_id'].toString() : r['source_customer_id'].toString();
-                          final otherCust = _allCustomers.firstWhere((c) => c['id'].toString() == otherId, orElse: () => {'name': '未知客戶'});
-                          final typeStr = r['relationship_type'] ?? 'family';
-                          final detailStr = r['relationship_detail'] ?? '';
-
-                          Color tagColor = const Color(0xFF10B981);
-                          String typeName = '親眷';
-                          if (typeStr == 'workplace') { tagColor = const Color(0xFFF59E0B); typeName = '職場'; }
-                          else if (typeStr == 'social') { tagColor = const Color(0xFF8B5CF6); typeName = '社團'; }
-                          else if (typeStr == 'other') { tagColor = const Color(0xFF6B7280); typeName = '其他'; }
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: tagColor.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: tagColor.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: tagColor,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(typeName, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '${otherCust['name']} (${detailStr.isNotEmpty ? detailStr : typeName})',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                                  onPressed: () async {
-                                    await CustomerRelationshipService.deleteRelationship(r['id'].toString());
-                                    rels = await CustomerRelationshipService.fetchAllRelationships();
-                                    setDialogState(() {});
-                                    CustomToast.show(context, '🗑️ 已解除人脈關係', ToastType.warning);
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('➕ 新增社交關係：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              value: selectedTargetId,
-                              items: otherCustomers.map((c) => DropdownMenuItem<String>(
-                                value: c['id'].toString(),
-                                child: Text(c['name'] ?? ''),
-                              )).toList(),
-                              onChanged: (val) {
-                                if (val != null) selectedTargetId = val;
-                              },
-                              decoration: InputDecoration(
-                                labelText: '選擇對象客戶',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    value: selectedType,
-                                    items: const [
-                                      DropdownMenuItem(value: 'family', child: Text('親眷')),
-                                      DropdownMenuItem(value: 'workplace', child: Text('職場/同事')),
-                                      DropdownMenuItem(value: 'social', child: Text('社團/朋友')),
-                                      DropdownMenuItem(value: 'other', child: Text('其他')),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        selectedType = val;
-                                        if (val == 'family') detailController.text = '親眷';
-                                        else if (val == 'workplace') detailController.text = '同事';
-                                        else if (val == 'social') detailController.text = '社友';
-                                        else detailController.text = '朋友';
-                                      }
-                                    },
-                                    decoration: InputDecoration(
-                                      labelText: '關係類別',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: detailController,
-                                    decoration: InputDecoration(
-                                      labelText: '細節描述 (如 夫妻)',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: () async {
-                                  if (selectedTargetId != null) {
-                                    await CustomerRelationshipService.addRelationship(
-                                      sourceCustomerId: customerId,
-                                      targetCustomerId: selectedTargetId!,
-                                      relationshipType: selectedType,
-                                      relationshipDetail: detailController.text.trim(),
-                                    );
-                                    rels = await CustomerRelationshipService.fetchAllRelationships();
-                                    setDialogState(() {});
-                                    CustomToast.show(context, '✅ 成功新增人脈關聯', ToastType.success);
-                                  }
-                                },
-                                icon: const Icon(Icons.add_rounded, size: 16),
-                                label: const Text('新增關聯'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx),
-                  child: const Text('關閉'),
-                ),
-              ],
-            );
-          },
-        );
+  void _openRelationshipsDialog(Map<String, dynamic> customer) {
+    showCustomerRelationshipsDialog(
+      context,
+      customer: customer,
+      allCustomers: _allCustomers,
+      onReferralSourceChanged: (String? referralSourceId) {
+        setState(() {
+          customer['referral_source_id'] = referralSourceId;
+        });
       },
     );
   }
-}
 
-// ==========================================
-// 3D Flipping Customer Card Widget
-// ==========================================
-
-class FlippingCustomerCard extends StatefulWidget {
-  final Map<String, dynamic> customer;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onZoom;
-  final VoidCallback? onManageRelationships;
-
-  const FlippingCustomerCard({
-    super.key,
-    required this.customer,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onZoom,
-    this.onManageRelationships,
-  });
-
-
-  @override
-  State<FlippingCustomerCard> createState() => _FlippingCustomerCardState();
-}
-
-class _FlippingCustomerCardState extends State<FlippingCustomerCard> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  bool _isFront = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _flip() {
-    if (_isFront) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
+  // 勾選或取消一位客戶
+  void _setCustomerSelected(String customerId, bool selected) {
     setState(() {
-      _isFront = !_isFront;
+      if (selected) {
+        _selectedCustomerIds.add(customerId);
+      } else {
+        _selectedCustomerIds.remove(customerId);
+      }
     });
   }
 
+  // 全選框：勾選＝選取目前篩選出的全部客戶；取消＝全部取消
+  void _setAllSelected(bool? selectAll) {
+    setState(() {
+      if (selectAll == true) {
+        _selectedCustomerIds = _filteredCustomers.map((c) => c['id'].toString()).toSet();
+      } else {
+        _selectedCustomerIds.clear();
+      }
+    });
+  }
 
-
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedCustomerIds.clear();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String name = widget.customer['name'] ?? '';
-    final String nickname = widget.customer['nickname'] ?? '';
-    final String phone = widget.customer['phone'] ?? '未填寫';
-    final String email = widget.customer['email'] ?? '未填寫';
-    final List tags = widget.customer['tags'] ?? [];
-    final String notes = widget.customer['notes'] ?? '';
-    final String avatarUrl = widget.customer['avatar_url'] ?? '';
+    super.build(context);
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final bool isWideScreen = screenWidth >= 768;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final List<Map<String, dynamic>> draftCustomers = _allCustomers.where((c) => c['status'] == 'draft').toList();
 
-    final String displayName = nickname.isNotEmpty ? '$name ($nickname)' : name;
-    final String nameInitial = name.isNotEmpty ? name.substring(0, 1) : '?';
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final double transformVal = _controller.value * 3.1415926535;
-        final bool showFrontSide = transformVal < (3.1415926535 / 2);
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _flip,
-          child: Transform(
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // perspective
-              ..rotateY(transformVal),
-            alignment: Alignment.center,
-            child: showFrontSide
-                ? _buildFront(name, nickname, displayName, phone, email, tags, avatarUrl, nameInitial)
-                : Transform(
-                    // Counter rotate back side
-                    transform: Matrix4.identity()..rotateY(3.1415926535),
-                    alignment: Alignment.center,
-                    child: _buildBack(name, notes),
-                  ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CustomerToolbar(
+            searchController: _searchController,
+            viewMode: _viewMode,
+            isSelectionMode: _isSelectionMode,
+            isDevUser: _isDevUser,
+            devOnlyMine: _devFilterOnlyMine,
+            onDevScopeChanged: (bool onlyMine) {
+              setState(() => _devFilterOnlyMine = onlyMine);
+              _filterCustomers();
+            },
+            onToggleViewMode: () {
+              setState(() {
+                _viewMode = _viewMode == 'list' ? 'card' : 'list';
+              });
+            },
+            onShareExport: () => _openExportDialog(selectedOnly: false),
+            onBatchImport: _openBatchImportDialog,
+            onToggleSelectionMode: _toggleSelectionMode,
+            onAddCustomer: () => _openCustomerForm(),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFront(
-    String name,
-    String nickname,
-    String displayName,
-    String phone,
-    String email,
-    List tags,
-    String avatarUrl,
-    String nameInitial,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-    final Color nameColor = isDark ? Colors.white : Colors.black87;
-    final Color infoColor = isDark ? Colors.white54 : Colors.black54;
-    final Color iconColor = isDark ? Colors.white30 : Colors.black38;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      color: cardBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: cardBorder, width: 1),
-      ),
-      child: InkWell(
-        onTap: _flip,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Section (Avatar & Info & Flip icon)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Avatar with Photo support
-                  CircleAvatar(
-                    backgroundColor: primaryColor.withOpacity(0.12),
-                    radius: 24,
-                    backgroundImage: _getAvatarProvider(avatarUrl),
-                    child: avatarUrl.isEmpty
-                        ? Text(
-                            nameInitial,
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Name & Info Columns
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          displayName,
-                          style: TextStyle(
-                            color: nameColor,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(Icons.phone, size: 12, color: iconColor),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                phone,
-                                style: TextStyle(color: infoColor, fontSize: 11),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.email, size: 12, color: iconColor),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                email,
-                                style: TextStyle(color: infoColor, fontSize: 11),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (widget.customer['agent_name'] != null && widget.customer['agent_name'].toString().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.badge_outlined, size: 12, color: Color(0xFF6366F1)),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  '👤 業務員: ${widget.customer['agent_name']}',
-                                  style: const TextStyle(color: Color(0xFF6366F1), fontSize: 10, fontWeight: FontWeight.w600),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Action icons on the right (Zoom & Flip)
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.fullscreen_rounded, color: iconColor, size: 20),
-                        tooltip: context.l10n('customer_card_zoom_tooltip'),
-                        onPressed: widget.onZoom,
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                      ),
-                      const SizedBox(height: 4),
-                      Icon(
-                        Icons.flip_camera_android_rounded,
-                        color: primaryColor,
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Tags Row
-              if (tags.isNotEmpty)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: tags.take(3).map((tag) {
-                    final style = TagCategorizer.getStyle(tag.toString(), isDark);
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: style.backgroundColor,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        tag.toString(),
-                        style: TextStyle(
-                          color: style.textColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-            ],
+          const SizedBox(height: 16),
+          // 🟡 待補齊名片 / 語音草稿收件匣
+          CustomerDraftInbox(
+            isDark: isDark,
+            draftCustomers: draftCustomers,
+            onOpenDraft: _openCustomerDetails,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBack(String name, String notes) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      color: cardBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: primaryColor, width: 1.5),
-      ),
-      child: InkWell(
-        onTap: _flip,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${context.l10n('customer_card_notes_title')} ($name)',
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.fullscreen_rounded, color: primaryColor, size: 16),
-                        tooltip: context.l10n('customer_card_zoom_tooltip'),
-                        onPressed: widget.onZoom,
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.edit_outlined, color: subTextColor, size: 16),
-                        onPressed: widget.onEdit,
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
-                        onPressed: widget.onDelete,
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.flip_camera_android_rounded,
-                        color: primaryColor,
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Divider(color: isDark ? const Color(0xFF21262D) : Colors.grey.shade300, height: 12),
-              if (widget.onManageRelationships != null) ...[
-                InkWell(
-                  onTap: widget.onManageRelationships,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    margin: const EdgeInsets.only(bottom: 6),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: primaryColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.hub_rounded, size: 12, color: primaryColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              '👥 人脈與轉介紹關聯',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryColor),
-                            ),
-                          ],
-                        ),
-                        Icon(Icons.edit_note_rounded, size: 12, color: primaryColor),
-                      ],
-                    ),
-                  ),
+          if (_isSelectionMode)
+            CustomerBatchSelectionBar(
+              selectedCount: _selectedCustomerIds.length,
+              totalCount: _filteredCustomers.length,
+              onSelectAllChanged: _setAllSelected,
+              onExport: () => _openExportDialog(selectedOnly: true),
+              onCreateProject: _openCreateProjectDialog,
+              onBatchDelete: () {
+                if (_selectedCustomerIds.isEmpty) return;
+                showBatchDeleteConfirm(
+                  context,
+                  count: _selectedCustomerIds.length,
+                  onConfirm: _executeBatchDelete,
+                );
+              },
+              onExitSelection: _exitSelectionMode,
+            ),
+          Expanded(
+            child: CustomerCollectionView(
+              customers: _filteredCustomers,
+              isLoading: _isLoading,
+              isListMode: _viewMode == 'list',
+              isWideScreen: isWideScreen,
+              screenWidth: screenWidth,
+              isSelectionMode: _isSelectionMode,
+              selectedCustomerIds: _selectedCustomerIds,
+              actions: CustomerCardActions(
+                onEdit: (customer) => _openCustomerForm(customer: customer),
+                onDelete: (customer) => showDeleteCustomerConfirm(
+                  context,
+                  name: customer['name'] ?? '',
+                  onConfirm: () => _deleteCustomer(customer['id']),
                 ),
-              ],
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Text(
-                    notes.isNotEmpty ? notes : context.l10n('customer_card_no_notes'),
-                    style: TextStyle(
-                      color: notes.isNotEmpty 
-                          ? (isDark ? Colors.white : Colors.black87) 
-                          : (isDark ? Colors.white38 : Colors.black45),
-                      fontSize: 11,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
+                onZoom: _openCustomerDetails,
+                onManageRelationships: _openRelationshipsDialog,
+                onSelectionChanged: _setCustomerSelected,
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
-}
 
-
-
-// Helper to get image provider from URL or Base64 data URI
-ImageProvider? _getAvatarProvider(String avatarUrl) {
-  if (avatarUrl.isEmpty) return null;
-  if (avatarUrl.startsWith('data:image/') || avatarUrl.startsWith('data:application/')) {
-    try {
-      final base64String = avatarUrl.split(',').last;
-      return MemoryImage(base64Decode(base64String));
-    } catch (e) {
-      return null;
-    }
-  }
-  return NetworkImage(avatarUrl);
-}
-
-// Shimmer card widget for list loading states
-class CustomerCardShimmer extends StatelessWidget {
-  const CustomerCardShimmer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-
-    return Card(
-      color: cardBg,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: cardBorder, width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                // Avatar Shimmer
-                const ShimmerLoader(width: 40, height: 40, borderRadius: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      // Name Shimmer
-                      ShimmerLoader(width: 120, height: 16, borderRadius: 4),
-                      SizedBox(height: 6),
-                      // Details Shimmer
-                      ShimmerLoader(width: 80, height: 12, borderRadius: 4),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Tags Shimmer
-            Row(
-              children: const [
-                ShimmerLoader(width: 50, height: 18, borderRadius: 4),
-                SizedBox(width: 8),
-                ShimmerLoader(width: 60, height: 18, borderRadius: 4),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Shimmer list card widget for list loading states
-class CustomerListShimmer extends StatelessWidget {
-  const CustomerListShimmer({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: cardBg,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: cardBorder, width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          children: [
-            // Avatar
-            const ShimmerLoader(width: 40, height: 40, borderRadius: 20),
-            const SizedBox(width: 16),
-            // Name
-            const ShimmerLoader(width: 100, height: 16, borderRadius: 4),
-            const SizedBox(width: 24),
-            // Contact info (Wide screen simulation or general spacing)
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  ShimmerLoader(width: 120, height: 10, borderRadius: 4),
-                  SizedBox(height: 6),
-                  ShimmerLoader(width: 140, height: 10, borderRadius: 4),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Tags shimmer
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: const [
-                  ShimmerLoader(width: 60, height: 18, borderRadius: 4),
-                  SizedBox(width: 8),
-                  ShimmerLoader(width: 50, height: 18, borderRadius: 4),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Actions
-            const ShimmerLoader(width: 80, height: 24, borderRadius: 12),
-          ],
-        ),
-      ),
-    );
-  }
 }
