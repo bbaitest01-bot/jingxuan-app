@@ -169,7 +169,7 @@ class VoiceTranscriptionService {
     return transcript;
   }
 
-  /// 停止錄音並送至 Edge Function 進行智慧行程排程與建立
+  /// 停止錄音並送至 Edge Function 辨識行程內容（只辨識、不存檔，由編輯視窗儲存）
   Future<Map<String, dynamic>> transcribeAndCreateEvent(DateTime localTime) async {
     final liveSpeech = _webController.liveTranscript.trim();
     final bytes = await _stopAndGetAudioBytes();
@@ -317,29 +317,15 @@ class VoiceTranscriptionService {
       warningMessages.add('未偵測到具體地點 (例: 「在臺北101」)');
     }
 
-    try {
-      final inserted = await supabase.from('schedule_events').insert(newEvent).select().single();
-      if (warningMessages.isEmpty) {
-        warningMessages.add('已透過智慧排程建立行程，請確認細節');
-      }
-      return {
-        'success': true,
-        'status': 'yellow',
-        'warning_messages': warningMessages,
-        'transcript': text,
-        'event': inserted,
-      };
-    } catch (e) {
-      debugPrint('本機備援行程寫入失敗: $e');
-      warningMessages.add('行程資料庫寫入未完成，請點擊「儲存」');
-      return {
-        'success': true,
-        'status': 'yellow',
-        'warning_messages': warningMessages,
-        'transcript': text,
-        'event': newEvent,
-      };
-    }
+    // 只辨識、不存檔（問題 S18）：使用者在編輯視窗按儲存才寫入資料庫
+    warningMessages.add('請確認內容後按「儲存」');
+    return {
+      'success': true,
+      'status': 'yellow',
+      'warning_messages': warningMessages,
+      'transcript': text,
+      'event': newEvent,
+    };
   }
 
   /// 將 DateTime 格式化為帶有時區偏移量的 ISO 8601 字串

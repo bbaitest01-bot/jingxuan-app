@@ -64,6 +64,13 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
   // 預設台北 101
   static const LatLng _defaultCenter = LatLng(25.0330, 121.5654);
 
+  // 已經存在資料庫的行程才算「編輯」；語音排程帶入的內容還沒有編號，算「新增」（問題 S18）
+  bool get _isExistingEvent {
+    final ScheduleEvent? event = widget.eventToEdit;
+    if (event == null) return false;
+    return event.id.isNotEmpty;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -283,7 +290,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
         lastSyncedAt: widget.eventToEdit?.lastSyncedAt,
       );
 
-      if (widget.eventToEdit != null) {
+      if (_isExistingEvent) {
         await ScheduleService.instance.updateEvent(eventToSave);
         if (mounted) {
           CustomToast.show(context, '行程更新成功 ✅', ToastType.success);
@@ -296,7 +303,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
       }
 
       if (mounted) {
-        final resultAction = widget.eventToEdit != null ? 'updated' : 'created';
+        final resultAction = _isExistingEvent ? 'updated' : 'created';
         Navigator.of(context).pop(resultAction);
       }
     } catch (e) {
@@ -309,7 +316,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
   }
 
   Future<void> _deleteEvent() async {
-    if (widget.eventToEdit == null) return;
+    if (!_isExistingEvent) return;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -348,7 +355,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.eventToEdit != null;
+    final isEdit = _isExistingEvent;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget buildFormColumn() {
