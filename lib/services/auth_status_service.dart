@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../router/app_routes.dart';
+import 'app_settings.dart';
 import 'customer_service.dart';
 
 /// 某一個時間點的登入狀態快照，給網址守門規則判斷要不要導向。
@@ -104,6 +105,8 @@ class AuthStatusService extends ChangeNotifier {
       OfflineDataStore.clear();
       // 登出時清掉暫存的客戶名單，下一個登入的人看不到
       CustomerService.instance.clearCache();
+      // 設定恢復預設，下一個登入的人不會沿用上一位的主題色等（問題 G1）
+      await AppSettings.instance.clearForSignOut();
       return;
     }
 
@@ -111,6 +114,8 @@ class AuthStatusService extends ChangeNotifier {
     if (_profileUserId != session.user.id) {
       CustomerService.instance.clearCache();
       await _loadProfile(session.user.id);
+      // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言）
+      await AppSettings.instance.applyCloudSettings();
     }
   }
 

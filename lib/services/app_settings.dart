@@ -43,7 +43,8 @@ class AppSettings extends ChangeNotifier {
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
-  /// Load settings from SharedPreferences and optionally sync with Supabase Cloud
+  /// App 啟動時讀取這台裝置上的設定（瀏覽器本機）。
+  /// 帳號裡的設定要等登入後由 AuthStatusService 呼叫 [applyCloudSettings] 套用（問題 G1）
   Future<void> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -78,9 +79,6 @@ class AppSettings extends ChangeNotifier {
 
       _isInitialized = true;
       notifyListeners();
-
-      // Async sync with Supabase User Metadata if user is logged in
-      _syncWithCloudOnStartup();
     } catch (e) {
       debugPrint('Error loading settings from SharedPreferences: $e');
       _isInitialized = true;
@@ -88,12 +86,16 @@ class AppSettings extends ChangeNotifier {
     }
   }
 
-  /// Sync settings with Supabase Cloud User Metadata
-  Future<void> _syncWithCloudOnStartup() async {
+  /// 登入（或換人登入）後，讀回存在帳號裡的設定並套用，讓不同裝置看到同一套設定。
+  /// 以前在 App 啟動、還沒連上 Supabase 前就讀，所以每次都讀不到（問題 G1、A4）
+  Future<void> applyCloudSettings() async {
     if (isOfflineMode) return;
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
+      // 向伺服器要最新的帳號資料：瀏覽器自己存的登入資料是上次登入時的版本，
+      // 另一台裝置改過的設定不會在裡面（只重新整理、沒重新登入時會讀到舊設定）
+      final UserResponse latest = await Supabase.instance.client.auth.getUser();
+      final User? user = latest.user;
       if (user != null && user.userMetadata != null && user.userMetadata!['app_settings'] != null) {
         final Map<String, dynamic> cloudData = Map<String, dynamic>.from(user.userMetadata!['app_settings']);
         
@@ -210,6 +212,18 @@ class AppSettings extends ChangeNotifier {
     _language = lang;
     notifyListeners();
     await _saveAndSync();
+  }
+
+  /// 登出時恢復預設設定（只改這台裝置，不動帳號裡存的設定），避免下一位登入的人沿用上一位的設定
+  Future<void> clearForSignOut() async {
+    _themeMode = ThemeMode.dark;
+    _primaryColor = AppThemeColors.tealCyan;
+    _defaultCustomerViewMode = 'card';
+    _isSidebarCollapsedByDefault = false;
+    _isSidebarHoverExpandEnabled = false;
+    _language = 'zh_TW';
+    notifyListeners();
+    await _saveToLocalPrefs();
   }
 
   /// Reset to factory default settings
