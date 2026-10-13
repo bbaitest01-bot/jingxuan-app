@@ -48,6 +48,16 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
 
   Future<void> _createRecord() async {
     final VisitRecord? record = await showCreateVisitRecordDialog(context);
+    _openCreatedRecord(record);
+  }
+
+  Future<void> _recordNewRecord() async {
+    final VisitRecord? record = await showRecordVisitRecordDialog(context);
+    _openCreatedRecord(record);
+  }
+
+  // 建立成功就打開那篇
+  void _openCreatedRecord(VisitRecord? record) {
     if (record == null || !mounted) return;
     CustomToast.show(context, '已建立拜訪紀錄', ToastType.success);
     context.go(AppRoutes.visitRecordPath(record.id));
@@ -86,6 +96,15 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
           tooltip: '重新整理',
           onPressed: _isLoading ? null : _loadRecords,
           icon: const Icon(Icons.refresh),
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
+          onPressed: _recordNewRecord,
+          icon: const Icon(Icons.mic_none, size: 18),
+          label: const Text('錄音新增'),
+          style: OutlinedButton.styleFrom(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         ),
         const SizedBox(width: 8),
         ElevatedButton.icon(
@@ -191,7 +210,7 @@ class _VisitRecordEmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           const Text('還沒有拜訪紀錄', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          const Text('按右上角「新增紀錄」寫下第一篇', style: TextStyle(fontSize: 13, color: Colors.grey)),
+          const Text('按右上角「錄音新增」或「新增紀錄」建立第一篇', style: TextStyle(fontSize: 13, color: Colors.grey)),
         ],
       ),
     );

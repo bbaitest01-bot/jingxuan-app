@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/visit_record.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
+import '../../widgets/voice_recorder_widget.dart';
 
 /// 例：2026/10/14 15:30
 String formatVisitRecordTime(DateTime time) {
@@ -152,6 +153,89 @@ class _CreateVisitRecordDialogState extends State<_CreateVisitRecordDialog> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: Text(_isSaving ? '建立中…' : '建立'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 「錄音新增」視窗：錄音 → 轉文字 → 自動建立一篇（內容放在原始轉錄）。建立成功回傳新紀錄
+Future<VisitRecord?> showRecordVisitRecordDialog(BuildContext context) {
+  return showDialog<VisitRecord>(
+    context: context,
+    barrierDismissible: false, // 錄音中不要點外面就關掉
+    builder: (BuildContext dialogContext) => const _RecordVisitRecordDialog(),
+  );
+}
+
+class _RecordVisitRecordDialog extends StatefulWidget {
+  const _RecordVisitRecordDialog();
+
+  @override
+  State<_RecordVisitRecordDialog> createState() => _RecordVisitRecordDialogState();
+}
+
+class _RecordVisitRecordDialogState extends State<_RecordVisitRecordDialog> {
+  // 拜訪紀錄最長錄 10 分鐘（問題 R5 長錄音實測後可調整）
+  static const int _maxRecordingSeconds = 600;
+  bool _isCreating = false;
+
+  Future<void> _createFromTranscript(String transcript) async {
+    setState(() => _isCreating = true);
+    try {
+      final VisitRecord record = await VisitRecordService.instance.createRecord(
+        title: VisitRecord.defaultTitle(DateTime.now()),
+        rawTranscript: transcript,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(record);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isCreating = false);
+      CustomToast.show(context, '建立失敗：$e', ToastType.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: const Text('錄音新增拜訪紀錄', style: TextStyle(fontWeight: FontWeight.bold)),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '按「錄音」開始說話，說完按「停止」，會自動轉成文字並建立一篇紀錄。最長 10 分鐘。',
+              style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            if (_isCreating)
+              const Row(
+                children: [
+                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 12),
+                  Text('建立紀錄中…'),
+                ],
+              )
+            else
+              VoiceRecorderWidget(
+                primaryColor: primaryColor,
+                isDark: isDark,
+                maxRecordingSeconds: _maxRecordingSeconds,
+                onTranscribed: _createFromTranscript,
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isCreating ? null : () => Navigator.of(context).pop(),
+          child: const Text('關閉'),
         ),
       ],
     );
