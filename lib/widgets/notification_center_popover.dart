@@ -157,7 +157,7 @@ class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
                               children: [
                                 Icon(Icons.mark_email_read_outlined, size: 48, color: subTextColor.withValues(alpha: 0.5)),
                                 const SizedBox(height: 12),
-                                Text('暫無相關訊息通知', style: TextStyle(fontSize: 14, color: subTextColor)),
+                                Text('目前沒有通知', style: TextStyle(fontSize: 14, color: subTextColor)),
                               ],
                             ),
                           )
