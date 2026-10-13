@@ -115,6 +115,23 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     _loadCustomers();
   }
 
+  // 關聯客戶是否在目前的客戶名單裡（名單還沒載入完、或客戶已移到垃圾桶時是 false）。
+  // 下拉選單的值一定要在選項裡，不然會出錯（開發模式的紅色畫面，S15）
+  bool get _isSelectedCustomerListed {
+    final String? customerId = _selectedCustomerId;
+    if (customerId == null) return false;
+    return _availableCustomers.any((c) => c['id'].toString() == customerId);
+  }
+
+  // 下拉選單沒有選到客戶時顯示的提示文字
+  String get _customerDropdownHint {
+    if (_isLoadingCustomers) return '載入客戶中...';
+    if (_selectedCustomerId != null && !_isSelectedCustomerListed) {
+      return '關聯的客戶已不在名單中（可能已移至垃圾桶）';
+    }
+    return '👤 選擇此行程關聯的客戶 (選定後自動帶入備註)';
+  }
+
   Future<void> _loadCustomers() async {
     setState(() => _isLoadingCustomers = true);
     try {
@@ -335,12 +352,6 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget buildFormColumn() {
-      // Find selected customer info if any
-      final selectedCustomer = _availableCustomers.firstWhere(
-        (c) => c['id'].toString() == _selectedCustomerId,
-        orElse: () => {},
-      );
-
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,17 +456,21 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
                 const SizedBox(height: 6),
                 DropdownButtonHideUnderline(
                   child: DropdownButton<String?>(
-                    value: _selectedCustomerId,
+                    // 客戶不在名單裡時先不顯示值（但仍記住 _selectedCustomerId，儲存時不會遺失關聯）
+                    value: _isSelectedCustomerListed ? _selectedCustomerId : null,
                     isExpanded: true,
                     hint: Text(
-                      _isLoadingCustomers ? '載入客戶中...' : '👤 選擇此行程關聯的客戶 (選定後自動帶入備註)',
+                      _customerDropdownHint,
                       style: TextStyle(fontSize: 13, color: isDark ? Colors.white38 : Colors.black38),
                     ),
                     items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('無關聯客戶 (個人行程)', style: TextStyle(fontSize: 13)),
-                      ),
+                      // 有關聯客戶但還不在名單裡（載入中或已刪除）時，先不放「無關聯」選項，
+                      // 否則選單會把空值顯示成「無關聯客戶」，看起來像關聯被清掉；要清除請按「清除關聯」
+                      if (_selectedCustomerId == null || _isSelectedCustomerListed)
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('無關聯客戶 (個人行程)', style: TextStyle(fontSize: 13)),
+                        ),
                       ..._availableCustomers.map((cust) {
                         final name = cust['name']?.toString() ?? '未命名';
                         final phone = cust['phone']?.toString() ?? '';

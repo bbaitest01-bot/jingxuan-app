@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/schedule_event.dart';
 import '../../../services/app_settings.dart';
+import '../../../widgets/custom_toast.dart';
 import '../../../widgets/route_planner_dialog.dart';
 import '../../../widgets/schedule_event_dialog.dart';
 import '../../../widgets/voice_scheduler_overlay.dart';
@@ -83,6 +84,33 @@ Future<Map<String, dynamic>?> showVoiceSchedulerOverlay(BuildContext context) {
       return FadeTransition(opacity: anim1, child: child);
     },
   );
+}
+
+/// 從語音排程的 AI 結果取出行程；沒有行程或解析失敗時回傳 null
+ScheduleEvent? parseVoiceSchedulerEvent(Map<String, dynamic> result) {
+  final Map<String, dynamic>? eventMap = result['event'] as Map<String, dynamic>?;
+  if (eventMap == null) return null;
+  try {
+    return ScheduleEvent.fromJson(eventMap);
+  } catch (e) {
+    debugPrint('解析語音行程失敗，改用預設行程物件: $e');
+    return null;
+  }
+}
+
+/// 依 AI 判斷顯示提示：黃燈表示資訊不完整，列出缺漏；綠燈請使用者確認後儲存
+void showVoiceSchedulerResultToast(BuildContext context, Map<String, dynamic> result) {
+  final String status = result['status'] as String? ?? 'green';
+  if (status == 'yellow') {
+    final List<String> warnings = List<String>.from(result['warning_messages'] ?? []);
+    String warningText = '行程資訊有所遺漏，請核對並補充細節！';
+    if (warnings.isNotEmpty) {
+      warningText = '⚠️ ${warnings.join('； ')}';
+    }
+    CustomToast.show(context, warningText, ToastType.warning);
+  } else {
+    CustomToast.show(context, '語音辨識完成，請確認並儲存行程！', ToastType.success);
+  }
 }
 
 /// 開啟日期選擇器，顏色跟著主題色與深淺模式。使用者取消時回傳 null。
