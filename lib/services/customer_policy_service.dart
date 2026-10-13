@@ -374,7 +374,11 @@ class CustomerPolicyService {
       }
 
       // 3. 查詢名下行程紀錄 (關聯客戶的行程)
-      var eventsQuery = _supabase.from('schedule_events').select('id, customer_id, start_at, is_completed');
+      // 已放進垃圾桶的行程不算
+      var eventsQuery = _supabase
+          .from('schedule_events')
+          .select('id, customer_id, start_at, is_completed')
+          .isFilter('deleted_at', null);
       if (user != null) {
         eventsQuery = eventsQuery.eq('profile_id', user.id);
       }

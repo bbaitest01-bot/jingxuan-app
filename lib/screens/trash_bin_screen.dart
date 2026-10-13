@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import '../models/schedule_event.dart';
 import '../services/app_settings.dart';
+import '../services/schedule_service.dart';
+import 'trash/trash_item_cards.dart';
 import '../services/app_localizations.dart';
 import '../widgets/custom_toast.dart';
 
@@ -25,6 +28,7 @@ class TrashBinScreen extends StatefulWidget {
 
 class _TrashBinScreenState extends State<TrashBinScreen> {
   List<Map<String, dynamic>> _deletedCustomers = [];
+  List<ScheduleEvent> _deletedEvents = [];
   bool _isLoading = false;
   TrashCategory _activeCategory = TrashCategory.all;
 
@@ -32,6 +36,40 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   void initState() {
     super.initState();
     _fetchDeletedCustomers();
+    _fetchDeletedEvents();
+  }
+
+  int get _totalCount => _deletedCustomers.length + _deletedEvents.length;
+
+  // 讀取放進垃圾桶的行程（3-F）
+  Future<void> _fetchDeletedEvents() async {
+    try {
+      final List<ScheduleEvent> deletedEvents = await ScheduleService.instance.fetchDeletedEvents();
+      if (!mounted) return;
+      setState(() => _deletedEvents = deletedEvents);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '載入垃圾桶行程失敗: $e', ToastType.error);
+    }
+  }
+
+  Future<void> _restoreEvent(ScheduleEvent event) async {
+    try {
+      await ScheduleService.instance.restoreEvent(event.id);
+      await _fetchDeletedEvents();
+      if (mounted) CustomToast.show(context, '🎉 行程「${event.title}」已還原', ToastType.success);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '還原行程失敗: $e', ToastType.error);
+    }
+  }
+
+  Future<void> _deleteEventForever(ScheduleEvent event) async {
+    try {
+      await ScheduleService.instance.deleteEventForever(event.id);
+      await _fetchDeletedEvents();
+      if (mounted) CustomToast.show(context, context.l10n('trash_bin_delete_forever_success'), ToastType.success);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '永久刪除行程失敗: $e', ToastType.error);
+    }
   }
 
   Future<void> _fetchDeletedCustomers() async {
@@ -157,7 +195,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     }
   }
 
-  void _showDeleteForeverConfirm(String id, String name) {
+  void _showDeleteForeverConfirm(String name, VoidCallback onConfirm) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -186,7 +224,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _deleteCustomerForever(id);
+                onConfirm();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444),
@@ -200,22 +238,6 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     );
   }
 
-  int _calculateDaysLeft(String deletedAtStr) {
-    final deletedAt = DateTime.tryParse(deletedAtStr) ?? DateTime.now();
-    final now = DateTime.now();
-    final difference = now.difference(deletedAt).inDays;
-    final remaining = 30 - difference;
-    return remaining < 0 ? 0 : remaining;
-  }
-
-  ImageProvider? _getAvatarProvider(String? avatarUrl) {
-    if (avatarUrl == null || avatarUrl.isEmpty) return null;
-    if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
-      return NetworkImage(avatarUrl);
-    }
-    return AssetImage(avatarUrl);
-  }
-
   @override
   Widget build(BuildContext context) {
     final primaryColor = AppSettings.instance.primaryColor;
@@ -226,16 +248,16 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     final cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
     final borderColor = isDark ? const Color(0xFF30363D) : Colors.grey.shade200;
 
-    // Filter by extensible category
-    final displayedItems = _deletedCustomers.where((c) {
-      final isDraft = c['status'] == 'draft' || c['status'] == 'discarded_draft';
-      if (_activeCategory == TrashCategory.customer) return !isDraft;
-      if (_activeCategory == TrashCategory.draftCustomer) return isDraft;
-      if (_activeCategory == TrashCategory.schedule) return false; // Extensible placeholder
-      return true;
-    }).toList();
+    final TrashCardColors cardColors = TrashCardColors(
+      cardBg: cardBg,
+      borderColor: borderColor,
+      textColor: textColor,
+      subTextColor: subTextColor,
+      primaryColor: primaryColor,
+    );
+    final List<Widget> displayedCards = _buildDisplayedCards(cardColors);
 
-    final draftCount = _deletedCustomers.where((c) => c['status'] == 'draft' || c['status'] == 'discarded_draft').length;
+    final draftCount = _deletedCustomers.where((c) => DeletedCustomerCard.isDraftCustomer(c)).length;
     final activeCount = _deletedCustomers.length - draftCount;
 
     return Scaffold(
@@ -264,7 +286,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          if (_deletedCustomers.isNotEmpty)
+                          if (_totalCount > 0)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
@@ -273,7 +295,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                                 border: Border.all(color: primaryColor.withOpacity(0.5)),
                               ),
                               child: Text(
-                                _deletedCustomers.length.toString(),
+                                _totalCount.toString(),
                                 style: TextStyle(
                                   color: primaryColor,
                                   fontSize: 12,
@@ -285,7 +307,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '已刪除項目將保留 30 天，可依據「正式客戶」與「語音草稿」分類進行精準復原或永久銷毀。',
+                        '已刪除項目將保留 30 天，可依「正式客戶」「語音草稿」「行程與日曆」分類還原或永久刪除。',
                         style: TextStyle(
                           fontSize: 13,
                           color: subTextColor,
@@ -299,11 +321,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                         child: Row(
                           children: TrashCategory.values.map((cat) {
                             final isSelected = _activeCategory == cat;
-                            int count = 0;
-                            if (cat == TrashCategory.all) count = _deletedCustomers.length;
-                            else if (cat == TrashCategory.customer) count = activeCount;
-                            else if (cat == TrashCategory.draftCustomer) count = draftCount;
-                            else if (cat == TrashCategory.schedule) count = 0;
+                            final int count = _countForCategory(cat, activeCount, draftCount);
 
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -330,7 +348,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
 
                       // List / Grid
                       Expanded(
-                        child: displayedItems.isEmpty
+                        child: displayedCards.isEmpty
                             ? _buildEmptyState(isDark, subTextColor)
                             : LayoutBuilder(
                                 builder: (context, constraints) {
@@ -348,21 +366,8 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                                       mainAxisSpacing: 16,
                                       mainAxisExtent: 220,
                                     ),
-                                    itemCount: displayedItems.length,
-                                    itemBuilder: (context, index) {
-                                      final customer = displayedItems[index];
-                                      final daysLeft = _calculateDaysLeft(customer['deleted_at'] ?? DateTime.now().toIso8601String());
-                                      
-                                      return _buildDeletedCustomerCard(
-                                        customer: customer,
-                                        daysLeft: daysLeft,
-                                        cardBg: cardBg,
-                                        borderColor: borderColor,
-                                        textColor: textColor,
-                                        subTextColor: subTextColor,
-                                        primaryColor: primaryColor,
-                                      );
-                                    },
+                                    itemCount: displayedCards.length,
+                                    itemBuilder: (context, index) => displayedCards[index],
                                   );
                                 },
                               ),
@@ -408,176 +413,62 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     );
   }
 
-  Widget _buildDeletedCustomerCard({
-    required Map<String, dynamic> customer,
-    required int daysLeft,
-    required Color cardBg,
-    required Color borderColor,
-    required Color textColor,
-    required Color subTextColor,
-    required Color primaryColor,
-  }) {
-    final avatarUrl = customer['avatar_url'] ?? '';
-    final ImageProvider? avatarProvider = _getAvatarProvider(avatarUrl);
-    final bool isDraft = customer['status'] == 'draft' || customer['status'] == 'discarded_draft';
+  // 每個分類標籤上顯示的筆數
+  int _countForCategory(TrashCategory category, int activeCount, int draftCount) {
+    switch (category) {
+      case TrashCategory.all:
+        return _totalCount;
+      case TrashCategory.customer:
+        return activeCount;
+      case TrashCategory.draftCustomer:
+        return draftCount;
+      case TrashCategory.schedule:
+        return _deletedEvents.length;
+    }
+  }
 
-    // Color code days left warning
-    Color daysLeftColor = Colors.green;
-    if (daysLeft <= 7) {
-      daysLeftColor = Colors.redAccent;
-    } else if (daysLeft <= 15) {
-      daysLeftColor = Colors.amber;
+  // 依目前分類組出要顯示的卡片；「全部」時客戶與行程混在一起，最近刪除的排前面
+  List<Widget> _buildDisplayedCards(TrashCardColors cardColors) {
+    final List<MapEntry<DateTime, Widget>> entries = [];
+
+    final bool showCustomers = _activeCategory != TrashCategory.schedule;
+    if (showCustomers) {
+      for (final Map<String, dynamic> customer in _deletedCustomers) {
+        final bool isDraft = DeletedCustomerCard.isDraftCustomer(customer);
+        if (_activeCategory == TrashCategory.customer && isDraft) continue;
+        if (_activeCategory == TrashCategory.draftCustomer && !isDraft) continue;
+
+        final String customerId = customer['id'].toString();
+        final String customerName = customer['name'] as String? ?? '';
+        final DateTime deletedAt = DateTime.tryParse(customer['deleted_at']?.toString() ?? '') ?? DateTime.now();
+        entries.add(MapEntry(
+          deletedAt,
+          DeletedCustomerCard(
+            customer: customer,
+            colors: cardColors,
+            onRestore: () => _restoreCustomer(customerId, isDraft),
+            onDeleteForever: () => _showDeleteForeverConfirm(customerName, () => _deleteCustomerForever(customerId)),
+          ),
+        ));
+      }
     }
 
-    final cardBorder = isDraft ? const Color(0xFFF59E0B).withOpacity(0.4) : borderColor;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder, width: isDraft ? 1.5 : 1.0),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    final bool showEvents = _activeCategory == TrashCategory.all || _activeCategory == TrashCategory.schedule;
+    if (showEvents) {
+      for (final ScheduleEvent event in _deletedEvents) {
+        entries.add(MapEntry(
+          event.deletedAt ?? DateTime.now(),
+          DeletedScheduleCard(
+            event: event,
+            colors: cardColors,
+            onRestore: () => _restoreEvent(event),
+            onDeleteForever: () => _showDeleteForeverConfirm(event.title, () => _deleteEventForever(event)),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row: Avatar & Type Badge & Days Left
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: isDraft ? const Color(0xFFF59E0B).withOpacity(0.15) : primaryColor.withOpacity(0.1),
-                  backgroundImage: avatarProvider,
-                  child: avatarProvider == null
-                      ? Text(
-                          (customer['name'] ?? '?').substring(0, 1),
-                          style: TextStyle(
-                            color: isDraft ? const Color(0xFFF59E0B) : primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              customer['name'] ?? '',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: textColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: (isDraft ? const Color(0xFFF59E0B) : const Color(0xFF0EA5E9)).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isDraft ? '🟡 語音速記草稿' : '👥 正式客戶',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isDraft ? const Color(0xFFF59E0B) : const Color(0xFF0EA5E9),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Days left badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: daysLeftColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: daysLeftColor.withOpacity(0.4), width: 1),
-                  ),
-                  child: Text(
-                    '剩 $daysLeft 天',
-                    style: TextStyle(
-                      color: daysLeftColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
+        ));
+      }
+    }
 
-            // Content snippet (phone or notes)
-            Expanded(
-              child: Text(
-                isDraft
-                    ? (customer['notes'] != null && customer['notes'].toString().isNotEmpty ? '速記摘要: ${customer['notes']}' : '無語音錄音摘要')
-                    : '聯絡電話: ${customer['phone'] ?? '未填寫'} · 標籤: ${(customer['tags'] as List).join(', ')}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: subTextColor,
-                  height: 1.4,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            const Divider(height: 12),
-
-            // Action Buttons (Restore & Delete Forever)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showDeleteForeverConfirm(customer['id'], customer['name'] ?? ''),
-                  icon: const Icon(Icons.delete_forever_rounded, size: 14, color: Colors.redAccent),
-                  label: const Text('永久刪除', style: TextStyle(fontSize: 11, color: Colors.redAccent)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    side: const BorderSide(color: Colors.redAccent, width: 0.8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _restoreCustomer(customer['id'], isDraft),
-                  icon: const Icon(Icons.restore_from_trash_rounded, size: 14),
-                  label: Text(isDraft ? '還原草稿' : '還原客戶', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    entries.sort((a, b) => b.key.compareTo(a.key));
+    return entries.map((entry) => entry.value).toList();
   }
 }

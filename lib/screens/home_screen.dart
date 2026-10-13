@@ -80,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _isSidebarCollapsed = AppSettings.instance.isSidebarCollapsedByDefault;
     AppSettings.instance.addListener(_handleSettingsChanged);
     _notifService.addListener(_handleNotifChanged);
+    ScheduleService.instance.eventsRevision.addListener(_handleScheduleChanged);
     if (!isOfflineMode) {
       try {
         _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -121,8 +122,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _authSubscription?.cancel();
     _notifService.removeListener(_handleNotifChanged);
+    ScheduleService.instance.eventsRevision.removeListener(_handleScheduleChanged);
     AppSettings.instance.removeListener(_handleSettingsChanged);
     super.dispose();
+  }
+
+  // 別的頁面改了行程（例如從垃圾桶還原），今日行程不會被重建，所以收到通知就重新讀一次
+  void _handleScheduleChanged() {
+    if (!mounted || !_isViewModeReady) return;
+    _fetchEventsForSelectedDate(silent: true);
   }
 
   void _handleNotifChanged() {

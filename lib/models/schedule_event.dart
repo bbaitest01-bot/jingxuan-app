@@ -16,6 +16,8 @@ class ScheduleEvent {
   final String? googleCalendarId;
   final String syncStatus;
   final DateTime? lastSyncedAt;
+  /// 放進垃圾桶的時間；null 代表正常行程（3-F）
+  final DateTime? deletedAt;
 
   ScheduleEvent({
     required this.id,
@@ -35,6 +37,7 @@ class ScheduleEvent {
     this.googleCalendarId,
     this.syncStatus = 'local_only',
     this.lastSyncedAt,
+    this.deletedAt,
   });
 
   bool get isGoogleSynced => googleEventId != null && googleEventId!.isNotEmpty;
@@ -82,6 +85,7 @@ class ScheduleEvent {
       googleCalendarId: json['google_calendar_id'] as String?,
       syncStatus: (json['sync_status'] as String?) ?? 'local_only',
       lastSyncedAt: json['last_synced_at'] != null ? DateTime.parse(json['last_synced_at'] as String).toLocal() : null,
+      deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at'] as String).toLocal() : null,
     );
   }
 
@@ -105,6 +109,8 @@ class ScheduleEvent {
       'google_calendar_id': googleCalendarId,
       'sync_status': syncStatus,
       'last_synced_at': lastSyncedAt?.toUtc().toIso8601String(),
+      // 只有在垃圾桶裡才帶這個欄位，避免一般的「更新行程」不小心把它清掉或填上
+      if (deletedAt != null) 'deleted_at': deletedAt!.toUtc().toIso8601String(),
     };
   }
 
@@ -126,6 +132,7 @@ class ScheduleEvent {
     String? googleCalendarId,
     String? syncStatus,
     DateTime? lastSyncedAt,
+    DateTime? deletedAt,
   }) {
     return ScheduleEvent(
       id: id ?? this.id,
@@ -145,6 +152,7 @@ class ScheduleEvent {
       googleCalendarId: googleCalendarId ?? this.googleCalendarId,
       syncStatus: syncStatus ?? this.syncStatus,
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
     );
   }
 }
