@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'dart:ui' show Color;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
@@ -106,5 +108,32 @@ class ProfileService {
       email: email,
       avatarUrl: '',
     );
+  }
+
+  /// 上傳名片 QR Code 圖片到 avatars 儲存空間（自己的資料夾），回傳公開網址；失敗會丟出例外
+  Future<String> uploadQrCodeImage(Uint8List imageBytes) async {
+    final SupabaseClient supabase = Supabase.instance.client;
+    final User? user = supabase.auth.currentUser;
+    if (user == null) throw Exception('使用者未登入');
+
+    final String fileName = '${user.id}/qr_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    await supabase.storage.from('avatars').uploadBinary(
+          fileName,
+          imageBytes,
+          fileOptions: const FileOptions(contentType: 'image/jpeg'),
+        );
+    return supabase.storage.from('avatars').getPublicUrl(fileName);
+  }
+
+  /// 顏色轉成資料庫存的格式 #RRGGBB
+  static String colorToHex(Color color) {
+    final int rgb = color.toARGB32() & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  /// 資料庫的 #RRGGBB 轉回顏色；格式不對時回傳 null
+  static Color? colorFromHex(String? hex) {
+    if (hex == null || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(hex)) return null;
+    return Color(int.parse('FF${hex.substring(1)}', radix: 16));
   }
 }

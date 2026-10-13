@@ -11,6 +11,7 @@ import '../utils/platform_file_helper.dart';
 import '../main.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
+import '../services/profile_service.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/reset_password_dialog.dart';
 import '../models/user_role.dart';
@@ -58,18 +59,16 @@ class _ProfileScreenState extends State<ProfileScreen>
   // RBAC User Role & Connections State
   UserRole _userRole = UserRole.agent;
   bool _isGoogleConnected = false;
-  String _teamCode = 'TAIPEI-01';
-  String _teamName = '國泰台北第一通訊處';
   String _accountStatus = 'active';
 
   // Digital Business Card Customization States
-  Set<String> _selectedBadges = {'MDRT 頂尖會員', '人身保險業務員'};
+  // 新帳號預設不帶任何徽章與頭銜，由業務員自己選（2026-10-13，避免名片誤寫自己有 MDRT 等資格）
+  Set<String> _selectedBadges = {};
   String _selectedTheme =
       'system_primary'; // 'system_primary', 'dark_gold', 'cyan_slate', 'emerald', 'custom_color'
   Color _customCardColor =
       const Color(0xFF8B5CF6); // Default Violet Custom Swatch
-  String _honorTitle = 'VIP 鑽石顧問'; // Professional Honor Title
-  String _previewDevice = 'mobile'; // 'mobile', 'desktop'
+  String _honorTitle = ''; // Professional Honor Title
   bool _isCardFlipped = false;
   String _glareMode =
       'none'; // 'none' (default), 'tcg_rainbow', 'metallic_tint'
@@ -185,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _jobTitleController.text =
             prefs.getString('profile_job_title') ?? '資深理財顧問';
         _licenseNoController.text =
-            prefs.getString('profile_license_no') ?? '110登字第389201號';
+            prefs.getString('profile_license_no') ?? '';
         _websiteController.text = prefs.getString('profile_website') ?? '';
         _addressController.text = prefs.getString('profile_address') ?? '';
         _bioController.text = prefs.getString('profile_bio') ??
@@ -193,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _currentAvatarUrl = prefs.getString('profile_avatar_url') ?? '';
         _userEmail = 'brain2013bb@gmail.com';
         _selectedTheme = prefs.getString('profile_theme') ?? 'system_primary';
-        _honorTitle = prefs.getString('profile_honor_title') ?? 'VIP 鑽石顧問';
+        _honorTitle = prefs.getString('profile_honor_title') ?? '';
         _userRole = UserRole.fromString(prefs.getString('profile_role'));
         _isGoogleConnected =
             prefs.getBool('profile_is_google_connected') ?? false;
@@ -230,14 +229,11 @@ class _ProfileScreenState extends State<ProfileScreen>
             _bioController.text = data['bio'] ?? '';
             _currentAvatarUrl = data['avatar_url'] ?? '';
             _userRole = UserRole.fromString(data['role']);
-            _teamCode = data['team_code'] ??
-                (user.userMetadata?['team_code'] ?? 'TAIPEI-01');
-            _teamName = data['team_name'] ??
-                (user.userMetadata?['team_name'] ?? '國泰台北第一通訊處');
             _accountStatus =
                 data['status'] ?? (user.userMetadata?['status'] ?? 'active');
             _isGoogleConnected = (data['is_google_connected'] as bool?) ??
                 (user.identities?.any((i) => i.provider == 'google') ?? false);
+            _applySavedBusinessCard(data);
           });
         }
       }
@@ -253,6 +249,21 @@ class _ProfileScreenState extends State<ProfileScreen>
         });
       }
     }
+  }
+
+  // 讀回名片欄位（2026-10-13 起存在 profiles：LINE ID、登錄字號、頭銜、徽章、配色、QR Code）
+  void _applySavedBusinessCard(Map<String, dynamic> data) {
+    _licenseNoController.text = data['license_no'] ?? '';
+    _honorTitle = data['honor_title'] ?? '';
+    _selectedBadges = List<String>.from(data['badges'] ?? []).toSet();
+    // 自訂的徽章不在預設清單裡，要補進可選清單，不然畫面上看不到
+    for (final String badge in _selectedBadges) {
+      if (!_availableBadges.contains(badge)) _availableBadges.add(badge);
+    }
+    _selectedTheme = data['card_theme'] ?? 'system_primary';
+    final Color? savedCustomColor = ProfileService.colorFromHex(data['card_custom_color']);
+    if (savedCustomColor != null) _customCardColor = savedCustomColor;
+    _currentQrCodeUrl = data['qr_code_url'] ?? '';
   }
 
   Future<void> _saveProfile() async {
@@ -363,6 +374,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('使用者未登入');
 
+      // 有選新的 QR Code 圖片就先上傳，換成網址再存
+      String finalQrCodeUrl = _currentQrCodeUrl;
+      final Uint8List? newQrCodeBytes = _qrCodeImageBytes;
+      if (newQrCodeBytes != null) {
+        finalQrCodeUrl = await ProfileService.instance.uploadQrCodeImage(newQrCodeBytes);
+      }
+
       await supabase.from('profiles').update({
         'full_name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
@@ -373,10 +391,20 @@ class _ProfileScreenState extends State<ProfileScreen>
         'bio': _bioController.text.trim(),
         'avatar_url': finalAvatarUrl,
         'is_google_connected': _isGoogleConnected,
+        // 名片欄位（問題 A1）
+        'line_id': _lineIdController.text.trim(),
+        'license_no': _licenseNoController.text.trim(),
+        'honor_title': _honorTitle,
+        'badges': _selectedBadges.toList(),
+        'card_theme': _selectedTheme,
+        'card_custom_color': ProfileService.colorToHex(_customCardColor),
+        'qr_code_url': finalQrCodeUrl.isEmpty ? null : finalQrCodeUrl,
       }).eq('id', user.id);
 
       if (mounted) {
         setState(() {
+          _currentQrCodeUrl = finalQrCodeUrl;
+          _qrCodeImageBytes = null;
           _currentAvatarUrl = finalAvatarUrl;
           _selectedImageBytes = null;
           _selectedImageName = null;
@@ -1495,6 +1523,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                         child: Image.memory(_qrCodeImageBytes!,
                             width: 90, height: 90, fit: BoxFit.cover),
                       )
+                    else if (_currentQrCodeUrl.isNotEmpty)
+                      // 已存在資料庫的 QR Code 圖片
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(_currentQrCodeUrl,
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                                Icons.qr_code_2_rounded,
+                                size: 68,
+                                color: Colors.black87)),
+                      )
                     else
                       Icon(Icons.qr_code_2_rounded,
                           size: 68, color: Colors.black87),
@@ -1538,26 +1579,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: color, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCardInfoRow(IconData icon, String text, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Row(
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1641,7 +1662,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           const SizedBox(height: 16),
 
-          // Persistent IndexedStack Container for 0ms Instant Zero-Lag Tab Switching!
+          // 四個頁籤都留在畫面裡（切換時不會遺失填到一半的內容），但只顯示目前這一個。
+          // 不用 IndexedStack：它的高度一律照最高的頁籤，其他頁籤下方會多出大片空白（問題 A6）
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -1656,17 +1678,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ],
             ),
-            child: IndexedStack(
-              index: _activeTabIndex,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildTab0BasicInfo(
-                    isDark, primaryColor, textColor, subTextColor),
-                _buildTab1BusinessDetails(
-                    isDark, primaryColor, textColor, subTextColor),
-                _buildTab2BadgesAndTheme(
-                    isDark, primaryColor, textColor, subTextColor),
-                _buildTab3SecurityAndPassword(
-                    isDark, primaryColor, textColor, subTextColor),
+                Offstage(
+                  offstage: _activeTabIndex != 0,
+                  child: _buildTab0BasicInfo(
+                      isDark, primaryColor, textColor, subTextColor),
+                ),
+                Offstage(
+                  offstage: _activeTabIndex != 1,
+                  child: _buildTab1BusinessDetails(
+                      isDark, primaryColor, textColor, subTextColor),
+                ),
+                Offstage(
+                  offstage: _activeTabIndex != 2,
+                  child: _buildTab2BadgesAndTheme(
+                      isDark, primaryColor, textColor, subTextColor),
+                ),
+                Offstage(
+                  offstage: _activeTabIndex != 3,
+                  child: _buildTab3SecurityAndPassword(
+                      isDark, primaryColor, textColor, subTextColor),
+                ),
               ],
             ),
           ),
@@ -2159,17 +2193,21 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
               label: Text(
-                _qrCodeImageBytes != null
+                _qrCodeImageBytes != null || _currentQrCodeUrl.isNotEmpty
                     ? '更換 QR Code 圖片'
                     : '📷 上傳個人 / LINE QR Code 圖片 (選填)',
                 style:
                     const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ),
-            if (_qrCodeImageBytes != null) ...[
+            if (_qrCodeImageBytes != null || _currentQrCodeUrl.isNotEmpty) ...[
               const SizedBox(width: 8),
               IconButton(
-                onPressed: () => setState(() => _qrCodeImageBytes = null),
+                // 移除後按「儲存」才會從名片上拿掉
+                onPressed: () => setState(() {
+                  _qrCodeImageBytes = null;
+                  _currentQrCodeUrl = '';
+                }),
                 icon: const Icon(Icons.delete_outline_rounded,
                     color: Colors.redAccent, size: 20),
                 tooltip: '移除 QR Code',
@@ -2450,36 +2488,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (val) {
           setState(() {
             _selectedTheme = key;
-          });
-        }
-      },
-    );
-  }
-
-  Widget _buildGlareChip(
-      String key, String name, bool isDark, Color primaryColor) {
-    final isSelected = _glareMode == key;
-    final isBright = primaryColor.computeLuminance() > 0.45;
-    final activeFontColor = isBright ? const Color(0xFF0F172A) : Colors.white;
-
-    return ChoiceChip(
-      selected: isSelected,
-      label: Text(name),
-      checkmarkColor: activeFontColor,
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-        color: isSelected
-            ? activeFontColor
-            : (isDark ? Colors.white70 : Colors.black87),
-      ),
-      selectedColor: primaryColor,
-      backgroundColor:
-          isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-      onSelected: (val) {
-        if (val) {
-          setState(() {
-            _glareMode = key;
           });
         }
       },
