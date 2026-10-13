@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart';
 
 /// 客戶表單送出的資料（新增與編輯共用）
 class CustomerFormData {
@@ -27,14 +26,6 @@ class CustomerFormData {
     required this.imageName,
     required this.isImageCleared,
   });
-}
-
-/// 批次匯入的結果
-class CustomerImportResult {
-  final int processedCount;
-  final int failedCount;
-
-  const CustomerImportResult({required this.processedCount, required this.failedCount});
 }
 
 /// 客戶管理頁用到的資料庫存取（customers、visit_projects 等表）。
@@ -125,6 +116,17 @@ class CustomerService {
     return customers;
   }
 
+  /// 只留下電話裡的數字（拿掉 -、空白、括號等），讓 0912-345-678 和 0912345678 可以互相比對
+  static String phoneDigits(String text) {
+    return text.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  // 搜尋文字看起來像電話（只有數字、-、空白、括號、+）才用電話比對，
+  // 避免像「王1」這種搜尋被拆成數字「1」而比對到一大堆電話
+  static bool _looksLikePhoneQuery(String query) {
+    return RegExp(r'^[0-9\s\-()+]+$').hasMatch(query) && phoneDigits(query).isNotEmpty;
+  }
+
   /// 依搜尋文字與開發者範圍，篩出畫面要顯示的客戶
   List<Map<String, dynamic>> filterCustomers({
     required List<Map<String, dynamic>> allCustomers,
@@ -139,9 +141,13 @@ class CustomerService {
       activeCustomers = activeCustomers.where((c) => c['profile_id'] == currentUserId).toList();
     }
 
-    if (query.isEmpty) {
+    // 沒輸入、或只輸入符號（例如只打一個「-」，通常是電話打到一半）時，當作還沒搜尋，顯示全部
+    final bool hasSearchableText = RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(query);
+    if (!hasSearchableText) {
       return List.from(activeCustomers);
     }
+    final bool isPhoneQuery = _looksLikePhoneQuery(query);
+    final String queryDigits = phoneDigits(query);
     return activeCustomers.where((customer) {
       final name = (customer['name'] ?? '').toString().toLowerCase();
       final nickname = (customer['nickname'] ?? '').toString().toLowerCase();
@@ -153,8 +159,11 @@ class CustomerService {
       final matchesNotes = notes.contains(query);
       final matchesAgent = agentName.contains(query);
       final matchesTags = tags.any((tag) => tag.toString().toLowerCase().contains(query));
+      // 電話只比數字，所以搜「0912-345」「345」都找得到 0912-345-678（問題 C1）
+      final String customerPhoneDigits = phoneDigits((customer['phone'] ?? '').toString());
+      final bool matchesPhone = isPhoneQuery && customerPhoneDigits.contains(queryDigits);
 
-      return matchesName || matchesNotes || matchesTags || matchesAgent;
+      return matchesName || matchesNotes || matchesTags || matchesAgent || matchesPhone;
     }).toList();
   }
 
@@ -207,7 +216,8 @@ class CustomerService {
     });
   }
 
-  /// 修改一位客戶
+  /// 修改一位客戶。表單沒有自訂欄位，所以不送 custom_attributes，
+  /// 資料庫裡原本的自訂欄位（例如批次匯入帶進來的）會保留（問題 C14）
   Future<void> updateCustomer(String id, CustomerFormData form, String avatarUrl) async {
     await _supabase.from('customers').update({
       'name': form.name,
@@ -217,7 +227,29 @@ class CustomerService {
       'email': form.email,
       'tags': form.tags,
       'notes': form.notes,
-      'custom_attributes': const <String, dynamic>{},
+    }).eq('id', id);
+  }
+
+  /// 客戶詳情抽屜的「儲存基本資料」。抽屜可以編輯自訂欄位，所以一起存。
+  /// 客戶表沒有 status 欄位，不能送（以前送了會整筆存檔失敗，問題 C18）；失敗會丟出例外
+  Future<void> updateCustomerBasicInfo({
+    required String id,
+    required String name,
+    required String nickname,
+    required String phone,
+    required String email,
+    required String notes,
+    required List<String> tags,
+    required Map<String, dynamic> customAttributes,
+  }) async {
+    await _supabase.from('customers').update({
+      'name': name,
+      'nickname': nickname,
+      'phone': phone,
+      'email': email,
+      'notes': notes,
+      'tags': tags,
+      'custom_attributes': customAttributes,
     }).eq('id', id);
   }
 
@@ -339,130 +371,5 @@ class CustomerService {
     }
     localProjCustomers.addAll(projectCustomers);
     await prefs.setString('offline_visit_project_customers', jsonEncode(localProjCustomers));
-  }
-
-  /// 批次匯入客戶：同名或同電話視為重複，依 duplicateStrategy（skip／overwrite）處理
-  Future<CustomerImportResult> importCustomers({
-    required List<Map<String, dynamic>> importedList,
-    required String duplicateStrategy,
-    required List<Map<String, dynamic>> existingCustomers,
-  }) async {
-    int processedCount = 0;
-    int failedCount = 0;
-
-    // 維護本機工作清單，防止同批次重複客戶覆蓋競態
-    List<Map<String, dynamic>> localWorkingCustomers = existingCustomers.map((c) => Map<String, dynamic>.from(c)).toList();
-
-    for (var item in importedList) {
-      final name = item['name']?.toString().trim() ?? '';
-      final phone = item['phone']?.toString().trim() ?? '';
-      final nickname = item['nickname']?.toString().trim() ?? '';
-      final email = item['email']?.toString().trim() ?? '';
-      final tags = List<String>.from(item['tags'] ?? []);
-      final notes = item['notes']?.toString().trim() ?? '';
-      final customAttrs = (item['custom_attributes'] is Map)
-          ? Map<String, dynamic>.from(item['custom_attributes'])
-          : <String, dynamic>{};
-
-      final existingIdx = localWorkingCustomers.indexWhere((c) =>
-          (phone.isNotEmpty && c['phone'] == phone) ||
-          (name.isNotEmpty && c['name'] == name));
-
-      if (existingIdx != -1) {
-        if (duplicateStrategy == 'skip') {
-          continue;
-        } else if (duplicateStrategy == 'overwrite') {
-          final existingId = localWorkingCustomers[existingIdx]['id'];
-          final existingAttrs = (localWorkingCustomers[existingIdx]['custom_attributes'] is Map)
-              ? Map<String, dynamic>.from(localWorkingCustomers[existingIdx]['custom_attributes'])
-              : <String, dynamic>{};
-          final mergedAttrs = {...existingAttrs, ...customAttrs};
-
-          final updatedCustomerMap = {
-            ...localWorkingCustomers[existingIdx],
-            'name': name,
-            'nickname': nickname.isNotEmpty ? nickname : localWorkingCustomers[existingIdx]['nickname'],
-            'phone': phone.isNotEmpty ? phone : localWorkingCustomers[existingIdx]['phone'],
-            'email': email.isNotEmpty ? email : localWorkingCustomers[existingIdx]['email'],
-            'tags': tags.isNotEmpty ? tags : localWorkingCustomers[existingIdx]['tags'],
-            'notes': notes.isNotEmpty ? notes : localWorkingCustomers[existingIdx]['notes'],
-            'custom_attributes': mergedAttrs,
-          };
-
-          if (isOfflineMode) {
-            localWorkingCustomers[existingIdx] = updatedCustomerMap;
-            processedCount++;
-          } else {
-            try {
-              await _supabase.from('customers').update({
-                'name': updatedCustomerMap['name'],
-                'nickname': updatedCustomerMap['nickname'],
-                'phone': updatedCustomerMap['phone'],
-                'email': updatedCustomerMap['email'],
-                'tags': updatedCustomerMap['tags'],
-                'notes': updatedCustomerMap['notes'],
-                'custom_attributes': mergedAttrs,
-              }).eq('id', existingId);
-
-              localWorkingCustomers[existingIdx] = updatedCustomerMap;
-              processedCount++;
-            } catch (e) {
-              failedCount++;
-            }
-          }
-          continue;
-        }
-      }
-
-      // 新增客戶
-      if (isOfflineMode) {
-        final newCust = {
-          'id': 'offline_${DateTime.now().millisecondsSinceEpoch}_$processedCount',
-          'name': name,
-          'nickname': nickname,
-          'phone': phone,
-          'email': email,
-          'tags': tags,
-          'notes': notes,
-          'custom_attributes': customAttrs,
-          'created_at': DateTime.now().toIso8601String(),
-        };
-        localWorkingCustomers.add(newCust);
-        processedCount++;
-      } else {
-        try {
-          final user = _supabase.auth.currentUser;
-          if (user == null) throw Exception('使用者未登入');
-
-          final insertResp = await _supabase.from('customers').insert({
-            'profile_id': user.id,
-            'name': name,
-            'nickname': nickname,
-            'avatar_url': '',
-            'phone': phone,
-            'email': email,
-            'tags': tags,
-            'notes': notes,
-            'custom_attributes': customAttrs,
-          }).select('id').single();
-
-          localWorkingCustomers.add({
-            'id': insertResp['id'],
-            'name': name,
-            'nickname': nickname,
-            'phone': phone,
-            'email': email,
-            'tags': tags,
-            'notes': notes,
-            'custom_attributes': customAttrs,
-          });
-          processedCount++;
-        } catch (e) {
-          failedCount++;
-        }
-      }
-    }
-
-    return CustomerImportResult(processedCount: processedCount, failedCount: failedCount);
   }
 }

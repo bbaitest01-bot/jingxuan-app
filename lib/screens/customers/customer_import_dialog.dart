@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/customer_service.dart';
+import '../../services/customer_import_service.dart';
 import '../../widgets/batch_import_customers_dialog.dart';
 import '../../widgets/custom_toast.dart';
 
@@ -15,7 +15,7 @@ void showCustomerImportDialog(
     builder: (context) => BatchImportCustomersDialog(
       existingCustomers: existingCustomers,
       onImport: (importedList, duplicateStrategy) async {
-        final CustomerImportResult result = await CustomerService.instance.importCustomers(
+        final CustomerImportResult result = await CustomerImportService.instance.importCustomers(
           importedList: importedList,
           duplicateStrategy: duplicateStrategy,
           existingCustomers: existingCustomers,
