@@ -315,7 +315,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('刪除行程'),
-        content: const Text('確定要刪除這筆行程嗎？'),
+        content: const Text('行程會移到垃圾桶，30 天內可以從垃圾桶還原。'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           TextButton(
@@ -334,7 +334,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     try {
       await ScheduleService.instance.deleteEvent(widget.eventToEdit!.id);
       if (mounted) {
-        CustomToast.show(context, '行程已成功刪除', ToastType.warning);
+        CustomToast.show(context, '行程已移到垃圾桶', ToastType.warning);
         Navigator.of(context).pop('deleted');
       }
     } catch (e) {

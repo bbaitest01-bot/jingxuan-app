@@ -42,9 +42,11 @@ class ScheduleService {
 
     if (isOfflineMode || user == null) {
       // 離線預覽模式：從 OfflineDataStore 讀取
-      var localList = OfflineDataStore.scheduleEvents
-          .map((json) => ScheduleEvent.fromJson(json))
+      // 已放進垃圾桶的不顯示
+      final List<Map<String, dynamic>> activeJsonList = OfflineDataStore.scheduleEvents
+          .where((json) => json['deleted_at'] == null)
           .toList();
+      var localList = activeJsonList.map((json) => ScheduleEvent.fromJson(json)).toList();
 
       if (start != null && end != null) {
         localList = localList.where((e) {
@@ -62,7 +64,8 @@ class ScheduleService {
       var query = Supabase.instance.client
           .from('schedule_events')
           .select()
-          .eq('profile_id', user.id);
+          .eq('profile_id', user.id)
+          .isFilter('deleted_at', null); // 已放進垃圾桶的不顯示
 
       if (start != null) {
         query = query.gte('end_at', start.toUtc().toIso8601String());
@@ -131,6 +134,7 @@ class ScheduleService {
         .from('schedule_events')
         .select()
         .eq('profile_id', user.id)
+        .isFilter('deleted_at', null) // 已放進垃圾桶的不顯示
         .lte('start_at', rangeEnd.toUtc().toIso8601String())
         .gte('end_at', rangeStart.toUtc().toIso8601String())
         .order('start_at');
@@ -248,21 +252,36 @@ class ScheduleService {
     }
   }
 
-  /// 刪除行程
+  /// 刪除行程：移到垃圾桶（填入 deleted_at），30 天內可以還原（3-F）。
+  /// 有同步到 Google 日曆的，先刪掉 Google 上的那筆並清掉對應編號，還原時再重新推送。
   Future<bool> deleteEvent(String id) async {
-    final user = _currentUser;
+    final User? user = _currentUser;
+    final DateTime deletedAt = DateTime.now();
 
-    final target = _cachedEvents.firstWhere(
-      (e) => e.id == id,
+    final ScheduleEvent target = _cachedEvents.firstWhere(
+      (event) => event.id == id,
       orElse: () => ScheduleEvent(id: id, profileId: '', title: '', startAt: DateTime.now(), endAt: DateTime.now()),
     );
     if (GoogleCalendarSyncService.instance.isSyncEnabled && target.isGoogleSynced) {
       GoogleCalendarSyncService.instance.deleteRemoteEvent(target.googleCalendarId, target.googleEventId);
     }
 
+    final Map<String, dynamic> trashFields = {
+      'deleted_at': deletedAt.toUtc().toIso8601String(),
+      'google_event_id': null,
+      'google_calendar_id': null,
+      'sync_status': 'local_only',
+    };
+
     if (isOfflineMode || user == null) {
-      OfflineDataStore.scheduleEvents.removeWhere((e) => e['id'] == id);
-      _cachedEvents.removeWhere((e) => e.id == id);
+      final int offlineIndex = OfflineDataStore.scheduleEvents.indexWhere((json) => json['id'] == id);
+      if (offlineIndex != -1) {
+        OfflineDataStore.scheduleEvents[offlineIndex] = {
+          ...OfflineDataStore.scheduleEvents[offlineIndex],
+          ...trashFields,
+        };
+      }
+      _cachedEvents.removeWhere((event) => event.id == id);
       _notifyChange();
       return true;
     }
@@ -270,17 +289,90 @@ class ScheduleService {
     try {
       await Supabase.instance.client
           .from('schedule_events')
-          .delete()
+          .update(trashFields)
           .eq('id', id);
 
-      _cachedEvents.removeWhere((e) => e.id == id);
-      OfflineDataStore.scheduleEvents.removeWhere((e) => e['id'] == id);
+      _cachedEvents.removeWhere((event) => event.id == id);
+      OfflineDataStore.scheduleEvents.removeWhere((json) => json['id'] == id);
       _notifyChange();
       return true;
     } catch (e) {
-      debugPrint('⚠️ [ScheduleService] 刪除行程失敗: $e');
+      debugPrint('⚠️ [ScheduleService] 行程移到垃圾桶失敗: $e');
       rethrow;
     }
+  }
+
+  /// 垃圾桶用：讀取自己放進垃圾桶的行程（最近刪除的排前面）
+  Future<List<ScheduleEvent>> fetchDeletedEvents() async {
+    final User? user = _currentUser;
+    if (isOfflineMode || user == null) {
+      final List<ScheduleEvent> deletedEvents = [];
+      for (final Map<String, dynamic> json in OfflineDataStore.scheduleEvents) {
+        if (json['deleted_at'] != null) deletedEvents.add(ScheduleEvent.fromJson(json));
+      }
+      deletedEvents.sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+      return deletedEvents;
+    }
+
+    // 主管／開發者的權限看得到別人的行程，所以一定要篩選自己的
+    final List<dynamic> rows = await Supabase.instance.client
+        .from('schedule_events')
+        .select()
+        .eq('profile_id', user.id)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', ascending: false);
+
+    final List<ScheduleEvent> deletedEvents = [];
+    for (final dynamic row in rows) {
+      deletedEvents.add(ScheduleEvent.fromJson(row as Map<String, dynamic>));
+    }
+    return deletedEvents;
+  }
+
+  /// 從垃圾桶還原行程；有開 Google 日曆同步就重新推送一次
+  Future<void> restoreEvent(String id) async {
+    final User? user = _currentUser;
+
+    if (isOfflineMode || user == null) {
+      final int offlineIndex = OfflineDataStore.scheduleEvents.indexWhere((json) => json['id'] == id);
+      if (offlineIndex != -1) {
+        final Map<String, dynamic> restoredJson = Map<String, dynamic>.from(OfflineDataStore.scheduleEvents[offlineIndex]);
+        restoredJson.remove('deleted_at');
+        OfflineDataStore.scheduleEvents[offlineIndex] = restoredJson;
+        _cachedEvents.add(ScheduleEvent.fromJson(restoredJson));
+      }
+      _notifyChange();
+      return;
+    }
+
+    final Map<String, dynamic> row = await Supabase.instance.client
+        .from('schedule_events')
+        .update({'deleted_at': null})
+        .eq('id', id)
+        .select()
+        .single();
+
+    final ScheduleEvent restored = ScheduleEvent.fromJson(row);
+    _cachedEvents.removeWhere((event) => event.id == restored.id);
+    _cachedEvents.add(restored);
+    _cachedEvents.sort((a, b) => a.startAt.compareTo(b.startAt));
+    _notifyChange();
+    _syncToGoogleCalendar(restored);
+  }
+
+  /// 從垃圾桶永久刪除行程（救不回來）
+  Future<void> deleteEventForever(String id) async {
+    final User? user = _currentUser;
+
+    if (isOfflineMode || user == null) {
+      OfflineDataStore.scheduleEvents.removeWhere((json) => json['id'] == id);
+      return;
+    }
+
+    await Supabase.instance.client
+        .from('schedule_events')
+        .delete()
+        .eq('id', id);
   }
 
   Future<void> _syncToGoogleCalendar(ScheduleEvent event) async {
