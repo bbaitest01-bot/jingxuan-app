@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
 import '../services/voice_transcription_service.dart';
 
 enum RecordingState {
+  preparing, // 麥克風啟動中（還沒開始收音），避免一打開就講話被漏掉
   recording,
   processing,
   success,
@@ -23,7 +23,7 @@ class VoiceSchedulerOverlay extends StatefulWidget {
 
 class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
   final VoiceTranscriptionService _service = VoiceTranscriptionService();
-  RecordingState _state = RecordingState.recording;
+  RecordingState _state = RecordingState.preparing;
   String? _errorMessage;
   int _seconds = 0;
   Timer? _timer;
@@ -43,11 +43,14 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
       final hasPerm = await _service.hasPermission();
       if (hasPerm) {
         setState(() {
-          _state = RecordingState.recording;
+          _state = RecordingState.preparing;
           _eventResult = null;
           _warningMessages = [];
         });
         await _service.startRecording();
+        // 麥克風真的開始收音了，才顯示「請開始說話」並開始計時
+        if (!mounted) return;
+        setState(() => _state = RecordingState.recording);
         _startTimer();
       } else {
         setState(() {
@@ -100,28 +103,10 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
     }
   }
 
-  Future<void> _discardEvent() async {
+  // 捨棄辨識結果：辨識完並沒有存進資料庫（問題 S18），直接關閉就好
+  void _discardEvent() {
     _stopTimer();
-    setState(() {
-      _state = RecordingState.processing;
-    });
-
-    if (_eventResult != null && _eventResult!['event'] != null) {
-      final eventId = _eventResult!['event']['id'];
-      if (eventId != null) {
-        try {
-          await Supabase.instance.client
-              .from('schedule_events')
-              .delete()
-              .eq('id', eventId);
-        } catch (e) {
-          debugPrint('捨棄行程失敗: $e');
-        }
-      }
-    }
-    if (mounted) {
-      Navigator.of(context).pop(null);
-    }
+    Navigator.of(context).pop(null);
   }
 
   Future<void> _finish() async {
@@ -167,7 +152,7 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
 
   Future<void> _retry() async {
     setState(() {
-      _state = RecordingState.recording;
+      _state = RecordingState.preparing;
       _errorMessage = null;
       _eventResult = null;
       _warningMessages = [];
@@ -319,7 +304,7 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             ),
             const SizedBox(height: 12),
             Text(
-              context.l10n('voice_overlay_listening'),
+              '說完後按下方「完成」送出',
               style: TextStyle(
                 fontSize: 14,
                 color: subTextColor,
@@ -327,6 +312,8 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             ),
           ],
         );
+      case RecordingState.preparing:
+        return _VoicePreparingContent(primaryColor: primaryColor, textColor: textColor);
       case RecordingState.processing:
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -405,7 +392,7 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
-                '已完美建立行程，即將為您刷新行事曆！',
+                '辨識完成，請確認內容後按儲存',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
@@ -435,7 +422,7 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             ),
             const SizedBox(height: 32),
             Text(
-              '行程已建立，但資訊有所遺漏',
+              '已辨識，但資訊有所遺漏',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -526,7 +513,8 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
   Widget _buildBottomControls(Color primaryColor, Color textColor) {
     final isError = _state == RecordingState.error;
     final isWarning = _state == RecordingState.warning;
-    final isProcessing = _state == RecordingState.processing;
+    // 麥克風還沒準備好時也不能按「完成」
+    final isProcessing = _state == RecordingState.processing || _state == RecordingState.preparing;
     final isSuccess = _state == RecordingState.success;
 
     // 綠燈成功狀態下不需顯示控制按鈕
@@ -537,7 +525,7 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
       children: [
         // 取消 / 捨棄行程
         ElevatedButton(
-          onPressed: isProcessing ? null : (isWarning ? _discardEvent : _cancel),
+          onPressed: _state == RecordingState.processing ? null : (isWarning ? _discardEvent : _cancel),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             foregroundColor: isWarning ? Colors.redAccent : textColor,
@@ -651,6 +639,36 @@ class _PulseCircleState extends State<PulseCircle> with SingleTickerProviderStat
           ),
         );
       },
+    );
+  }
+}
+
+/// 麥克風準備中的畫面
+class _VoicePreparingContent extends StatelessWidget {
+  final Color primaryColor;
+  final Color textColor;
+
+  const _VoicePreparingContent({required this.primaryColor, required this.textColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 120,
+          height: 120,
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+            strokeWidth: 4,
+          ),
+        ),
+        const SizedBox(height: 48),
+        Text(
+          '麥克風準備中，請稍候…',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: textColor),
+        ),
+      ],
     );
   }
 }
