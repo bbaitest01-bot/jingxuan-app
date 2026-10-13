@@ -11,6 +11,7 @@ class AppRoutes {
   static const String schedule = '/schedule';
   static const String customers = '/customers';
   static const String projects = '/projects';
+  static const String visitRecords = '/visit-records';
   static const String network = '/network';
   static const String insights = '/insights';
   static const String news = '/news';
@@ -22,7 +23,8 @@ class AppRoutes {
   static const String admin = '/admin';
   static const String dev = '/dev';
 
-  // 第 4 階段 4-1 才會建立「拜訪紀錄」頁，網址先保留：/visit-records（排在專案拜訪之後）
+  /// 單篇拜訪紀錄的網址，例：/visit-records/1234-…
+  static String visitRecordPath(String id) => '$visitRecords/$id';
 
   /// 網址對不到任何頁面時，外殼顯示的選單名稱
   static const String notFoundMenu = '找不到頁面';
@@ -32,6 +34,7 @@ class AppRoutes {
     schedule: '今日行程',
     customers: '客戶管理',
     projects: '專案拜訪',
+    visitRecords: '拜訪紀錄',
     network: '人脈拓撲',
     insights: '數據戰情',
     news: '新聞頭條',

@@ -80,6 +80,16 @@ GoRouter createAppRouter() {
         path: AppRoutes.denied,
         builder: (BuildContext context, GoRouterState state) => const AccessDeniedScreen(),
       ),
+      // 單篇拜訪紀錄（/visit-records/:id）：同一個外殼，內容顯示那一篇
+      GoRoute(
+        path: '${AppRoutes.visitRecords}/:id',
+        pageBuilder: (BuildContext context, GoRouterState state) {
+          return NoTransitionPage<void>(
+            key: _homeShellPageKey,
+            child: HomeScreen(activeMenu: '拜訪紀錄', visitRecordId: state.pathParameters['id']),
+          );
+        },
+      ),
       // 外殼內的頁面（/schedule、/customers…）：同一個外殼，依網址顯示不同內容
       GoRoute(
         path: '/:page',
