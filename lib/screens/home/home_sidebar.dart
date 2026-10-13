@@ -128,6 +128,7 @@ class HomeSidebar extends StatelessWidget {
       _buildMenuItem(context, Icons.calendar_today_outlined, '今日行程'),
       _buildMenuItem(context, Icons.people_outline, '客戶管理'),
       _buildMenuItem(context, Icons.assignment_outlined, '專案拜訪'),
+      _buildMenuItem(context, Icons.record_voice_over_outlined, '拜訪紀錄'),
       _buildMenuItem(context, Icons.hub_outlined, '人脈拓撲'),
       _buildMenuItem(context, Icons.bar_chart_outlined, '數據戰情'),
       _buildMenuItem(context, Icons.newspaper_outlined, '新聞頭條'),

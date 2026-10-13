@@ -32,13 +32,15 @@ import 'home/not_found_page.dart';
 import 'home/schedule/schedule_dialogs.dart';
 import 'home/schedule/schedule_page.dart';
 import 'home/schedule/schedule_page_state.dart';
+import 'visit_records/visit_records_page.dart';
 
 /// 登入後的外殼（側邊欄＋頂欄＋內容區）。
 /// 目前顯示哪一頁由網址決定：路由把網址轉成選單名稱 [activeMenu] 傳進來。
 class HomeScreen extends StatefulWidget {
   final String activeMenu;
+  final String? visitRecordId; // 單篇拜訪紀錄網址的編號（/visit-records/:id）
 
-  const HomeScreen({super.key, required this.activeMenu});
+  const HomeScreen({super.key, required this.activeMenu, this.visitRecordId});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -461,6 +463,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const CustomerManagementTab();
       case '專案拜訪':
         return const VisitProjectsTab();
+      case '拜訪紀錄':
+        return VisitRecordsPage(recordId: widget.visitRecordId);
       case '人脈拓撲':
         return const RelationshipTopologyTab();
       case '數據戰情':
