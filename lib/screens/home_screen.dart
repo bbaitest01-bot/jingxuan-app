@@ -64,6 +64,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingEvents = false;
   String _calendarViewMode = 'timeline'; // 'timeline' (日時間軸) 或 'month_grid' (月網格)
 
+  // 讀回上次選的檢視模式之前不讀行程，避免先用預設的「日時間軸」只讀到今天
+  bool _isViewModeReady = false;
+  // 每次讀行程都編號；晚回來的舊結果不採用，畫面只顯示最新一次的讀取結果
+  int _latestEventRequestId = 0;
+
   UserRole _userRole = UserRole.agent;
   UserRole _activeViewRole = UserRole.agent;
   final NotificationService _notifService = NotificationService();
@@ -87,10 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     _loadUserProfile();
+    // 先讀回上次的檢視模式（日／月／議程），再依那個模式讀行程
     _loadSavedViewMode().then((_) {
-      if (mounted) _fetchEventsForSelectedDate(silent: true);
+      if (!mounted) return;
+      _isViewModeReady = true;
+      _fetchEventsForSelectedDate();
     });
-    _fetchEventsForSelectedDate();
     _showRouteNoticeAfterBuild();
   }
 
@@ -123,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchEventsForSelectedDate({bool silent = false}) async {
+    if (!_isViewModeReady) return;
     if (isOfflineMode) {
       if (!silent && mounted) {
         CustomToast.show(context, '目前為離線預覽模式，無法讀取真實行程資料。', ToastType.warning);
@@ -133,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    final int requestId = ++_latestEventRequestId;
     if (!silent && _events.isEmpty) {
       setState(() => _isLoadingEvents = true);
     }
@@ -141,6 +150,8 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedDate: _selectedDate,
         viewMode: _calendarViewMode,
       );
+      // 這段期間又發出了新的讀取，這次的結果已經過時，不採用
+      if (requestId != _latestEventRequestId) return;
       // events 是 null 代表沒有登入者，保留畫面上原本的行程
       if (events != null && mounted) {
         setState(() {
@@ -151,7 +162,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // 讀取失敗時保留畫面上原本的行程
       debugPrint('⚠️ [HomeScreen] 讀取行程失敗: $e');
     } finally {
-      if (mounted) setState(() => _isLoadingEvents = false);
+      if (mounted && requestId == _latestEventRequestId) {
+        setState(() => _isLoadingEvents = false);
+      }
     }
   }
 
@@ -188,36 +201,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final Map<String, dynamic>? result = await showVoiceSchedulerOverlay(context);
     if (result == null || !mounted) return;
 
-    final String status = result['status'] as String? ?? 'green';
-    final Map<String, dynamic>? eventMap = result['event'] as Map<String, dynamic>?;
-
-    ScheduleEvent? event;
-    if (eventMap != null) {
-      try {
-        event = ScheduleEvent.fromJson(eventMap);
-      } catch (e) {
-        debugPrint('解析語音行程失敗，改用預設行程物件: $e');
-      }
-    }
-
+    final ScheduleEvent? event = parseVoiceSchedulerEvent(result);
     if (event != null) {
       final DateTime eventStart = event.startAt;
       setState(() {
         _selectedDate = DateTime(eventStart.year, eventStart.month, eventStart.day);
       });
+      // 跳到行程那一天，要重新讀那一天的行程
+      _fetchEventsForSelectedDate(silent: true);
     }
 
-    // 黃燈：AI 覺得資訊不完整，列出缺漏提醒；綠燈：直接提示確認
-    if (status == 'yellow') {
-      final List<String> warnings = List<String>.from(result['warning_messages'] ?? []);
-      String warningText = '行程資訊有所遺漏，請核對並補充細節！';
-      if (warnings.isNotEmpty) {
-        warningText = '⚠️ ${warnings.join('； ')}';
-      }
-      CustomToast.show(context, warningText, ToastType.warning);
-    } else {
-      CustomToast.show(context, '語音辨識完成，請確認並儲存行程！', ToastType.success);
-    }
+    showVoiceSchedulerResultToast(context, result);
     // 不論綠燈、黃燈或解析例外，均一律開啟手動編輯視窗供專案人員最終核對與儲存
     await _openAddEditEventDialog(event);
   }
@@ -325,6 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _selectedDate = picked;
       });
+      _fetchEventsForSelectedDate(silent: true);
     }
   }
 

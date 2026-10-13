@@ -78,7 +78,7 @@ class ScheduleWeekStrip extends StatelessWidget {
                 icon: Icon(Icons.chevron_left, color: primaryColor),
                 tooltip: '上一週',
                 onPressed: () {
-                  actions.selectDate(data.selectedDate.subtract(const Duration(days: 7)));
+                  actions.selectDateAndReload(data.selectedDate.subtract(const Duration(days: 7)));
                 },
               ),
               Expanded(
@@ -97,7 +97,7 @@ class ScheduleWeekStrip extends StatelessWidget {
                     return Expanded(
                       child: GestureDetector(
                         onTap: () {
-                          actions.selectDate(date);
+                          actions.selectDateAndReload(date);
                         },
                         child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -153,7 +153,7 @@ class ScheduleWeekStrip extends StatelessWidget {
                 icon: Icon(Icons.chevron_right, color: primaryColor),
                 tooltip: '下一週',
                 onPressed: () {
-                  actions.selectDate(data.selectedDate.add(const Duration(days: 7)));
+                  actions.selectDateAndReload(data.selectedDate.add(const Duration(days: 7)));
                 },
               ),
             ],
