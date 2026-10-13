@@ -6,6 +6,8 @@ import '../main.dart';
 import '../router/app_routes.dart';
 import 'app_settings.dart';
 import 'customer_service.dart';
+import 'tag_categorizer.dart';
+import 'tag_manager_service.dart';
 
 /// 某一個時間點的登入狀態快照，給網址守門規則判斷要不要導向。
 /// 只放判斷需要的資料，方便在測試裡直接建立各種情境。
@@ -107,6 +109,8 @@ class AuthStatusService extends ChangeNotifier {
       CustomerService.instance.clearCache();
       // 設定恢復預設，下一個登入的人不會沿用上一位的主題色等（問題 G1）
       await AppSettings.instance.clearForSignOut();
+      // 清掉上一位的自訂標籤顏色
+      TagCategorizer.clearCustomColors();
       return;
     }
 
@@ -116,6 +120,10 @@ class AuthStatusService extends ChangeNotifier {
       await _loadProfile(session.user.id);
       // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言）
       await AppSettings.instance.applyCloudSettings();
+      // 讀回這個帳號的標籤，客戶卡片、行程上的自訂標籤顏色才會一致（問題 S13）；
+      // 第一次使用時也會在這裡把瀏覽器本機的標籤搬進資料庫
+      TagCategorizer.clearCustomColors();
+      await TagManagerService.getTags();
     }
   }
 

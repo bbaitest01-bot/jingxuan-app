@@ -172,57 +172,68 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text('✏️ 編輯大分類【${cat.name}】', style: const TextStyle(fontWeight: FontWeight.bold)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: '大分類名稱',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          // 固定寬度：對話框會量內容寬度，色盤（可捲動的格子）量不出來會讓視窗畫不出來
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: '大分類名稱',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                ColorPalettePicker(
-                  initialColorHex: selectedColorHex,
-                  onColorSelected: (hex) => selectedColorHex = hex,
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  ColorPalettePicker(
+                    initialColorHex: selectedColorHex,
+                    onColorSelected: (hex) => selectedColorHex = hex,
+                  ),
+                ],
+              ),
             ),
           ),
+          // 刪除放左邊、取消與儲存放右邊。
+          // 以前在 actions 裡直接放 Spacer，Spacer 只能放在 Row/Column 裡，整個視窗因此畫不出來
+          actionsAlignment: MainAxisAlignment.spaceBetween,
           actions: [
             TextButton(
               onPressed: () => _confirmDeleteCategory(cat),
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('刪除此資料夾'),
             ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameController.text.trim();
-                if (name.isEmpty) return;
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    if (name.isEmpty) return;
 
-                final ok = await TagManagerService.editCategory(
-                  cat.id,
-                  newName: name,
-                  colorHex: selectedColorHex,
-                );
-                if (!mounted) return;
-                Navigator.pop(ctx);
+                    final ok = await TagManagerService.editCategory(
+                      cat.id,
+                      newName: name,
+                      colorHex: selectedColorHex,
+                    );
+                    if (!mounted) return;
+                    Navigator.pop(ctx);
 
-                if (ok) {
-                  _showToast('成功更新大分類「$name」！', type: 'green');
-                  _loadData();
-                } else {
-                  _showToast('更新失敗。', type: 'yellow');
-                }
-              },
-              child: const Text('儲存修改'),
+                    if (ok) {
+                      _showToast('成功更新大分類「$name」！', type: 'green');
+                      _loadData();
+                    } else {
+                      _showToast('更新失敗。', type: 'yellow');
+                    }
+                  },
+                  child: const Text('儲存修改'),
+                ),
+              ],
             ),
           ],
         );
@@ -585,12 +596,11 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                                   Icon(Icons.folder_outlined, size: 16, color: isSelected ? Colors.white : color),
                                   const SizedBox(width: 6),
                                   Text(cat.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                                  // 鉛筆只是提示：已選取的分類再點一次就會打開編輯視窗。
+                                  // 以前鉛筆自己是按鈕，但點擊會被外層的分類按鈕吃掉，所以按了沒反應
                                   if (isSelected) ...[
                                     const SizedBox(width: 4),
-                                    InkWell(
-                                      onTap: () => _openEditCategoryDialog(cat),
-                                      child: const Icon(Icons.edit_outlined, size: 14, color: Colors.white),
-                                    ),
+                                    const Icon(Icons.edit_outlined, size: 14, color: Colors.white),
                                   ],
                                 ],
                               ),
@@ -599,11 +609,13 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                               backgroundColor: isDark ? Colors.grey[800] : Colors.white,
                               labelStyle: TextStyle(color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87)),
                               onSelected: (selected) {
-                                if (selected) {
-                                  setState(() {
-                                    _selectedCategoryId = cat.id;
-                                  });
+                                if (isSelected) {
+                                  _openEditCategoryDialog(cat);
+                                  return;
                                 }
+                                setState(() {
+                                  _selectedCategoryId = cat.id;
+                                });
                               },
                             ),
                           );
@@ -635,6 +647,14 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                         '${activeCategory.name} (共 ${categoryTags.length} 個標籤)',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
+                      const SizedBox(width: 8),
+                      // 明顯的「編輯／刪除分類」按鈕（資料庫裡真的有這個分類才顯示）
+                      if (_categories.any((category) => category.id == activeCategory.id))
+                        TextButton.icon(
+                          onPressed: () => _openEditCategoryDialog(activeCategory),
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: const Text('編輯／刪除分類'),
+                        ),
                       const Spacer(),
                       if (_isMergeMode)
                         ElevatedButton.icon(
