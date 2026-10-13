@@ -23,6 +23,11 @@ class TagCategorizer {
     }
   }
 
+  /// 清空自訂標籤色碼（登出或換帳號時使用）
+  static void clearCustomColors() {
+    customTagColors.clear();
+  }
+
   /// Classifies a tag name and returns the background and text color based on the current theme brightness.
   static TagStyle getStyle(String tagName, bool isDark, {String? customHex}) {
     final name = tagName.trim().toLowerCase();
