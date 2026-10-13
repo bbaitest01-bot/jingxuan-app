@@ -93,26 +93,71 @@ class VoiceTranscriptionService {
     }
   }
 
-  /// 停止錄音並送至 Edge Function 進行 AI 轉錄
+  // 最近一次錄音：轉文字失敗時保留，讓使用者按「重試轉文字」不必重錄（4-B）
+  Uint8List? _lastAudioBytes;
+  String _lastBrowserTranscript = '';
+
+  /// 有沒有可以重試轉文字的錄音
+  bool get canRetryTranscription {
+    final Uint8List? bytes = _lastAudioBytes;
+    return bytes != null && bytes.isNotEmpty;
+  }
+
+  /// 丟掉保留的錄音（使用者放棄重試時）
+  void clearLastRecording() {
+    _lastAudioBytes = null;
+    _lastBrowserTranscript = '';
+  }
+
+  /// 停止錄音並轉成文字。
+  /// 一律先用 Whisper（品質較穩定）；瀏覽器邊聽邊轉的文字只在 Whisper 失敗時備用（與 3-G 語音排程相同）。
+  /// 兩者都失敗時錄音會保留，可呼叫 [retryLastTranscription] 重試。
   Future<String> stopAndTranscribe() async {
     if (isOfflineMode) {
       throw Exception('離線模式下無法使用語音轉錄，請確認網路連線後再試');
     }
 
-    // 若瀏覽器原生 Web Speech 已成功辨識出文字，直接返回高精度中文
-    if (kIsWeb && _webController.liveTranscript.trim().isNotEmpty) {
-      final text = _webController.liveTranscript.trim();
-      try {
-        await _stopAndGetAudioBytes();
-      } catch (_) {}
-      return text;
+    final String browserTranscript = kIsWeb ? _webController.liveTranscript.trim() : '';
+    Uint8List bytes = Uint8List(0);
+    try {
+      bytes = await _stopAndGetAudioBytes();
+    } catch (e) {
+      debugPrint('取得錄音失敗: $e');
     }
+    _lastAudioBytes = bytes;
+    _lastBrowserTranscript = browserTranscript;
+    return _transcribeLastRecording();
+  }
 
-    final bytes = await _stopAndGetAudioBytes();
+  /// 用保留的錄音再轉一次文字
+  Future<String> retryLastTranscription() => _transcribeLastRecording();
+
+  Future<String> _transcribeLastRecording() async {
+    final Uint8List bytes = _lastAudioBytes ?? Uint8List(0);
+    final String browserTranscript = _lastBrowserTranscript;
+
     if (bytes.isEmpty) {
+      clearLastRecording();
+      if (browserTranscript.isNotEmpty) return browserTranscript;
       throw Exception('錄音內容為空，請說話後再重試');
     }
 
+    try {
+      final String transcript = await _transcribeWithWhisper(bytes);
+      clearLastRecording();
+      return transcript;
+    } catch (e) {
+      if (browserTranscript.isNotEmpty) {
+        debugPrint('Whisper 轉文字失敗，改用瀏覽器辨識文字: $e');
+        clearLastRecording();
+        return browserTranscript;
+      }
+      rethrow;
+    }
+  }
+
+  // 送到雲端函式 transcribe-voice（Whisper）轉文字；直接呼叫失敗時改用 HTTP 再試一次
+  Future<String> _transcribeWithWhisper(Uint8List bytes) async {
     final base64Audio = base64Encode(bytes);
     final supabase = Supabase.instance.client;
     String transcript = '';
@@ -165,7 +210,6 @@ class VoiceTranscriptionService {
     if (transcript.isEmpty) {
       throw Exception('未能識別語音內容，請確認錄音環境安靜且說話清晰');
     }
-
     return transcript;
   }
 

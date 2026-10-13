@@ -55,4 +55,23 @@ void main() {
     expect(find.textContaining('找不到這篇拜訪紀錄'), findsOneWidget);
     expect(find.text('返回拜訪紀錄列表'), findsOneWidget);
   });
+
+  testWidgets('列表有「錄音新增」，打開後是錄音視窗；離線模式按錄音會提示無法使用', (WidgetTester tester) async {
+    await pumpPage(tester, const VisitRecordsPage());
+    expect(find.text('錄音新增'), findsOneWidget);
+
+    await tester.tap(find.text('錄音新增'));
+    await tester.pumpAndSettle();
+    expect(find.text('錄音新增拜訪紀錄'), findsOneWidget);
+    expect(find.textContaining('最長 10 分鐘'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.fiber_manual_record));
+    await tester.pump();
+    expect(find.textContaining('離線預覽模式無法使用語音轉錄'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+
+    await tester.tap(find.text('關閉'));
+    await tester.pumpAndSettle();
+    expect(find.text('錄音新增拜訪紀錄'), findsNothing);
+  });
 }

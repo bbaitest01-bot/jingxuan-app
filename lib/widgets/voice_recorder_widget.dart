@@ -28,12 +28,15 @@ class VoiceRecorderWidget extends StatefulWidget {
   final Color primaryColor;
   final bool isDark;
   final void Function(String text) onTranscribed;
+  // 最長錄音秒數，時間到自動停止並轉文字；客戶備註預設 2 分鐘，拜訪紀錄可設更長
+  final int maxRecordingSeconds;
 
   const VoiceRecorderWidget({
     super.key,
     required this.primaryColor,
     required this.isDark,
     required this.onTranscribed,
+    this.maxRecordingSeconds = 120,
   });
 
   @override
@@ -51,8 +54,6 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
   Timer? _timer;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnim;
-
-  static const int _maxRecordingSeconds = 120; // 最長 2 分鐘
 
   @override
   void initState() {
@@ -81,7 +82,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _recordingSeconds++);
-      if (_recordingSeconds >= _maxRecordingSeconds) {
+      if (_recordingSeconds >= widget.maxRecordingSeconds) {
         _stopAndTranscribe();
       }
     });
@@ -128,6 +129,25 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     }
   }
 
+  // 用剛才保留的錄音再轉一次文字，不必重錄
+  Future<void> _retryTranscription() async {
+    setState(() => _state = _RecorderState.transcribing);
+    try {
+      final String transcript = await _service.retryLastTranscription();
+      if (!mounted) return;
+      setState(() => _state = _RecorderState.idle);
+      widget.onTranscribed(transcript);
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  // 放棄保留的錄音，回到待機
+  void _discardRecording() {
+    _service.clearLastRecording();
+    setState(() => _state = _RecorderState.idle);
+  }
+
   Future<void> _cancelRecording() async {
     _stopTimer();
     _pulseController.stop();
@@ -142,7 +162,8 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       _state = _RecorderState.error;
       _errorMessage = message;
     });
-    // 4 秒後自動回到待機狀態
+    // 錄音還保留著（可重試）就停在錯誤畫面等使用者選擇；否則 4 秒後自動回到待機狀態
+    if (_service.canRetryTranscription) return;
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted && _state == _RecorderState.error) {
         setState(() => _state = _RecorderState.idle);
@@ -349,6 +370,18 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (_service.canRetryTranscription) ...[
+          TextButton(
+            onPressed: _discardRecording,
+            child: const Text('放棄', style: TextStyle(fontSize: 12)),
+          ),
+          _RecordButton(
+            color: Colors.orange,
+            label: '重試轉文字',
+            icon: Icons.refresh,
+            onTap: _retryTranscription,
+          ),
+        ],
       ],
     );
   }
