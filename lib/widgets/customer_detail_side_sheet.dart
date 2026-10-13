@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart';
 import '../services/customer_policy_service.dart';
+import '../services/customer_service.dart';
 import '../services/policy_crawler_service.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
@@ -254,27 +255,33 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     }
     updated['custom_attributes'] = customAttributes;
 
-    widget.onCustomerUpdated(updated);
+    if (isOfflineMode) {
+      CustomToast.show(context, '目前為離線預覽模式，無法儲存客戶資料。', ToastType.warning);
+      return;
+    }
+    final String? customerId = widget.customer['id']?.toString();
+    if (customerId == null) return;
 
+    // 先存進資料庫，成功後才更新列表；失敗要提示，不能藏起來（問題 C18）
     try {
-      final custId = widget.customer['id']?.toString();
-      if (custId != null) {
-        await Supabase.instance.client.from('customers').update({
-          'name': updated['name'],
-          'nickname': updated['nickname'],
-          'phone': updated['phone'],
-          'email': updated['email'],
-          'notes': updated['notes'],
-          'tags': updated['tags'],
-          'custom_attributes': customAttributes,
-          'status': updated['status'] ?? 'active',
-        }).eq('id', custId);
-      }
+      await CustomerService.instance.updateCustomerBasicInfo(
+        id: customerId,
+        name: updated['name'],
+        nickname: updated['nickname'],
+        phone: updated['phone'],
+        email: updated['email'],
+        notes: updated['notes'],
+        tags: List<String>.from(updated['tags']),
+        customAttributes: customAttributes,
+      );
+      widget.onCustomerUpdated(updated);
       if (mounted) {
-        CustomToast.show(context, '✅ 客戶檔案已即時儲存', ToastType.success);
+        CustomToast.show(context, '✅ 客戶檔案已儲存', ToastType.success);
       }
     } catch (e) {
-      // Local updated
+      if (mounted) {
+        CustomToast.show(context, '儲存失敗：$e', ToastType.error);
+      }
     }
   }
 
@@ -446,7 +453,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           const SizedBox(height: 14),
           TextField(
             controller: _phoneController,
-            decoration: const InputDecoration(labelText: '聯絡電話 (點擊可快速撥打)', prefixIcon: Icon(Icons.phone_rounded, size: 18), isDense: true, border: OutlineInputBorder()),
+            decoration: const InputDecoration(labelText: '聯絡電話', prefixIcon: Icon(Icons.phone_rounded, size: 18), isDense: true, border: OutlineInputBorder()),
           ),
           const SizedBox(height: 14),
           TextField(
@@ -513,7 +520,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
               onPressed: _saveBasicInfo,
               icon: const Icon(Icons.save_rounded, size: 18),
-              label: const Text('即時儲存基本資料', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('儲存基本資料', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
