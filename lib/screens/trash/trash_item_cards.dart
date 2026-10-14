@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/schedule_event.dart';
+import '../../models/visit_record.dart';
 
 /// 垃圾桶保留天數
 const int trashKeepDays = 30;
@@ -324,6 +325,50 @@ class DeletedScheduleCard extends StatelessWidget {
       daysLeft: trashDaysLeft(deletedAt),
       detailText: detailText,
       restoreLabel: '還原行程',
+      colors: colors,
+      onRestore: onRestore,
+      onDeleteForever: onDeleteForever,
+    );
+  }
+}
+
+/// 已刪除的拜訪紀錄（4-D）
+class DeletedVisitRecordCard extends StatelessWidget {
+  final VisitRecord record;
+  final TrashCardColors colors;
+  final VoidCallback onRestore;
+  final VoidCallback onDeleteForever;
+
+  const DeletedVisitRecordCard({
+    super.key,
+    required this.record,
+    required this.colors,
+    required this.onRestore,
+    required this.onDeleteForever,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const Color recordColor = Color(0xFF0EA5E9);
+    final DateTime deletedAt = record.deletedAt ?? DateTime.now();
+
+    // 內容摘要；有連結客戶就放前面
+    String detailText = record.previewText.isEmpty ? '（沒有內容）' : record.previewText;
+    final String? customerName = record.customerName;
+    if (record.customerId != null && customerName != null) detailText = '客戶: $customerName · $detailText';
+
+    return TrashItemCard(
+      leading: CircleAvatar(
+        radius: 22,
+        backgroundColor: recordColor.withValues(alpha: 0.12),
+        child: const Icon(Icons.record_voice_over_outlined, color: recordColor, size: 20),
+      ),
+      title: record.title,
+      typeLabel: '📝 拜訪紀錄',
+      typeColor: recordColor,
+      daysLeft: trashDaysLeft(deletedAt),
+      detailText: detailText,
+      restoreLabel: '還原紀錄',
       colors: colors,
       onRestore: onRestore,
       onDeleteForever: onDeleteForever,

@@ -131,6 +131,37 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
 
   void _backToList() => context.go(AppRoutes.visitRecords);
 
+  // 刪除：先確認，再移到垃圾桶（30 天內可還原），回到列表
+  Future<void> _confirmDelete(VisitRecord record) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('刪除拜訪紀錄'),
+        content: Text('「${record.title}」會移到垃圾桶，30 天內可以從垃圾桶還原。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await VisitRecordService.instance.moveToTrash(record.id);
+      if (!mounted) return;
+      CustomToast.show(context, '拜訪紀錄已移到垃圾桶', ToastType.warning);
+      _backToList();
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '刪除失敗：$e', ToastType.error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -193,6 +224,12 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ),
+        TextButton.icon(
+          onPressed: _isSaving ? null : () => _confirmDelete(record),
+          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+          label: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
+        ),
+        const SizedBox(width: 8),
         ElevatedButton.icon(
           onPressed: _isSaving ? null : _save,
           icon: const Icon(Icons.save_outlined, size: 18),

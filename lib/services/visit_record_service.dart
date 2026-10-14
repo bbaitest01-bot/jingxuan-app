@@ -38,7 +38,9 @@ class VisitRecordService {
   /// 自己的拜訪紀錄（未刪除，新到舊）
   Future<List<VisitRecord>> fetchMyRecords() async {
     final String? userId = _currentUserId;
-    if (userId == null) return List<VisitRecord>.from(_offlineRecords);
+    if (userId == null) {
+      return _offlineRecords.where((record) => record.deletedAt == null).toList();
+    }
 
     final List<dynamic> rows = await _supabase
         .from('visit_records')
@@ -59,7 +61,7 @@ class VisitRecordService {
     final String? userId = _currentUserId;
     if (userId == null) {
       for (final VisitRecord record in _offlineRecords) {
-        if (record.id == id) return record;
+        if (record.id == id && record.deletedAt == null) return record;
       }
       return null;
     }
@@ -223,6 +225,80 @@ class VisitRecordService {
       if (nameMatched || phoneMatched) matched.add(option);
     }
     return matched;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 垃圾桶（4-D）：刪除先填 deleted_at，30 天內可還原，之後由每日排程永久刪除
+  // ---------------------------------------------------------------------------
+
+  /// 移到垃圾桶
+  Future<void> moveToTrash(String id) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      _replaceOfflineRecord(id, (record) => record.withDeletedAt(DateTime.now()));
+      return;
+    }
+    await _supabase
+        .from('visit_records')
+        .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', id)
+        .eq('profile_id', userId);
+  }
+
+  /// 垃圾桶裡自己的拜訪紀錄（最近刪除的在前）
+  Future<List<VisitRecord>> fetchDeletedRecords() async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      final List<VisitRecord> deletedRecords = _offlineRecords.where((record) => record.deletedAt != null).toList();
+      deletedRecords.sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
+      return deletedRecords;
+    }
+
+    final List<dynamic> rows = await _supabase
+        .from('visit_records')
+        .select(_selectColumns)
+        .eq('profile_id', userId)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', ascending: false);
+    final List<VisitRecord> records = [];
+    for (final dynamic row in rows) {
+      records.add(VisitRecord.fromJson(row as Map<String, dynamic>));
+    }
+    return records;
+  }
+
+  /// 從垃圾桶還原
+  Future<void> restoreRecord(String id) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      _replaceOfflineRecord(id, (record) => record.withDeletedAt(null));
+      return;
+    }
+    await _supabase
+        .from('visit_records')
+        .update({'deleted_at': null})
+        .eq('id', id)
+        .eq('profile_id', userId);
+  }
+
+  /// 從垃圾桶永久刪除（救不回來）
+  Future<void> deleteRecordForever(String id) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      _offlineRecords.removeWhere((record) => record.id == id);
+      return;
+    }
+    await _supabase
+        .from('visit_records')
+        .delete()
+        .eq('id', id)
+        .eq('profile_id', userId);
+  }
+
+  void _replaceOfflineRecord(String id, VisitRecord Function(VisitRecord record) change) {
+    final int index = _offlineRecords.indexWhere((record) => record.id == id);
+    if (index == -1) throw Exception('找不到這篇紀錄');
+    _offlineRecords[index] = change(_offlineRecords[index]);
   }
 
   // 標題空白就用預設標題；太長就截斷
