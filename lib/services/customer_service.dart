@@ -13,6 +13,7 @@ class CustomerFormData {
   final List<String> tags;
   final String notes;
   final String? gender; // male 男／female 女／null 不填（4-3b）
+  final String? clientStatus; // positive ✔／considering △／negative ✖／null 未設定（4-3c）
   final Uint8List? imageBytes;
   final String? imageName;
   final bool isImageCleared;
@@ -25,6 +26,7 @@ class CustomerFormData {
     required this.tags,
     required this.notes,
     this.gender,
+    this.clientStatus,
     required this.imageBytes,
     required this.imageName,
     required this.isImageCleared,
@@ -136,6 +138,7 @@ class CustomerService {
       'phone': data['phone'],
       'email': data['email'],
       'gender': data['gender'],
+      'client_status': data['client_status'],
       'status': data['status'] ?? 'active',
       // Convert postgres array text[] to List<String> safely
       'tags': List<String>.from(data['tags'] ?? []),
@@ -166,6 +169,43 @@ class CustomerService {
     const List<String> femaleWords = ['女', '女性', 'f', 'female', '小姐'];
     if (maleWords.contains(value)) return genderMale;
     if (femaleWords.contains(value)) return genderFemale;
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 客戶狀態 ✔／△／✖（4-3c，手動設定；之後專案拜訪結果 P3 用同一套）
+  // ---------------------------------------------------------------------------
+  static const String statusPositive = 'positive';
+  static const String statusConsidering = 'considering';
+  static const String statusNegative = 'negative';
+  static const List<String?> clientStatusOptions = [statusPositive, statusConsidering, statusNegative, null];
+
+  /// 符號：✔／△／✖；未設定是空字串
+  static String clientStatusSymbol(String? status) {
+    if (status == statusPositive) return '✔';
+    if (status == statusConsidering) return '△';
+    if (status == statusNegative) return '✖';
+    return '';
+  }
+
+  /// 中文說明
+  static String clientStatusLabel(String? status) {
+    if (status == statusPositive) return '有意願／已成交';
+    if (status == statusConsidering) return '考慮中／待跟進';
+    if (status == statusNegative) return '無意願／暫不考慮';
+    return '未設定';
+  }
+
+  /// 匯入時把各種寫法轉成代碼；認不得的當未設定（回傳 null）
+  static String? parseClientStatus(String? text) {
+    final String value = (text ?? '').trim().toLowerCase();
+    if (value.isEmpty) return null;
+    const List<String> positiveWords = ['✔', '✓', 'v', 'o', '有意願', '已成交', '成交', 'positive'];
+    const List<String> consideringWords = ['△', '考慮中', '待跟進', '考慮', 'considering'];
+    const List<String> negativeWords = ['✖', '✗', 'x', '無意願', '拒絕', '暫不考慮', 'negative'];
+    if (positiveWords.contains(value) || value.startsWith('✔')) return statusPositive;
+    if (consideringWords.contains(value) || value.startsWith('△')) return statusConsidering;
+    if (negativeWords.contains(value) || value.startsWith('✖')) return statusNegative;
     return null;
   }
 
@@ -266,6 +306,7 @@ class CustomerService {
       'tags': form.tags,
       'notes': form.notes,
       'gender': form.gender,
+      'client_status': form.clientStatus,
       'custom_attributes': const <String, dynamic>{},
     });
   }
@@ -282,6 +323,7 @@ class CustomerService {
       'tags': form.tags,
       'notes': form.notes,
       'gender': form.gender,
+      'client_status': form.clientStatus,
     }).eq('id', id);
   }
 
@@ -294,6 +336,7 @@ class CustomerService {
     required String phone,
     required String email,
     required String? gender,
+    required String? clientStatus,
     required String notes,
     required List<String> tags,
     required Map<String, dynamic> customAttributes,
@@ -304,6 +347,7 @@ class CustomerService {
       'phone': phone,
       'email': email,
       'gender': gender,
+      'client_status': clientStatus,
       'notes': notes,
       'tags': tags,
       'custom_attributes': customAttributes,

@@ -84,6 +84,7 @@ class CustomerBasicInfoSection extends StatelessWidget {
       _InfoRow(label: '電話', value: customer['phone']?.toString() ?? ''),
       _InfoRow(label: 'Email', value: customer['email']?.toString() ?? ''),
       _InfoRow(label: '性別', value: CustomerService.genderLabel(customer['gender'] as String?)),
+      _InfoRow(label: '客戶狀態', value: _statusText(customer['client_status'] as String?)),
     ];
     // 匯入時帶進來的自訂欄位（例：生日、職業）
     for (final MapEntry<String, dynamic> entry in customAttributes.entries) {
@@ -116,6 +117,14 @@ class CustomerBasicInfoSection extends StatelessWidget {
       ),
     );
   }
+}
+
+// 例：「✔ 有意願／已成交」；未設定就顯示「未設定」
+String _statusText(String? status) {
+  final String symbol = CustomerService.clientStatusSymbol(status);
+  final String label = CustomerService.clientStatusLabel(status);
+  if (symbol.isEmpty) return label;
+  return '$symbol $label';
 }
 
 class _InfoRow extends StatelessWidget {

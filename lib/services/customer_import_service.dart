@@ -34,6 +34,7 @@ class CustomerImportService {
       final tags = List<String>.from(item['tags'] ?? []);
       final notes = item['notes']?.toString().trim() ?? '';
       final String? gender = item['gender'] as String?; // male／female／null（4-3b）
+      final String? clientStatus = item['client_status'] as String?; // 客戶狀態（4-3c）
       final customAttrs = (item['custom_attributes'] is Map)
           ? Map<String, dynamic>.from(item['custom_attributes'])
           : <String, dynamic>{};
@@ -61,6 +62,7 @@ class CustomerImportService {
             'tags': tags.isNotEmpty ? tags : localWorkingCustomers[existingIdx]['tags'],
             'notes': notes.isNotEmpty ? notes : localWorkingCustomers[existingIdx]['notes'],
             'gender': gender ?? localWorkingCustomers[existingIdx]['gender'],
+            'client_status': clientStatus ?? localWorkingCustomers[existingIdx]['client_status'],
             'custom_attributes': mergedAttrs,
           };
 
@@ -77,6 +79,7 @@ class CustomerImportService {
                 'tags': updatedCustomerMap['tags'],
                 'notes': updatedCustomerMap['notes'],
                 'gender': updatedCustomerMap['gender'],
+                'client_status': updatedCustomerMap['client_status'],
                 'custom_attributes': mergedAttrs,
               }).eq('id', existingId);
 
@@ -101,6 +104,7 @@ class CustomerImportService {
           'tags': tags,
           'notes': notes,
           'gender': gender,
+          'client_status': clientStatus,
           'custom_attributes': customAttrs,
           'created_at': DateTime.now().toIso8601String(),
         };
@@ -121,6 +125,7 @@ class CustomerImportService {
             'tags': tags,
             'notes': notes,
             'gender': gender,
+            'client_status': clientStatus,
             'custom_attributes': customAttrs,
           }).select('id').single();
 
@@ -133,6 +138,7 @@ class CustomerImportService {
             'tags': tags,
             'notes': notes,
             'gender': gender,
+            'client_status': clientStatus,
             'custom_attributes': customAttrs,
           });
           processedCount++;

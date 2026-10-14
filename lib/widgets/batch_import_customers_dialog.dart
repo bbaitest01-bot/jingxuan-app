@@ -37,6 +37,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
   int _nameColIndex = -1;
   int _nicknameColIndex = -1;
   int _genderColIndex = -1; // 性別欄（4-3b）
+  int _statusColIndex = -1; // 客戶狀態欄（4-3c）
   int _phoneColIndex = -1;
   int _emailColIndex = -1;
   int _tagsColIndex = -1;
@@ -485,6 +486,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
               _buildMappingCard('分類標籤', _tagsColIndex, (val) => setState(() => _tagsColIndex = val), isDark, primaryColor, textColor, subTextColor, borderColor),
               _buildMappingCard('客戶備註', _notesColIndex, (val) => setState(() => _notesColIndex = val), isDark, primaryColor, textColor, subTextColor, borderColor),
               _buildMappingCard('性別', _genderColIndex, (val) => setState(() => _genderColIndex = val), isDark, primaryColor, textColor, subTextColor, borderColor),
+              _buildMappingCard('客戶狀態 ✔△✖', _statusColIndex, (val) => setState(() => _statusColIndex = val), isDark, primaryColor, textColor, subTextColor, borderColor),
             ],
           ),
 
@@ -1111,6 +1113,8 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
         _nicknameColIndex = i;
       } else if (h.contains('性別') || h.contains('gender')) {
         _genderColIndex = i;
+      } else if (h.contains('客戶狀態') || h.contains('client_status') || h == '狀態') {
+        _statusColIndex = i;
       } else if (h.contains('電話') || h.contains('手機') || h.contains('phone') || h.contains('tel')) {
         _phoneColIndex = i;
       } else if (h.contains('信箱') || h.contains('email') || h.contains('郵件')) {
@@ -1138,6 +1142,8 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
       String notes = _getValue(row, _notesColIndex);
       // 男／女／M／F 等寫法轉成 male／female，認不得就當不填
       String? gender = CustomerService.parseGender(_getValue(row, _genderColIndex));
+      // ✔／有意願、△／考慮中、✖／無意願 等寫法轉成代碼，認不得就當未設定
+      String? clientStatus = CustomerService.parseClientStatus(_getValue(row, _statusColIndex));
 
       // Fullwidth to Halfwidth normalize
       String cleanedPhone = _cleanPhone(rawPhone);
@@ -1155,7 +1161,8 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
             c != _emailColIndex &&
             c != _tagsColIndex &&
             c != _notesColIndex &&
-            c != _genderColIndex) {
+            c != _genderColIndex &&
+            c != _statusColIndex) {
           final val = _getValue(row, c);
           if (val.isNotEmpty) {
             String colName = _headers[c].trim();
@@ -1190,6 +1197,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
         tags: tags,
         notes: notes,
         gender: gender,
+        clientStatus: clientStatus,
         customAttributes: customAttributes,
         isValid: isValid,
         isCleaned: isCleaned,
@@ -1224,9 +1232,9 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
   }
 
   void _downloadSampleTemplate() async {
-    const csvContent = '\uFEFF客戶姓名,綽號/稱呼,性別,電話號碼,Email信箱,分類標籤,客戶備註,自訂欄位(生日),自訂欄位(地區)\n'
-        '陳小明,小明,男,0912-345-678,ming@example.com,"VIP, 車險",喜好高科技保單,1990-05-12,台北市\n'
-        '林美麗,阿麗,女,0987-654-321,mary@example.com,"壽險, 定期險",需規劃年金險,1985-11-20,新北市\n';
+    const csvContent = '\uFEFF客戶姓名,綽號/稱呼,性別,客戶狀態,電話號碼,Email信箱,分類標籤,客戶備註,自訂欄位(生日),自訂欄位(地區)\n'
+        '陳小明,小明,男,✔,0912-345-678,ming@example.com,"VIP, 車險",喜好高科技保單,1990-05-12,台北市\n'
+        '林美麗,阿麗,女,△,0987-654-321,mary@example.com,"壽險, 定期險",需規劃年金險,1985-11-20,新北市\n';
 
     if (kIsWeb) {
       final bytes = Uint8List.fromList(utf8.encode(csvContent));
@@ -1254,6 +1262,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
         'tags': r.tags,
         'notes': r.notes,
         'gender': r.gender,
+        'client_status': r.clientStatus,
         'custom_attributes': r.customAttributes,
       };
     }).toList();
@@ -1272,6 +1281,7 @@ class _ParsedCustomerRow {
   final List<String> tags;
   final String notes;
   final String? gender;
+  final String? clientStatus;
   final Map<String, dynamic> customAttributes;
   final bool isValid;
   final bool isCleaned;
@@ -1285,6 +1295,7 @@ class _ParsedCustomerRow {
     required this.tags,
     required this.notes,
     this.gender,
+    this.clientStatus,
     required this.customAttributes,
     required this.isValid,
     required this.isCleaned,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
 import '../../services/app_settings.dart';
 import '../../services/tag_categorizer.dart';
+import 'customer_status_widgets.dart';
 
 // ==========================================
 // 3D Flipping Customer Card Widget
@@ -163,14 +164,10 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          displayName,
-                          style: TextStyle(
-                            color: nameColor,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        CustomerNameWithStatus(
+                          name: displayName,
+                          status: widget.customer['client_status'] as String?,
+                          style: TextStyle(color: nameColor, fontSize: 15, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 6),
                         Row(

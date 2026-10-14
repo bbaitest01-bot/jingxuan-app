@@ -19,8 +19,8 @@ class CustomerExportService {
   static const Set<String> _coreFieldNames = {
     '姓名', '客戶姓名', '稱呼', '綽號', '稱呼/綽號', '電話', '聯絡電話', '手機',
     '電子信箱', '信箱', '標籤', '分類標籤', '備註', '客戶備註',
-    '業務員', '建檔業務員', '團隊', '所屬團隊', '建立時間', '建立日期', '性別',
-    'name', 'nickname', 'gender', 'phone', 'email', 'tags', 'notes', 'status',
+    '業務員', '建檔業務員', '團隊', '所屬團隊', '建立時間', '建立日期', '性別', '客戶狀態',
+    'name', 'nickname', 'gender', 'client_status', 'phone', 'email', 'tags', 'notes', 'status',
     'custom_attributes', 'id', 'profile_id', 'created_at', 'deleted_at'
   };
 
@@ -29,6 +29,14 @@ class CustomerExportService {
     final String? gender = customer['gender'] as String?;
     if (gender == null) return '';
     return CustomerService.genderLabel(gender);
+  }
+
+  /// 匯出用的客戶狀態文字：✔ 有意願／已成交…；未設定就空白（再匯入時會當作未設定，4-3c）
+  static String clientStatusText(Map<String, dynamic> customer) {
+    final String? status = customer['client_status'] as String?;
+    final String symbol = CustomerService.clientStatusSymbol(status);
+    if (symbol.isEmpty) return '';
+    return '$symbol ${CustomerService.clientStatusLabel(status)}';
   }
 
   /// 防禦 CSV / Excel Formula Injection (DDE 攻擊)
@@ -110,6 +118,7 @@ class CustomerExportService {
       '客戶姓名',
       '稱呼/綽號',
       '性別',
+      '客戶狀態',
       '聯絡電話',
       'Email信箱',
       ...dynamicKeys.map((k) {
@@ -147,6 +156,7 @@ class CustomerExportService {
         xl.TextCellValue(sanitizeFormula(name)),
         xl.TextCellValue(sanitizeFormula(nickname)),
         xl.TextCellValue(genderText(customer)),
+        xl.TextCellValue(clientStatusText(customer)),
         xl.TextCellValue(sanitizeFormula(phone)),
         xl.TextCellValue(sanitizeFormula(email)),
       ];
@@ -198,6 +208,7 @@ class CustomerExportService {
       '客戶姓名',
       '稱呼/綽號',
       '性別',
+      '客戶狀態',
       '聯絡電話',
       'Email信箱',
       ...dynamicKeys.map((k) {
@@ -235,6 +246,7 @@ class CustomerExportService {
         sanitizeFormula(name),
         sanitizeFormula(nickname),
         genderText(customer),
+        clientStatusText(customer),
         sanitizeFormula(phone),
         sanitizeFormula(email),
       ];
@@ -500,7 +512,8 @@ class CustomerExportService {
 
       htmlBuffer.writeln('<tr>');
       final String gender = escapeHtml(genderText(customer));
-      htmlBuffer.writeln('<td><strong>$name</strong>${nickname.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">($nickname)</span>' : ''}${gender.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">$gender</span>' : ''}</td>');
+      final String clientStatus = escapeHtml(clientStatusText(customer));
+      htmlBuffer.writeln('<td><strong>$name</strong>${nickname.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">($nickname)</span>' : ''}${gender.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">$gender</span>' : ''}${clientStatus.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">$clientStatus</span>' : ''}</td>');
       htmlBuffer.writeln('<td>${phone.isNotEmpty ? '📞 $phone' : ''}${email.isNotEmpty ? '<br>✉️ $email' : ''}</td>');
       
       if (dynamicKeys.isNotEmpty) {
