@@ -3,6 +3,9 @@ class VisitRecord {
   final String id;
   final String profileId;
   final String? customerId;
+  // 連結客戶的名字與是否已在垃圾桶（讀取時一起帶出，4-C）
+  final String? customerName;
+  final bool isCustomerDeleted;
   final String title;
   final String rawTranscript;
   final String? organizedContent;
@@ -20,6 +23,8 @@ class VisitRecord {
     required this.createdAt,
     required this.updatedAt,
     this.customerId,
+    this.customerName,
+    this.isCustomerDeleted = false,
     this.organizedContent,
     this.failureReason,
   });
@@ -52,10 +57,14 @@ class VisitRecord {
   }
 
   factory VisitRecord.fromJson(Map<String, dynamic> json) {
+    // 查詢時用 customers(name, deleted_at) 一起帶出連結客戶
+    final Map<String, dynamic>? customer = json['customers'] as Map<String, dynamic>?;
     return VisitRecord(
       id: json['id'].toString(),
       profileId: json['profile_id']?.toString() ?? '',
       customerId: json['customer_id']?.toString(),
+      customerName: customer?['name'] as String?,
+      isCustomerDeleted: customer?['deleted_at'] != null,
       title: json['title'] as String? ?? '',
       rawTranscript: json['raw_transcript'] as String? ?? '',
       organizedContent: json['organized_content'] as String?,
@@ -63,6 +72,23 @@ class VisitRecord {
       failureReason: json['failure_reason'] as String?,
       createdAt: _parseTime(json['created_at']),
       updatedAt: _parseTime(json['updated_at']),
+    );
+  }
+
+  /// 換掉連結的客戶（傳 null 代表取消連結）
+  VisitRecord withCustomer({String? customerId, String? customerName}) {
+    return VisitRecord(
+      id: id,
+      profileId: profileId,
+      customerId: customerId,
+      customerName: customerName,
+      title: title,
+      rawTranscript: rawTranscript,
+      organizedContent: organizedContent,
+      status: status,
+      failureReason: failureReason,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
     );
   }
 

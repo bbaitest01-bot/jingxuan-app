@@ -149,6 +149,14 @@ class _VisitRecordCard extends StatelessWidget {
 
   const _VisitRecordCard({required this.record, required this.onTap});
 
+  // 卡片最下面：有連結客戶就顯示客戶名字，再接建立時間
+  String _buildFooterText() {
+    final String timeText = '建立於 ${formatVisitRecordTime(record.createdAt)}';
+    final String? customerName = record.customerName;
+    if (record.customerId == null || customerName == null) return timeText;
+    return '👤 $customerName　·　$timeText';
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color subTextColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
@@ -186,7 +194,7 @@ class _VisitRecordCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '建立於 ${formatVisitRecordTime(record.createdAt)}',
+                _buildFooterText(),
                 style: TextStyle(fontSize: 11, color: subTextColor),
               ),
             ],

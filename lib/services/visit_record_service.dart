@@ -3,6 +3,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../models/visit_record.dart';
 
+/// 選連結客戶時的一筆選項
+class VisitCustomerOption {
+  final String id;
+  final String name;
+  final String nickname;
+  final String phone;
+
+  const VisitCustomerOption({required this.id, required this.name, this.nickname = '', this.phone = ''});
+}
+
 /// 拜訪紀錄的讀寫（資料表 visit_records）。
 /// 權限由資料庫 RLS 保證「只能讀寫自己的」；這裡查詢時也一律加上自己的 profile_id。
 /// 離線預覽模式存在記憶體，重新整理就清空。
@@ -12,6 +22,8 @@ class VisitRecordService {
 
   static const int maxTitleLength = 100;
   static const int maxContentLength = 20000;
+  // 讀紀錄時一起帶出連結客戶的名字
+  static const String _selectColumns = '*, customers(name, deleted_at)';
 
   // 離線預覽模式用的暫存
   final List<VisitRecord> _offlineRecords = [];
@@ -30,7 +42,7 @@ class VisitRecordService {
 
     final List<dynamic> rows = await _supabase
         .from('visit_records')
-        .select()
+        .select(_selectColumns)
         .eq('profile_id', userId)
         .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
@@ -56,7 +68,7 @@ class VisitRecordService {
     if (!_looksLikeUuid(id)) return null;
     final Map<String, dynamic>? row = await _supabase
         .from('visit_records')
-        .select()
+        .select(_selectColumns)
         .eq('id', id)
         .eq('profile_id', userId)
         .isFilter('deleted_at', null)
@@ -92,7 +104,7 @@ class VisitRecordService {
     final Map<String, dynamic> row = await _supabase
         .from('visit_records')
         .insert({'title': cleanTitle, 'raw_transcript': cleanContent})
-        .select()
+        .select(_selectColumns)
         .single();
     return VisitRecord.fromJson(row);
   }
@@ -115,6 +127,7 @@ class VisitRecordService {
         id: old.id,
         profileId: old.profileId,
         customerId: old.customerId,
+        customerName: old.customerName,
         title: cleanTitle,
         rawTranscript: old.rawTranscript,
         organizedContent: contentToSave,
@@ -132,9 +145,84 @@ class VisitRecordService {
         .update({'title': cleanTitle, 'organized_content': contentToSave})
         .eq('id', id)
         .eq('profile_id', userId)
-        .select()
+        .select(_selectColumns)
         .single();
     return VisitRecord.fromJson(row);
+  }
+
+  /// 連結或更換客戶；[customer] 傳 null 代表取消連結。
+  /// 資料庫權限也會檢查：只能連自己的客戶
+  Future<VisitRecord> updateCustomerLink(VisitRecord record, VisitCustomerOption? customer) async {
+    final String? customerId = customer?.id;
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      final int index = _offlineRecords.indexWhere((item) => item.id == record.id);
+      if (index == -1) throw Exception('找不到這篇紀錄');
+      final VisitRecord updated = _offlineRecords[index].withCustomer(customerId: customerId, customerName: customer?.name);
+      _offlineRecords[index] = updated;
+      return updated;
+    }
+
+    final Map<String, dynamic> row = await _supabase
+        .from('visit_records')
+        .update({'customer_id': customerId})
+        .eq('id', record.id)
+        .eq('profile_id', userId)
+        .select(_selectColumns)
+        .single();
+    return VisitRecord.fromJson(row);
+  }
+
+  /// 可以連結的客戶：只列自己的、不在垃圾桶的（主管看得到團隊客戶，但這裡也只列自己的）
+  Future<List<VisitCustomerOption>> fetchMyCustomerOptions() async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      final List<VisitCustomerOption> offlineOptions = [];
+      for (final Map<String, dynamic> customer in OfflineDataStore.customers) {
+        if (customer['deleted_at'] != null) continue;
+        offlineOptions.add(_customerOptionFromRow(customer));
+      }
+      return offlineOptions;
+    }
+
+    final List<dynamic> rows = await _supabase
+        .from('customers')
+        .select('id, name, nickname, phone')
+        .eq('profile_id', userId)
+        .isFilter('deleted_at', null)
+        .order('name');
+    final List<VisitCustomerOption> options = [];
+    for (final dynamic row in rows) {
+      options.add(_customerOptionFromRow(row as Map<String, dynamic>));
+    }
+    return options;
+  }
+
+  VisitCustomerOption _customerOptionFromRow(Map<String, dynamic> row) {
+    return VisitCustomerOption(
+      id: row['id'].toString(),
+      name: row['name']?.toString() ?? '',
+      nickname: row['nickname']?.toString() ?? '',
+      phone: row['phone']?.toString() ?? '',
+    );
+  }
+
+  /// 依名字、暱稱或電話數字篩選客戶選項（空白搜尋顯示全部）
+  static List<VisitCustomerOption> filterCustomerOptions(List<VisitCustomerOption> options, String query) {
+    final String keyword = query.trim().toLowerCase();
+    if (keyword.isEmpty) return options;
+    // 搜尋文字看起來像電話（只有數字、-、空白、括號、+）才比對電話，避免「王1」比對到一堆電話（同 3-B 客戶搜尋）
+    final bool looksLikePhone = RegExp(r'^[0-9\s\-()+]+$').hasMatch(keyword);
+    final String keywordDigits = looksLikePhone ? keyword.replaceAll(RegExp(r'[^0-9]'), '') : '';
+
+    final List<VisitCustomerOption> matched = [];
+    for (final VisitCustomerOption option in options) {
+      final bool nameMatched = option.name.toLowerCase().contains(keyword) || option.nickname.toLowerCase().contains(keyword);
+      final String phoneDigits = option.phone.replaceAll(RegExp(r'[^0-9]'), '');
+      final bool phoneMatched = keywordDigits.isNotEmpty && phoneDigits.contains(keywordDigits);
+      if (nameMatched || phoneMatched) matched.add(option);
+    }
+    return matched;
   }
 
   // 標題空白就用預設標題；太長就截斷
