@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../services/app_settings.dart';
 import '../models/schedule_event.dart';
@@ -32,6 +31,7 @@ import 'home/not_found_page.dart';
 import 'home/schedule/schedule_dialogs.dart';
 import 'home/schedule/schedule_page.dart';
 import 'home/schedule/schedule_page_state.dart';
+import 'customers/detail/customer_detail_page.dart';
 import 'visit_records/visit_records_page.dart';
 
 /// 登入後的外殼（側邊欄＋頂欄＋內容區）。
@@ -39,8 +39,9 @@ import 'visit_records/visit_records_page.dart';
 class HomeScreen extends StatefulWidget {
   final String activeMenu;
   final String? visitRecordId; // 單篇拜訪紀錄網址的編號（/visit-records/:id）
+  final String? customerId; // 客戶細節整頁網址的編號（/customers/:id）
 
-  const HomeScreen({super.key, required this.activeMenu, this.visitRecordId});
+  const HomeScreen({super.key, required this.activeMenu, this.visitRecordId, this.customerId});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -255,17 +256,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 讀回上次選的行事曆視圖（日／月／議程）；在哪一頁改由網址記住
   Future<void> _loadSavedViewMode() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedViewMode = prefs.getString('calendar_view_mode');
-      if (savedViewMode != null && mounted) {
-        setState(() {
-          _calendarViewMode = savedViewMode;
-        });
-      }
-    } catch (e) {
-      // ignore
-    }
+    final String? savedViewMode = await ScheduleService.instance.loadSavedViewMode();
+    if (savedViewMode != null && mounted) setState(() => _calendarViewMode = savedViewMode);
   }
 
   void _updateCalendarViewMode(String mode) {
@@ -274,9 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _calendarViewMode = mode;
       });
       _fetchEventsForSelectedDate(silent: true);
-      SharedPreferences.getInstance().then((prefs) {
-        prefs.setString('calendar_view_mode', mode);
-      });
+      ScheduleService.instance.saveViewMode(mode);
     }
   }
 
@@ -460,6 +450,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case '新聞頭條':
         return const InsuranceNewsTab();
       case '客戶管理':
+        final String? customerId = widget.customerId;
+        if (customerId != null) return CustomerDetailPage(customerId: customerId);
         return const CustomerManagementTab();
       case '專案拜訪':
         return const VisitProjectsTab();

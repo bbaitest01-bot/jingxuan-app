@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../main.dart';
+import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
 import '../services/customer_service.dart';
 import '../services/policy_crawler_service.dart';
@@ -343,6 +345,17 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                       Text('讀寫合一沉浸式檔案 • 本地 0 成本精算', style: TextStyle(fontSize: 11, color: subTextColor)),
                     ],
                   ),
+                ),
+                // 開啟客戶細節整頁（C3）：先關掉抽屜，再前往 /customers/:id
+                IconButton(
+                  icon: const Icon(Icons.open_in_full_rounded, size: 20),
+                  tooltip: '開啟完整頁面',
+                  onPressed: () {
+                    final GoRouter router = GoRouter.of(context);
+                    final String customerId = widget.customer['id'].toString();
+                    widget.onClose();
+                    router.go(AppRoutes.customerPath(customerId));
+                  },
                 ),
                 IconButton(
                   icon: const Icon(Icons.ios_share_rounded, size: 20),

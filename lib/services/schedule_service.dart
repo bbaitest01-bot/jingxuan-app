@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/schedule_event.dart';
@@ -21,6 +22,29 @@ class ScheduleService {
 
   void _notifyChange() {
     eventsRevision.value++;
+  }
+
+  // 今日行程的檢視模式（日／月／議程）存在瀏覽器本機；2026-10-14 從 home_screen.dart 搬來
+  static const String _viewModePrefKey = 'calendar_view_mode';
+
+  /// 讀回上次選的檢視模式；沒有或讀取失敗回傳 null
+  Future<String?> loadSavedViewMode() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_viewModePrefKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 記住目前的檢視模式
+  Future<void> saveViewMode(String mode) async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_viewModePrefKey, mode);
+    } catch (e) {
+      debugPrint('⚠️ [ScheduleService] 記住檢視模式失敗: $e');
+    }
   }
 
   User? get _currentUser {

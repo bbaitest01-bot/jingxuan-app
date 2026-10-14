@@ -56,6 +56,27 @@ class VisitRecordService {
     return records;
   }
 
+  /// 連結某位客戶的拜訪紀錄（客戶細節頁 C7；只列自己的、未刪除，新到舊）
+  Future<List<VisitRecord>> fetchRecordsForCustomer(String customerId) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      return _offlineRecords.where((record) => record.deletedAt == null && record.customerId == customerId).toList();
+    }
+
+    final List<dynamic> rows = await _supabase
+        .from('visit_records')
+        .select(_selectColumns)
+        .eq('profile_id', userId)
+        .eq('customer_id', customerId)
+        .isFilter('deleted_at', null)
+        .order('created_at', ascending: false);
+    final List<VisitRecord> records = [];
+    for (final dynamic row in rows) {
+      records.add(VisitRecord.fromJson(row as Map<String, dynamic>));
+    }
+    return records;
+  }
+
   /// 讀一篇；找不到（不存在、已刪除或不是自己的）回傳 null
   Future<VisitRecord?> fetchRecord(String id) async {
     final String? userId = _currentUserId;
