@@ -23,6 +23,9 @@ class AppRoutes {
   static const String admin = '/admin';
   static const String dev = '/dev';
 
+  /// 客戶細節整頁的網址，例：/customers/1234-…
+  static String customerPath(String id) => '$customers/$id';
+
   /// 單篇拜訪紀錄的網址，例：/visit-records/1234-…
   static String visitRecordPath(String id) => '$visitRecords/$id';
 

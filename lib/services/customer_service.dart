@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart';
 
 /// 客戶表單送出的資料（新增與編輯共用）
 class CustomerFormData {
@@ -77,43 +78,69 @@ class CustomerService {
         .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
 
-    final List<Map<String, dynamic>> customers = List<Map<String, dynamic>>.from(response.map((data) {
-      final profile = data['profiles'] as Map<String, dynamic>?;
-      final String agentFullName = profile?['full_name'] as String? ?? '';
-      final String agentEmail = profile?['email'] as String? ?? '';
-      final String agentTeam = profile?['team_name'] as String? ?? 'TAIPEI-01';
-      final String displayAgent = agentFullName.isNotEmpty ? agentFullName : (agentEmail.isNotEmpty ? agentEmail : '未知業務員');
-
-      Map<String, dynamic> customAttrs = {};
-      if (data['custom_attributes'] is Map) {
-        customAttrs = Map<String, dynamic>.from(data['custom_attributes']);
-      }
-
-      return {
-        'id': data['id'],
-        'profile_id': data['profile_id']?.toString() ?? '',
-        'agent_name': displayAgent,
-        'agent_email': agentEmail,
-        'agent_team': agentTeam,
-        'name': data['name'],
-        'nickname': data['nickname'] ?? '',
-        'avatar_url': data['avatar_url'] ?? '',
-        'phone': data['phone'],
-        'email': data['email'],
-        'status': data['status'] ?? 'active',
-        // Convert postgres array text[] to List<String> safely
-        'tags': List<String>.from(data['tags'] ?? []),
-        'notes': data['notes'],
-        'custom_attributes': customAttrs,
-        'created_at': data['created_at'],
-        'deleted_at': data['deleted_at'],
-      };
-    }));
+    final List<Map<String, dynamic>> customers = [];
+    for (final dynamic row in response) {
+      customers.add(_toDisplayCustomer(row as Map<String, dynamic>));
+    }
 
     // 存一份給下次回到客戶管理時先顯示
     _cachedCustomers = List<Map<String, dynamic>>.from(customers);
     _cachedForUserId = currentUserId;
     return customers;
+  }
+
+  /// 讀取單一位客戶（客戶細節整頁用）；找不到、已刪除或沒有權限回傳 null
+  Future<Map<String, dynamic>?> fetchCustomer(String id) async {
+    if (isOfflineMode) {
+      for (final Map<String, dynamic> customer in OfflineDataStore.customers) {
+        if (customer['id'].toString() == id && customer['deleted_at'] == null) return customer;
+      }
+      return null;
+    }
+    // 編號格式不對時資料庫會報錯，當作找不到
+    if (!RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(id)) return null;
+    final Map<String, dynamic>? row = await _supabase
+        .from('customers')
+        .select('*, profiles:profile_id(id, full_name, email, role, team_name)')
+        .eq('id', id)
+        .isFilter('deleted_at', null)
+        .maybeSingle();
+    if (row == null) return null;
+    return _toDisplayCustomer(row);
+  }
+
+  // 資料庫的一筆客戶 → 畫面要用的格式（列表與細節頁共用）
+  Map<String, dynamic> _toDisplayCustomer(Map<String, dynamic> data) {
+    final profile = data['profiles'] as Map<String, dynamic>?;
+    final String agentFullName = profile?['full_name'] as String? ?? '';
+    final String agentEmail = profile?['email'] as String? ?? '';
+    final String agentTeam = profile?['team_name'] as String? ?? 'TAIPEI-01';
+    final String displayAgent = agentFullName.isNotEmpty ? agentFullName : (agentEmail.isNotEmpty ? agentEmail : '未知業務員');
+
+    Map<String, dynamic> customAttrs = {};
+    if (data['custom_attributes'] is Map) {
+      customAttrs = Map<String, dynamic>.from(data['custom_attributes']);
+    }
+
+    return {
+      'id': data['id'],
+      'profile_id': data['profile_id']?.toString() ?? '',
+      'agent_name': displayAgent,
+      'agent_email': agentEmail,
+      'agent_team': agentTeam,
+      'name': data['name'],
+      'nickname': data['nickname'] ?? '',
+      'avatar_url': data['avatar_url'] ?? '',
+      'phone': data['phone'],
+      'email': data['email'],
+      'status': data['status'] ?? 'active',
+      // Convert postgres array text[] to List<String> safely
+      'tags': List<String>.from(data['tags'] ?? []),
+      'notes': data['notes'],
+      'custom_attributes': customAttrs,
+      'created_at': data['created_at'],
+      'deleted_at': data['deleted_at'],
+    };
   }
 
   /// 只留下電話裡的數字（拿掉 -、空白、括號等），讓 0912-345-678 和 0912345678 可以互相比對
