@@ -4,6 +4,7 @@ import '../../models/visit_record.dart';
 import '../../router/app_routes.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
+import 'visit_record_customer_picker.dart';
 import 'visit_record_widgets.dart';
 
 /// 單篇拜訪紀錄（/visit-records/:id）：左邊原始轉錄（不能改，一律保留），右邊整理後內容（可編輯）
@@ -22,6 +23,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
   VisitRecord? _record;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isLinkingCustomer = false;
   String? _errorMessage;
 
   @override
@@ -96,6 +98,31 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
     }
   }
 
+  // 連結、更換或取消客戶（傳 null 是取消）；選了就立刻存，不用再按「儲存」
+  Future<void> _changeCustomer(VisitRecord record, VisitCustomerOption? customer) async {
+    setState(() => _isLinkingCustomer = true);
+    try {
+      final VisitRecord updated = await VisitRecordService.instance.updateCustomerLink(record, customer);
+      if (!mounted) return;
+      setState(() {
+        _record = updated;
+        _isLinkingCustomer = false;
+      });
+      final String message = customer == null ? '已取消連結客戶' : '已連結客戶「${customer.name}」';
+      CustomToast.show(context, message, ToastType.success);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLinkingCustomer = false);
+      CustomToast.show(context, '連結客戶失敗：$e', ToastType.error);
+    }
+  }
+
+  Future<void> _chooseCustomer(VisitRecord record) async {
+    final VisitCustomerOption? customer = await showVisitCustomerPicker(context);
+    if (customer == null || !mounted) return;
+    await _changeCustomer(record, customer);
+  }
+
   // 整理後內容還空著時，可以先把原始轉錄複製過來再修改
   void _copyRawToOrganized(VisitRecord record) {
     _organizedController.text = record.rawTranscript;
@@ -133,6 +160,13 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
                 ),
               ),
               const SizedBox(height: 8),
+              VisitRecordCustomerSection(
+                record: record,
+                isBusy: _isLinkingCustomer,
+                onChoose: () => _chooseCustomer(record),
+                onClear: () => _changeCustomer(record, null),
+              ),
+              const SizedBox(height: 16),
               _buildContentPanels(record, isWide),
             ],
           ),
