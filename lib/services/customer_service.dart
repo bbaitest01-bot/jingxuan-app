@@ -12,6 +12,7 @@ class CustomerFormData {
   final String email;
   final List<String> tags;
   final String notes;
+  final String? gender; // male 男／female 女／null 不填（4-3b）
   final Uint8List? imageBytes;
   final String? imageName;
   final bool isImageCleared;
@@ -23,6 +24,7 @@ class CustomerFormData {
     required this.email,
     required this.tags,
     required this.notes,
+    this.gender,
     required this.imageBytes,
     required this.imageName,
     required this.isImageCleared,
@@ -133,6 +135,7 @@ class CustomerService {
       'avatar_url': data['avatar_url'] ?? '',
       'phone': data['phone'],
       'email': data['email'],
+      'gender': data['gender'],
       'status': data['status'] ?? 'active',
       // Convert postgres array text[] to List<String> safely
       'tags': List<String>.from(data['tags'] ?? []),
@@ -141,6 +144,29 @@ class CustomerService {
       'created_at': data['created_at'],
       'deleted_at': data['deleted_at'],
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 性別（4-3b）：資料庫存 male／female，空的代表不填
+  // ---------------------------------------------------------------------------
+  static const String genderMale = 'male';
+  static const String genderFemale = 'female';
+
+  /// 畫面上顯示的文字：男／女／不填
+  static String genderLabel(String? gender) {
+    if (gender == genderMale) return '男';
+    if (gender == genderFemale) return '女';
+    return '不填';
+  }
+
+  /// 匯入時把各種寫法轉成 male／female；認不得的當作不填（回傳 null）
+  static String? parseGender(String? text) {
+    final String value = (text ?? '').trim().toLowerCase();
+    const List<String> maleWords = ['男', '男性', 'm', 'male', '先生'];
+    const List<String> femaleWords = ['女', '女性', 'f', 'female', '小姐'];
+    if (maleWords.contains(value)) return genderMale;
+    if (femaleWords.contains(value)) return genderFemale;
+    return null;
   }
 
   /// 只留下電話裡的數字（拿掉 -、空白、括號等），讓 0912-345-678 和 0912345678 可以互相比對
@@ -239,6 +265,7 @@ class CustomerService {
       'email': form.email,
       'tags': form.tags,
       'notes': form.notes,
+      'gender': form.gender,
       'custom_attributes': const <String, dynamic>{},
     });
   }
@@ -254,6 +281,7 @@ class CustomerService {
       'email': form.email,
       'tags': form.tags,
       'notes': form.notes,
+      'gender': form.gender,
     }).eq('id', id);
   }
 
@@ -265,6 +293,7 @@ class CustomerService {
     required String nickname,
     required String phone,
     required String email,
+    required String? gender,
     required String notes,
     required List<String> tags,
     required Map<String, dynamic> customAttributes,
@@ -274,6 +303,7 @@ class CustomerService {
       'nickname': nickname,
       'phone': phone,
       'email': email,
+      'gender': gender,
       'notes': notes,
       'tags': tags,
       'custom_attributes': customAttributes,

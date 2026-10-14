@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../models/visit_record.dart';
 import '../../../router/app_routes.dart';
 import '../../../services/customer_policy_service.dart';
+import '../../../services/customer_service.dart';
 import '../../visit_records/visit_record_widgets.dart';
 
 /// 客戶細節頁的一個區塊外框：標題（含筆數）、右上角按鈕、內容
@@ -82,6 +83,7 @@ class CustomerBasicInfoSection extends StatelessWidget {
     final List<Widget> rows = [
       _InfoRow(label: '電話', value: customer['phone']?.toString() ?? ''),
       _InfoRow(label: 'Email', value: customer['email']?.toString() ?? ''),
+      _InfoRow(label: '性別', value: CustomerService.genderLabel(customer['gender'] as String?)),
     ];
     // 匯入時帶進來的自訂欄位（例：生日、職業）
     for (final MapEntry<String, dynamic> entry in customAttributes.entries) {

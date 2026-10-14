@@ -33,6 +33,7 @@ class CustomerImportService {
       final email = item['email']?.toString().trim() ?? '';
       final tags = List<String>.from(item['tags'] ?? []);
       final notes = item['notes']?.toString().trim() ?? '';
+      final String? gender = item['gender'] as String?; // male／female／null（4-3b）
       final customAttrs = (item['custom_attributes'] is Map)
           ? Map<String, dynamic>.from(item['custom_attributes'])
           : <String, dynamic>{};
@@ -59,6 +60,7 @@ class CustomerImportService {
             'email': email.isNotEmpty ? email : localWorkingCustomers[existingIdx]['email'],
             'tags': tags.isNotEmpty ? tags : localWorkingCustomers[existingIdx]['tags'],
             'notes': notes.isNotEmpty ? notes : localWorkingCustomers[existingIdx]['notes'],
+            'gender': gender ?? localWorkingCustomers[existingIdx]['gender'],
             'custom_attributes': mergedAttrs,
           };
 
@@ -74,6 +76,7 @@ class CustomerImportService {
                 'email': updatedCustomerMap['email'],
                 'tags': updatedCustomerMap['tags'],
                 'notes': updatedCustomerMap['notes'],
+                'gender': updatedCustomerMap['gender'],
                 'custom_attributes': mergedAttrs,
               }).eq('id', existingId);
 
@@ -97,6 +100,7 @@ class CustomerImportService {
           'email': email,
           'tags': tags,
           'notes': notes,
+          'gender': gender,
           'custom_attributes': customAttrs,
           'created_at': DateTime.now().toIso8601String(),
         };
@@ -116,6 +120,7 @@ class CustomerImportService {
             'email': email,
             'tags': tags,
             'notes': notes,
+            'gender': gender,
             'custom_attributes': customAttrs,
           }).select('id').single();
 
@@ -127,6 +132,7 @@ class CustomerImportService {
             'email': email,
             'tags': tags,
             'notes': notes,
+            'gender': gender,
             'custom_attributes': customAttrs,
           });
           processedCount++;

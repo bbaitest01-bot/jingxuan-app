@@ -9,6 +9,7 @@ import '../widgets/custom_toast.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
 import '../widgets/voice_recorder_widget.dart';
 import 'customer_share_export_dialog.dart';
+import '../screens/customers/customer_form_dialog.dart';
 
 class CustomerDetailSideSheet extends StatefulWidget {
   final Map<String, dynamic> customer;
@@ -98,6 +99,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   late TextEditingController _emailController;
   late TextEditingController _notesController;
   late TextEditingController _tagsController;
+  String? _gender; // 性別 male／female／null（4-3b）
 
   // Dynamic custom attributes controllers: Key -> TextEditingController
   final Map<String, TextEditingController> _customAttrControllers = {};
@@ -125,6 +127,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     _nicknameController = TextEditingController(text: widget.customer['nickname'] ?? '');
     _phoneController = TextEditingController(text: widget.customer['phone'] ?? '');
     _emailController = TextEditingController(text: widget.customer['email'] ?? '');
+    _gender = widget.customer['gender'] as String?;
     _notesController = TextEditingController(text: widget.customer['notes'] ?? '');
     final tags = (widget.customer['tags'] as List?)?.map((e) => e.toString()).toList() ?? [];
     _tagsController = TextEditingController(text: tags.join(', '));
@@ -171,6 +174,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       'nickname': _nicknameController.text.trim(),
       'phone': _phoneController.text.trim(),
       'email': _emailController.text.trim(),
+      'gender': _gender,
       'notes': _notesController.text.trim(),
       'tags': _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
       'custom_attributes': customAttributes,
@@ -245,6 +249,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     updated['nickname'] = _nicknameController.text.trim();
     updated['phone'] = _phoneController.text.trim();
     updated['email'] = _emailController.text.trim();
+    updated['gender'] = _gender;
     updated['notes'] = _notesController.text.trim();
     updated['tags'] = _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
@@ -272,6 +277,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
         nickname: updated['nickname'],
         phone: updated['phone'],
         email: updated['email'],
+        gender: _gender,
         notes: updated['notes'],
         tags: List<String>.from(updated['tags']),
         customAttributes: customAttributes,
@@ -473,6 +479,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             controller: _emailController,
             decoration: const InputDecoration(labelText: '電子信箱', prefixIcon: Icon(Icons.email_rounded, size: 18), isDense: true, border: OutlineInputBorder()),
           ),
+          const SizedBox(height: 12),
+          CustomerGenderSelector(gender: _gender, onChanged: (String? value) => setState(() => _gender = value)),
           const SizedBox(height: 18),
 
           // 🌟 自訂擴充屬性專區 (Custom Attributes)

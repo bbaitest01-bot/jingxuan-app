@@ -33,6 +33,8 @@ void showCustomerFormDialog(
   final tagsController = TextEditingController(
       text: isEdit ? (customer['tags'] as List).join(', ') : '');
   final notesController = TextEditingController(text: isEdit ? customer['notes'] : '');
+  // 性別：male／female／null（不填）
+  String? selectedGender = isEdit ? customer['gender'] as String? : null;
 
   InputDecoration buildInputDecoration(String labelText, IconData iconData, {String? hintText}) {
     return InputDecoration(
@@ -83,6 +85,7 @@ void showCustomerFormDialog(
               email: emailController.text.trim(),
               tags: tagsList,
               notes: notesController.text.trim(),
+              gender: selectedGender,
               imageBytes: selectedImageBytes,
               imageName: selectedImageFile?.name,
               isImageCleared: isImageCleared,
@@ -197,6 +200,11 @@ void showCustomerFormDialog(
                       textInputAction: TextInputAction.next,
                       onSubmitted: (_) => submitForm(),
                       decoration: buildInputDecoration(context.l10n('customer_email_label'), Icons.email_outlined),
+                    ),
+                    const SizedBox(height: 16),
+                    CustomerGenderSelector(
+                      gender: selectedGender,
+                      onChanged: (String? value) => setDialogState(() => selectedGender = value),
                     ),
                     const SizedBox(height: 16),
                     // Sleek Collapsible Accordion Tag Selector (1-Tap Expand by Category)
@@ -363,4 +371,41 @@ Future<void> openQuickAddTagDialog(
       );
     },
   );
+}
+
+/// 性別選擇：男／女／不填（4-3b）
+class CustomerGenderSelector extends StatelessWidget {
+  final String? gender;
+  final ValueChanged<String?> onChanged;
+
+  const CustomerGenderSelector({super.key, required this.gender, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final List<String?> options = [CustomerService.genderMale, CustomerService.genderFemale, null];
+
+    return Row(
+      children: [
+        Icon(Icons.wc_outlined, color: primaryColor, size: 18),
+        const SizedBox(width: 8),
+        const Text('性別', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: options.map((String? option) {
+            return ChoiceChip(
+              label: Text(CustomerService.genderLabel(option)),
+              selected: gender == option,
+              onSelected: (_) => onChanged(option),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            );
+          }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
 }

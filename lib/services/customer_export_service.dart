@@ -4,6 +4,7 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' as xl;
 import 'package:intl/intl.dart';
 import '../utils/platform_file_helper.dart';
+import 'customer_service.dart';
 
 /// 客戶資料匯出與無損雙向往返服務 (Customer Export & Round-Trip Service)
 ///
@@ -18,10 +19,17 @@ class CustomerExportService {
   static const Set<String> _coreFieldNames = {
     '姓名', '客戶姓名', '稱呼', '綽號', '稱呼/綽號', '電話', '聯絡電話', '手機',
     '電子信箱', '信箱', '標籤', '分類標籤', '備註', '客戶備註',
-    '業務員', '建檔業務員', '團隊', '所屬團隊', '建立時間', '建立日期',
-    'name', 'nickname', 'phone', 'email', 'tags', 'notes', 'status',
+    '業務員', '建檔業務員', '團隊', '所屬團隊', '建立時間', '建立日期', '性別',
+    'name', 'nickname', 'gender', 'phone', 'email', 'tags', 'notes', 'status',
     'custom_attributes', 'id', 'profile_id', 'created_at', 'deleted_at'
   };
+
+  /// 匯出用的性別文字：男／女；沒填就空白（再匯入時會當作不填，4-3b）
+  static String genderText(Map<String, dynamic> customer) {
+    final String? gender = customer['gender'] as String?;
+    if (gender == null) return '';
+    return CustomerService.genderLabel(gender);
+  }
 
   /// 防禦 CSV / Excel Formula Injection (DDE 攻擊)
   /// 若內容以 `=`, `+`, `-`, `@`, `\t`, `\r` 開頭，自動加上 `'` 單引號前綴，避免 Excel 開啟時執行惡意公式
@@ -101,6 +109,7 @@ class CustomerExportService {
     final headers = [
       '客戶姓名',
       '稱呼/綽號',
+      '性別',
       '聯絡電話',
       'Email信箱',
       ...dynamicKeys.map((k) {
@@ -137,6 +146,7 @@ class CustomerExportService {
       final List<xl.CellValue> rowCells = [
         xl.TextCellValue(sanitizeFormula(name)),
         xl.TextCellValue(sanitizeFormula(nickname)),
+        xl.TextCellValue(genderText(customer)),
         xl.TextCellValue(sanitizeFormula(phone)),
         xl.TextCellValue(sanitizeFormula(email)),
       ];
@@ -187,6 +197,7 @@ class CustomerExportService {
     final headers = [
       '客戶姓名',
       '稱呼/綽號',
+      '性別',
       '聯絡電話',
       'Email信箱',
       ...dynamicKeys.map((k) {
@@ -223,6 +234,7 @@ class CustomerExportService {
       final List<dynamic> row = [
         sanitizeFormula(name),
         sanitizeFormula(nickname),
+        genderText(customer),
         sanitizeFormula(phone),
         sanitizeFormula(email),
       ];
@@ -487,7 +499,8 @@ class CustomerExportService {
           : {};
 
       htmlBuffer.writeln('<tr>');
-      htmlBuffer.writeln('<td><strong>$name</strong>${nickname.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">($nickname)</span>' : ''}</td>');
+      final String gender = escapeHtml(genderText(customer));
+      htmlBuffer.writeln('<td><strong>$name</strong>${nickname.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">($nickname)</span>' : ''}${gender.isNotEmpty ? '<br><span style="color:#64748b;font-size:11px">$gender</span>' : ''}</td>');
       htmlBuffer.writeln('<td>${phone.isNotEmpty ? '📞 $phone' : ''}${email.isNotEmpty ? '<br>✉️ $email' : ''}</td>');
       
       if (dynamicKeys.isNotEmpty) {

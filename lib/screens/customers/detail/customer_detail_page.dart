@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../models/visit_record.dart';
+import '../../../main.dart';
 import '../../../router/app_routes.dart';
 import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
-import '../../../widgets/customer_detail_side_sheet.dart';
+import '../../../widgets/custom_toast.dart';
+import '../customer_form_dialog.dart';
 import 'customer_detail_sections.dart';
 
 /// 客戶細節整頁（/customers/:id，問題 C3）：由上到下 基本資料、保單、拜訪紀錄（C7）
-/// 編輯沿用原本的「快速預覽」側邊抽屜
+/// 「編輯」打開客戶表單（含性別，4-3b 沛沛決定）；快速預覽抽屜仍可從客戶列表打開
 class CustomerDetailPage extends StatefulWidget {
   final String customerId;
 
@@ -73,12 +75,31 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     }
   }
 
-  void _openQuickEdit(Map<String, dynamic> customer) {
-    CustomerDetailSideSheet.show(
+  void _openEditForm(Map<String, dynamic> customer) {
+    showCustomerFormDialog(
       context,
       customer: customer,
-      onCustomerUpdated: (_) => _loadAll(),
+      onSubmit: (CustomerFormData form) => _saveForm(customer, form),
     );
+  }
+
+  // 存檔：先處理頭像，再更新客戶資料，最後整頁重讀
+  Future<void> _saveForm(Map<String, dynamic> customer, CustomerFormData form) async {
+    if (isOfflineMode) {
+      CustomToast.show(context, '目前為離線預覽模式，無法修改客戶資料。', ToastType.warning);
+      return;
+    }
+    try {
+      final String existingAvatarUrl = customer['avatar_url']?.toString() ?? '';
+      final String avatarUrl = await CustomerService.instance.resolveAvatarUrl(form, existingAvatarUrl);
+      await CustomerService.instance.updateCustomer(widget.customerId, form, avatarUrl);
+      if (!mounted) return;
+      CustomToast.show(context, '已更新客戶 ${form.name} 的資料', ToastType.success);
+      await _loadAll();
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '修改失敗：$e', ToastType.error);
+    }
   }
 
   void _backToCustomers() => context.go(AppRoutes.customers);
@@ -143,7 +164,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               child: Text(titleText, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             ),
             OutlinedButton.icon(
-              onPressed: () => _openQuickEdit(customer),
+              onPressed: () => _openEditForm(customer),
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: const Text('編輯'),
               style: OutlinedButton.styleFrom(
