@@ -206,41 +206,64 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
     );
   }
 
+  // 上方工具列：電腦版一行；窄螢幕（手機）分兩行：返回＋刪除＋儲存一行，狀態＋建立時間一行
   Widget _buildTopBar(VisitRecord record) {
     final Color primaryColor = Theme.of(context).colorScheme.primary;
-    return Row(
+    final Widget backButton = TextButton.icon(
+      onPressed: _backToList,
+      icon: const Icon(Icons.arrow_back, size: 18),
+      label: const Text('返回列表'),
+    );
+    final Widget statusAndTime = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        TextButton.icon(
-          onPressed: _backToList,
-          icon: const Icon(Icons.arrow_back, size: 18),
-          label: const Text('返回列表'),
-        ),
-        const SizedBox(width: 8),
         VisitRecordStatusChip(record: record),
         const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            '建立於 ${formatVisitRecordTime(record.createdAt)}',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ),
-        TextButton.icon(
-          onPressed: _isSaving ? null : () => _confirmDelete(record),
-          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-          label: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: _isSaving ? null : _save,
-          icon: const Icon(Icons.save_outlined, size: 18),
-          label: Text(_isSaving ? '儲存中…' : '儲存'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+        Text(
+          '建立於 ${formatVisitRecordTime(record.createdAt)}',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
       ],
+    );
+    final Widget deleteButton = TextButton.icon(
+      onPressed: _isSaving ? null : () => _confirmDelete(record),
+      icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+      label: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
+    );
+    final Widget saveButton = ElevatedButton.icon(
+      onPressed: _isSaving ? null : _save,
+      icon: const Icon(Icons.save_outlined, size: 18),
+      label: Text(_isSaving ? '儲存中…' : '儲存'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (constraints.maxWidth < visitRecordNarrowWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [backButton, const Spacer(), deleteButton, const SizedBox(width: 4), saveButton]),
+              const SizedBox(height: 6),
+              statusAndTime,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            backButton,
+            const SizedBox(width: 8),
+            Expanded(child: Align(alignment: Alignment.centerLeft, child: statusAndTime)),
+            deleteButton,
+            const SizedBox(width: 8),
+            saveButton,
+          ],
+        );
+      },
     );
   }
 

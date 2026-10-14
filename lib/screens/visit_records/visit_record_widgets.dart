@@ -4,6 +4,9 @@ import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import '../../widgets/voice_recorder_widget.dart';
 
+/// 寬度小於這個值（手機）時，標題列的按鈕換到下一行
+const double visitRecordNarrowWidth = 640;
+
 /// 例：2026/10/14 15:30
 String formatVisitRecordTime(DateTime time) {
   final String month = time.month.toString().padLeft(2, '0');
