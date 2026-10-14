@@ -13,6 +13,8 @@ class VisitRecord {
   final String? failureReason;
   final DateTime createdAt;
   final DateTime updatedAt;
+  // 放進垃圾桶的時間；null 代表正常紀錄（4-D）
+  final DateTime? deletedAt;
 
   const VisitRecord({
     required this.id,
@@ -27,6 +29,7 @@ class VisitRecord {
     this.isCustomerDeleted = false,
     this.organizedContent,
     this.failureReason,
+    this.deletedAt,
   });
 
   // 處理狀態：raw 尚未整理／processing 整理中／done 完成／failed 失敗
@@ -72,6 +75,26 @@ class VisitRecord {
       failureReason: json['failure_reason'] as String?,
       createdAt: _parseTime(json['created_at']),
       updatedAt: _parseTime(json['updated_at']),
+      deletedAt: json['deleted_at'] == null ? null : _parseTime(json['deleted_at']),
+    );
+  }
+
+  /// 放進垃圾桶或還原（傳 null 代表還原）
+  VisitRecord withDeletedAt(DateTime? time) {
+    return VisitRecord(
+      id: id,
+      profileId: profileId,
+      customerId: customerId,
+      customerName: customerName,
+      isCustomerDeleted: isCustomerDeleted,
+      title: title,
+      rawTranscript: rawTranscript,
+      organizedContent: organizedContent,
+      status: status,
+      failureReason: failureReason,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      deletedAt: time,
     );
   }
 

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../main.dart';
 import '../models/schedule_event.dart';
+import '../models/visit_record.dart';
 import '../services/app_settings.dart';
+import '../services/customer_trash_service.dart';
 import '../services/schedule_service.dart';
+import '../services/visit_record_service.dart';
 import 'trash/trash_item_cards.dart';
 import '../services/app_localizations.dart';
 import '../widgets/custom_toast.dart';
@@ -11,7 +12,8 @@ import '../widgets/custom_toast.dart';
 enum TrashCategory {
   all(label: '全部項目', icon: Icons.all_inbox_rounded),
   customer(label: '正式客戶', icon: Icons.person_outline_rounded),
-  draftCustomer(label: '語音草稿', icon: Icons.mic_none_rounded),
+  // 原本的「語音草稿」沒有來源（線上客戶表沒有草稿狀態，問題 C12），4-D 改成拜訪紀錄
+  visitRecord(label: '拜訪紀錄', icon: Icons.record_voice_over_outlined),
   schedule(label: '行程與日曆', icon: Icons.event_busy_rounded);
 
   final String label;
@@ -29,6 +31,7 @@ class TrashBinScreen extends StatefulWidget {
 class _TrashBinScreenState extends State<TrashBinScreen> {
   List<Map<String, dynamic>> _deletedCustomers = [];
   List<ScheduleEvent> _deletedEvents = [];
+  List<VisitRecord> _deletedVisitRecords = [];
   bool _isLoading = false;
   TrashCategory _activeCategory = TrashCategory.all;
 
@@ -37,9 +40,41 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     super.initState();
     _fetchDeletedCustomers();
     _fetchDeletedEvents();
+    _fetchDeletedVisitRecords();
   }
 
-  int get _totalCount => _deletedCustomers.length + _deletedEvents.length;
+  int get _totalCount => _deletedCustomers.length + _deletedEvents.length + _deletedVisitRecords.length;
+
+  // 讀取放進垃圾桶的拜訪紀錄（4-D）
+  Future<void> _fetchDeletedVisitRecords() async {
+    try {
+      final List<VisitRecord> records = await VisitRecordService.instance.fetchDeletedRecords();
+      if (!mounted) return;
+      setState(() => _deletedVisitRecords = records);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '載入垃圾桶拜訪紀錄失敗: $e', ToastType.error);
+    }
+  }
+
+  Future<void> _restoreVisitRecord(VisitRecord record) async {
+    try {
+      await VisitRecordService.instance.restoreRecord(record.id);
+      await _fetchDeletedVisitRecords();
+      if (mounted) CustomToast.show(context, '🎉 拜訪紀錄「${record.title}」已還原', ToastType.success);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '還原拜訪紀錄失敗: $e', ToastType.error);
+    }
+  }
+
+  Future<void> _deleteVisitRecordForever(VisitRecord record) async {
+    try {
+      await VisitRecordService.instance.deleteRecordForever(record.id);
+      await _fetchDeletedVisitRecords();
+      if (mounted) CustomToast.show(context, context.l10n('trash_bin_delete_forever_success'), ToastType.success);
+    } catch (e) {
+      if (mounted) CustomToast.show(context, '永久刪除拜訪紀錄失敗: $e', ToastType.error);
+    }
+  }
 
   // 讀取放進垃圾桶的行程（3-F）
   Future<void> _fetchDeletedEvents() async {
@@ -73,125 +108,38 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   }
 
   Future<void> _fetchDeletedCustomers() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    if (isOfflineMode) {
-      setState(() {
-        _deletedCustomers = OfflineDataStore.customers
-            .where((c) => c['deleted_at'] != null)
-            .toList();
-        _isLoading = false;
-      });
-      return;
-    }
-
+    setState(() => _isLoading = true);
     try {
-      final supabase = Supabase.instance.client;
-      // Fetch only soft-deleted customers
-      final response = await supabase
-          .from('customers')
-          .select()
-          .not('deleted_at', 'is', null)
-          .order('deleted_at', ascending: false);
-
+      final List<Map<String, dynamic>> customers = await CustomerTrashService.instance.fetchDeletedCustomers();
+      if (!mounted) return;
       setState(() {
-        _deletedCustomers = List<Map<String, dynamic>>.from(response.map((data) {
-          return {
-            'id': data['id'],
-            'name': data['name'],
-            'nickname': data['nickname'] ?? '',
-            'avatar_url': data['avatar_url'] ?? '',
-            'phone': data['phone'],
-            'email': data['email'],
-            'status': data['status'] ?? 'active',
-            'tags': List<String>.from(data['tags'] ?? []),
-            'notes': data['notes'],
-            'created_at': data['created_at'],
-            'deleted_at': data['deleted_at'],
-          };
-        }));
+        _deletedCustomers = customers;
         _isLoading = false;
       });
     } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '載入垃圾桶失敗: $e', ToastType.error);
-      }
-      setState(() {
-        _isLoading = false;
-      });
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      CustomToast.show(context, '載入垃圾桶失敗: $e', ToastType.error);
     }
   }
 
-  Future<void> _restoreCustomer(String id, bool isDraft) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    if (isOfflineMode) {
-      final index = OfflineDataStore.customers.indexWhere((c) => c['id'] == id);
-      if (index != -1) {
-        OfflineDataStore.customers[index] = {
-          ...OfflineDataStore.customers[index],
-          'deleted_at': null,
-        };
-      }
-      await _fetchDeletedCustomers();
-      if (mounted) {
-        CustomToast.show(context, isDraft ? '🎉 語音草稿已成功還原至收件匣！' : '🎉 客戶已成功還原至名冊！', ToastType.success);
-      }
-      return;
-    }
-
+  Future<void> _restoreCustomer(String id) async {
     try {
-      final supabase = Supabase.instance.client;
-      await supabase.from('customers').update({
-        'deleted_at': null,
-      }).eq('id', id);
+      await CustomerTrashService.instance.restoreCustomer(id);
       await _fetchDeletedCustomers();
-      if (mounted) {
-        CustomToast.show(context, isDraft ? '🎉 語音草稿已成功還原至收件匣！' : '🎉 客戶已成功還原至名冊！', ToastType.success);
-      }
+      if (mounted) CustomToast.show(context, '🎉 客戶已成功還原至名冊！', ToastType.success);
     } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '復原失敗: $e', ToastType.error);
-      }
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) CustomToast.show(context, '復原失敗: $e', ToastType.error);
     }
   }
 
   Future<void> _deleteCustomerForever(String id) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    if (isOfflineMode) {
-      OfflineDataStore.customers.removeWhere((c) => c['id'] == id);
-      await _fetchDeletedCustomers();
-      if (mounted) {
-        CustomToast.show(context, '${context.l10n('trash_bin_delete_forever_success')} (離線暫存)', ToastType.success);
-      }
-      return;
-    }
-
     try {
-      final supabase = Supabase.instance.client;
-      // Physical hard delete
-      await supabase.from('customers').delete().eq('id', id);
+      await CustomerTrashService.instance.deleteCustomerForever(id);
       await _fetchDeletedCustomers();
-      if (mounted) {
-        CustomToast.show(context, context.l10n('trash_bin_delete_forever_success'), ToastType.success);
-      }
+      if (mounted) CustomToast.show(context, context.l10n('trash_bin_delete_forever_success'), ToastType.success);
     } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '徹底刪除失敗: $e', ToastType.error);
-      }
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) CustomToast.show(context, '徹底刪除失敗: $e', ToastType.error);
     }
   }
 
@@ -257,9 +205,6 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     );
     final List<Widget> displayedCards = _buildDisplayedCards(cardColors);
 
-    final draftCount = _deletedCustomers.where((c) => DeletedCustomerCard.isDraftCustomer(c)).length;
-    final activeCount = _deletedCustomers.length - draftCount;
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: _isLoading && _deletedCustomers.isEmpty
@@ -307,7 +252,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '已刪除項目將保留 30 天，可依「正式客戶」「語音草稿」「行程與日曆」分類還原或永久刪除。',
+                        '已刪除項目將保留 30 天，可依「正式客戶」「拜訪紀錄」「行程與日曆」分類還原或永久刪除。',
                         style: TextStyle(
                           fontSize: 13,
                           color: subTextColor,
@@ -321,7 +266,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                         child: Row(
                           children: TrashCategory.values.map((cat) {
                             final isSelected = _activeCategory == cat;
-                            final int count = _countForCategory(cat, activeCount, draftCount);
+                            final int count = _countForCategory(cat);
 
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
@@ -414,14 +359,14 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   }
 
   // 每個分類標籤上顯示的筆數
-  int _countForCategory(TrashCategory category, int activeCount, int draftCount) {
+  int _countForCategory(TrashCategory category) {
     switch (category) {
       case TrashCategory.all:
         return _totalCount;
       case TrashCategory.customer:
-        return activeCount;
-      case TrashCategory.draftCustomer:
-        return draftCount;
+        return _deletedCustomers.length;
+      case TrashCategory.visitRecord:
+        return _deletedVisitRecords.length;
       case TrashCategory.schedule:
         return _deletedEvents.length;
     }
@@ -431,13 +376,9 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   List<Widget> _buildDisplayedCards(TrashCardColors cardColors) {
     final List<MapEntry<DateTime, Widget>> entries = [];
 
-    final bool showCustomers = _activeCategory != TrashCategory.schedule;
+    final bool showCustomers = _activeCategory == TrashCategory.all || _activeCategory == TrashCategory.customer;
     if (showCustomers) {
       for (final Map<String, dynamic> customer in _deletedCustomers) {
-        final bool isDraft = DeletedCustomerCard.isDraftCustomer(customer);
-        if (_activeCategory == TrashCategory.customer && isDraft) continue;
-        if (_activeCategory == TrashCategory.draftCustomer && !isDraft) continue;
-
         final String customerId = customer['id'].toString();
         final String customerName = customer['name'] as String? ?? '';
         final DateTime deletedAt = DateTime.tryParse(customer['deleted_at']?.toString() ?? '') ?? DateTime.now();
@@ -446,7 +387,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
           DeletedCustomerCard(
             customer: customer,
             colors: cardColors,
-            onRestore: () => _restoreCustomer(customerId, isDraft),
+            onRestore: () => _restoreCustomer(customerId),
             onDeleteForever: () => _showDeleteForeverConfirm(customerName, () => _deleteCustomerForever(customerId)),
           ),
         ));
@@ -463,6 +404,21 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
             colors: cardColors,
             onRestore: () => _restoreEvent(event),
             onDeleteForever: () => _showDeleteForeverConfirm(event.title, () => _deleteEventForever(event)),
+          ),
+        ));
+      }
+    }
+
+    final bool showVisitRecords = _activeCategory == TrashCategory.all || _activeCategory == TrashCategory.visitRecord;
+    if (showVisitRecords) {
+      for (final VisitRecord record in _deletedVisitRecords) {
+        entries.add(MapEntry(
+          record.deletedAt ?? DateTime.now(),
+          DeletedVisitRecordCard(
+            record: record,
+            colors: cardColors,
+            onRestore: () => _restoreVisitRecord(record),
+            onDeleteForever: () => _showDeleteForeverConfirm(record.title, () => _deleteVisitRecordForever(record)),
           ),
         ));
       }
