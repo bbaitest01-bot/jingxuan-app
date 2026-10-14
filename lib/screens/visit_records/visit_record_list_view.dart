@@ -84,38 +84,42 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
     );
   }
 
+  // 按鈕列：頁首已經顯示「拜訪紀錄」，這裡不再重複標題（2026-10-14 沛沛）；
+  // 按鈕放不下時自動換行（手機），重新整理固定在右邊
   Widget _buildHeader(Color primaryColor) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.record_voice_over_outlined, color: primaryColor, size: 28),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Text('拜訪紀錄', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        Expanded(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _recordNewRecord,
+                icon: const Icon(Icons.mic_none, size: 18),
+                label: const Text('錄音新增'),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _createRecord,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('新增紀錄'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
         IconButton(
           tooltip: '重新整理',
           onPressed: _isLoading ? null : _loadRecords,
           icon: const Icon(Icons.refresh),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          onPressed: _recordNewRecord,
-          icon: const Icon(Icons.mic_none, size: 18),
-          label: const Text('錄音新增'),
-          style: OutlinedButton.styleFrom(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: _createRecord,
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('新增紀錄'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
         ),
       ],
     );
