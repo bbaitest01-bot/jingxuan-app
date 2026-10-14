@@ -8,6 +8,7 @@ import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
 import '../customer_form_dialog.dart';
+import '../customer_status_widgets.dart';
 import 'customer_detail_sections.dart';
 
 /// 客戶細節整頁（/customers/:id，問題 C3）：由上到下 基本資料、保單、拜訪紀錄（C7）
@@ -161,7 +162,11 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(titleText, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              child: CustomerNameWithStatus(
+                name: titleText,
+                status: customer['client_status'] as String?,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
             ),
             OutlinedButton.icon(
               onPressed: () => _openEditForm(customer),

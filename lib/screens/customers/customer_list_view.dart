@@ -6,6 +6,7 @@ import '../../widgets/animations.dart';
 import 'customer_grid_view.dart';
 import 'customer_shimmers.dart';
 import 'flipping_customer_card.dart';
+import 'customer_status_widgets.dart';
 
 /// 條列模式：每位客戶一列
 class CustomerListView extends StatelessWidget {
@@ -147,14 +148,10 @@ class CustomerListRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        displayName,
-                        style: TextStyle(
-                          color: nameColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      CustomerNameWithStatus(
+                        name: displayName,
+                        status: customer['client_status'] as String?,
+                        style: TextStyle(color: nameColor, fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       if (customer['agent_name'] != null && customer['agent_name'].toString().isNotEmpty) ...[
                         const SizedBox(height: 2),
@@ -317,14 +314,10 @@ class CustomerListRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      displayName,
-                      style: TextStyle(
-                        color: nameColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    CustomerNameWithStatus(
+                      name: displayName,
+                      status: customer['client_status'] as String?,
+                      style: TextStyle(color: nameColor, fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 2),
                     Text(

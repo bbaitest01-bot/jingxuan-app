@@ -8,6 +8,7 @@ import '../../services/tag_manager_service.dart';
 import '../../widgets/categorized_tag_accordion_selector.dart';
 import '../../widgets/color_palette_picker.dart';
 import '../../widgets/custom_toast.dart';
+import 'customer_status_widgets.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../tag_manager_screen.dart';
 import 'flipping_customer_card.dart';
@@ -35,6 +36,8 @@ void showCustomerFormDialog(
   final notesController = TextEditingController(text: isEdit ? customer['notes'] : '');
   // 性別：male／female／null（不填）
   String? selectedGender = isEdit ? customer['gender'] as String? : null;
+  // 客戶狀態：positive／considering／negative／null（未設定）
+  String? selectedStatus = isEdit ? customer['client_status'] as String? : null;
 
   InputDecoration buildInputDecoration(String labelText, IconData iconData, {String? hintText}) {
     return InputDecoration(
@@ -86,6 +89,7 @@ void showCustomerFormDialog(
               tags: tagsList,
               notes: notesController.text.trim(),
               gender: selectedGender,
+              clientStatus: selectedStatus,
               imageBytes: selectedImageBytes,
               imageName: selectedImageFile?.name,
               isImageCleared: isImageCleared,
@@ -205,6 +209,11 @@ void showCustomerFormDialog(
                     CustomerGenderSelector(
                       gender: selectedGender,
                       onChanged: (String? value) => setDialogState(() => selectedGender = value),
+                    ),
+                    const SizedBox(height: 12),
+                    CustomerStatusSelector(
+                      status: selectedStatus,
+                      onChanged: (String? value) => setDialogState(() => selectedStatus = value),
                     ),
                     const SizedBox(height: 16),
                     // Sleek Collapsible Accordion Tag Selector (1-Tap Expand by Category)
