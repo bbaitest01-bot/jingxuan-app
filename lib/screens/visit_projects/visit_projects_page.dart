@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../models/visit_project.dart';
 import '../../models/visit_result.dart';
+import '../../services/visit_pending_service.dart';
 import '../../services/visit_project_service.dart';
 import '../../services/visit_result_service.dart';
 import '../../widgets/custom_toast.dart';
+import 'visit_pending_section.dart';
 import 'visit_project_card.dart';
 import 'visit_project_form_dialog.dart';
 import 'visit_result_form_dialog.dart';
@@ -16,7 +18,7 @@ const double visitProjectTwoColumnWidth = 720;
 const int visitResultPageSize = 20;
 
 /// 專案拜訪頁（/projects）：我的專案卡片、建立／編輯／刪除專案（4-2a）；
-/// 記錄拜訪與拜訪結果紀錄（4-2b）。還沒記錄結果（4-2c）、成效圖表（4-2d）之後加在這頁。
+/// 記錄拜訪與拜訪結果紀錄（4-2b）；還沒記錄結果的行程（4-2c）。成效圖表（4-2d）之後加在這頁。
 class VisitProjectsPage extends StatefulWidget {
   const VisitProjectsPage({super.key});
 
@@ -29,6 +31,8 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
   List<VisitResultSummary> _results = [];
   // 拜訪結果紀錄（下方列表）
   List<VisitResult> _resultRecords = [];
+  // 還沒記錄結果的行程（上方清單）
+  PendingVisitLists _pendingLists = const PendingVisitLists(pending: [], recentlyDone: []);
   String? _filterProjectId;
   int _resultLimit = visitResultPageSize;
   bool _isLoading = true;
@@ -55,11 +59,13 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
         projectId: _filterProjectId,
         limit: _resultLimit + 1,
       );
+      final PendingVisitLists pendingLists = await VisitPendingService.instance.fetchLists(DateTime.now());
       if (!mounted) return;
       setState(() {
         _projects = projects;
         _results = results;
         _resultRecords = resultRecords;
+        _pendingLists = pendingLists;
         _isLoading = false;
       });
     } catch (e) {
@@ -84,6 +90,60 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
     if (!saved || !mounted) return;
     CustomToast.show(context, '已更新拜訪結果', ToastType.success);
     await _loadProjects();
+  }
+
+  // 從待記錄的行程記錄結果：客戶與日期帶好，專案預設日常拜訪，並記住是哪個行程
+  Future<void> _recordFromEvent(PendingVisitEvent event) async {
+    final bool saved = await showVisitResultFormDialog(
+      context,
+      projects: _projects,
+      preset: VisitResultPreset(
+        customerId: event.customerId,
+        customerName: event.customerName,
+        visitedOn: event.startAt,
+        scheduleEventId: event.eventId,
+        eventTitle: event.title,
+      ),
+    );
+    if (!saved || !mounted) return;
+    CustomToast.show(context, '已記錄 ${event.customerName} 的拜訪結果', ToastType.success);
+    await _loadProjects();
+  }
+
+  Future<void> _editEventResult(PendingVisitEvent event) async {
+    final String? resultId = event.resultId;
+    if (resultId == null) return;
+    try {
+      final VisitResult? result = await VisitResultService.instance.fetchResult(resultId);
+      if (!mounted) return;
+      if (result == null) {
+        CustomToast.show(context, '找不到這筆結果，可能已被刪除', ToastType.warning);
+        await _loadProjects();
+        return;
+      }
+      await _openEditResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '讀取結果失敗：$e', ToastType.error);
+    }
+  }
+
+  // 「沒拜訪」與「復原」：成功後重讀清單
+  Future<void> _setSkipped(PendingVisitEvent event, bool isSkipped) async {
+    try {
+      if (isSkipped) {
+        await VisitPendingService.instance.markSkipped(event.eventId);
+      } else {
+        await VisitPendingService.instance.undoSkipped(event.eventId);
+      }
+      if (!mounted) return;
+      final String message = isSkipped ? '已標記「沒拜訪」：${event.customerName}，不算進度' : '已復原，回到還沒記錄結果';
+      CustomToast.show(context, message, ToastType.success);
+      await _loadProjects();
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '更新失敗：$e', ToastType.error);
+    }
   }
 
   void _changeFilter(String? projectId) {
@@ -215,6 +275,15 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            VisitPendingSection(
+              lists: _pendingLists,
+              today: today,
+              onRecord: _recordFromEvent,
+              onSkip: (PendingVisitEvent event) => _setSkipped(event, true),
+              onUndoSkip: (PendingVisitEvent event) => _setSkipped(event, false),
+              onEditResult: _editEventResult,
+            ),
+            if (!_pendingLists.isEmpty) const SizedBox(height: 16),
             Wrap(spacing: 16, runSpacing: 16, children: cards),
             const SizedBox(height: 16),
             VisitResultListSection(

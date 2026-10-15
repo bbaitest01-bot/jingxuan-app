@@ -11,13 +11,31 @@ import '../customers/customer_status_widgets.dart';
 import '../visit_records/visit_record_customer_picker.dart';
 import 'visit_record_link_picker.dart';
 
+/// 從行程記錄結果時帶進視窗的資料（4-2c）：客戶、拜訪日期、行程編號
+class VisitResultPreset {
+  final String customerId;
+  final String customerName;
+  final DateTime visitedOn;
+  final String scheduleEventId;
+  final String eventTitle;
+
+  const VisitResultPreset({
+    required this.customerId,
+    required this.customerName,
+    required this.visitedOn,
+    required this.scheduleEventId,
+    this.eventTitle = '',
+  });
+}
+
 /// 記錄拜訪（[result] 為 null）或修改一筆拜訪結果。存檔或刪除成功回傳 true。
-/// [initialProjectId] 沒給時預設「日常拜訪」
+/// [initialProjectId] 沒給時預設「日常拜訪」；[preset] 用在從行程記錄結果
 Future<bool> showVisitResultFormDialog(
   BuildContext context, {
   required List<VisitProject> projects,
   String? initialProjectId,
   VisitResult? result,
+  VisitResultPreset? preset,
 }) async {
   final bool? saved = await showDialog<bool>(
     context: context,
@@ -25,6 +43,7 @@ Future<bool> showVisitResultFormDialog(
       projects: projects,
       initialProjectId: initialProjectId,
       result: result,
+      preset: preset,
     ),
   );
   return saved == true;
@@ -34,8 +53,9 @@ class VisitResultFormDialog extends StatefulWidget {
   final List<VisitProject> projects;
   final String? initialProjectId;
   final VisitResult? result;
+  final VisitResultPreset? preset;
 
-  const VisitResultFormDialog({super.key, required this.projects, this.initialProjectId, this.result});
+  const VisitResultFormDialog({super.key, required this.projects, this.initialProjectId, this.result, this.preset});
 
   @override
   State<VisitResultFormDialog> createState() => _VisitResultFormDialogState();
@@ -70,6 +90,12 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
       return;
     }
     _projectId = widget.initialProjectId ?? _defaultProjectId();
+    final VisitResultPreset? preset = widget.preset;
+    if (preset != null) {
+      _customerId = preset.customerId;
+      _customerName = preset.customerName;
+      _visitedOn = DateUtils.dateOnly(preset.visitedOn);
+    }
   }
 
   @override
@@ -105,6 +131,7 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
       note: _noteController.text,
       visitRecordId: _visitRecordId,
       visitRecordTitle: _visitRecordTitle,
+      scheduleEventId: widget.preset?.scheduleEventId,
     );
   }
 
@@ -203,7 +230,7 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      title: Text(_isEditing ? '修改拜訪結果' : '記錄拜訪'),
+      title: Text(_dialogTitle()),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -211,6 +238,10 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_presetEventTitle().isNotEmpty) ...[
+                Text('來自行程：${_presetEventTitle()}', style: TextStyle(fontSize: 13, color: Theme.of(context).hintColor)),
+                const SizedBox(height: 12),
+              ],
               _buildProjectPicker(),
               const SizedBox(height: 12),
               _buildCustomerRow(),
@@ -263,6 +294,14 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
         ),
       ],
     );
+  }
+
+  String _presetEventTitle() => widget.preset?.eventTitle ?? '';
+
+  String _dialogTitle() {
+    if (_isEditing) return '修改拜訪結果';
+    if (widget.preset != null) return '記錄行程結果';
+    return '記錄拜訪';
   }
 
   Widget _buildProjectPicker() {

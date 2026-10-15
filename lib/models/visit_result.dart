@@ -82,6 +82,8 @@ class VisitResultDraft {
   final String note;
   final String? visitRecordId;
   final String visitRecordTitle;
+  // 從行程「記錄結果」進來時，記住是哪個行程（只在新增時寫入，4-2c）
+  final String? scheduleEventId;
 
   const VisitResultDraft({
     required this.projectId,
@@ -93,6 +95,7 @@ class VisitResultDraft {
     this.note = '',
     this.visitRecordId,
     this.visitRecordTitle = '',
+    this.scheduleEventId,
   });
 }
 

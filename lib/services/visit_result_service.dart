@@ -100,12 +100,64 @@ class VisitResultService {
 
     final String? userId = _currentUserId;
     if (userId == null) {
+      final String? eventId = draft.scheduleEventId;
+      if (eventId != null && _offlineResults.any((result) => result.scheduleEventId == eventId)) {
+        throw Exception('這個行程已經記錄過結果，請到「已記錄」修改');
+      }
       _offlineSequence++;
       _offlineResults.add(_offlineResultFromDraft('offline-result-$_offlineSequence', draft, DateTime.now()));
       _refreshOfflineCustomerStatus(draft.customerId);
       return;
     }
-    await _supabase.from('visit_results').insert({'profile_id': userId, ..._draftToRow(draft)});
+    try {
+      await _supabase.from('visit_results').insert({
+        'profile_id': userId,
+        ..._draftToRow(draft),
+        'schedule_event_id': draft.scheduleEventId,
+      });
+    } on PostgrestException catch (error) {
+      // 23505＝違反唯一限制：同一個行程只能有一筆結果（可能在別的分頁剛記過）
+      if (error.code == '23505') throw Exception('這個行程已經記錄過結果，請到「已記錄」修改');
+      rethrow;
+    }
+  }
+
+  /// 讀一筆完整的拜訪結果（從行程或待記錄清單按「修改」時用）；找不到回傳 null
+  Future<VisitResult?> fetchResult(String id) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      for (final VisitResult result in _offlineResults) {
+        if (result.id == id) return result;
+      }
+      return null;
+    }
+    final Map<String, dynamic>? row = await _supabase
+        .from('visit_results')
+        .select(_selectColumns)
+        .eq('id', id)
+        .eq('profile_id', userId)
+        .maybeSingle();
+    if (row == null) return null;
+    return VisitResult.fromJson(row);
+  }
+
+  /// 某個行程記過的結果（一個行程最多一筆）；沒有回傳 null
+  Future<VisitResult?> fetchResultForEvent(String eventId) async {
+    final String? userId = _currentUserId;
+    if (userId == null) {
+      for (final VisitResult result in _offlineResults) {
+        if (result.scheduleEventId == eventId) return result;
+      }
+      return null;
+    }
+    final Map<String, dynamic>? row = await _supabase
+        .from('visit_results')
+        .select(_selectColumns)
+        .eq('profile_id', userId)
+        .eq('schedule_event_id', eventId)
+        .maybeSingle();
+    if (row == null) return null;
+    return VisitResult.fromJson(row);
   }
 
   /// 修改一筆拜訪結果
@@ -117,7 +169,20 @@ class VisitResultService {
     if (userId == null) {
       final int index = _offlineResults.indexWhere((result) => result.id == original.id);
       if (index < 0) return;
-      _offlineResults[index] = _offlineResultFromDraft(original.id, draft, original.createdAt);
+      // 修改時保留原本來自哪個行程
+      final VisitResultDraft keepEvent = VisitResultDraft(
+        projectId: draft.projectId,
+        projectTitle: draft.projectTitle,
+        customerId: draft.customerId,
+        customerName: draft.customerName,
+        visitedOn: draft.visitedOn,
+        result: draft.result,
+        note: draft.note,
+        visitRecordId: draft.visitRecordId,
+        visitRecordTitle: draft.visitRecordTitle,
+        scheduleEventId: original.scheduleEventId,
+      );
+      _offlineResults[index] = _offlineResultFromDraft(original.id, keepEvent, original.createdAt);
       _refreshOfflineCustomerStatus(original.customerId);
       _refreshOfflineCustomerStatus(draft.customerId);
       return;
@@ -196,6 +261,7 @@ class VisitResultService {
       note: note,
       visitRecordId: draft.visitRecordId,
       visitRecordTitle: draft.visitRecordTitle,
+      scheduleEventId: draft.scheduleEventId,
       createdAt: createdAt,
     );
   }
