@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import '../models/visit_chart.dart';
 import '../models/visit_project.dart';
 import '../models/visit_result.dart';
 import 'visit_project_service.dart';
@@ -48,6 +49,59 @@ class VisitResultService {
       results.add(VisitResult.fromJson(row as Map<String, dynamic>));
     }
     return results;
+  }
+
+  /// 成效圖表用：[from]～[to]（含）之間自己的結果，帶出客戶標籤（4-2d）
+  Future<List<VisitChartPoint>> fetchChartPoints(DateTime from, DateTime to) async {
+    final String? userId = _currentUserId;
+    if (userId == null) return _offlineChartPoints(from, to);
+
+    final List<dynamic> rows = await _supabase
+        .from('visit_results')
+        .select('visited_on, result, project_id, customers(tags)')
+        .eq('profile_id', userId)
+        .gte('visited_on', VisitProjectService.formatDateForDatabase(from))
+        .lte('visited_on', VisitProjectService.formatDateForDatabase(to));
+    final List<VisitChartPoint> points = [];
+    for (final dynamic row in rows) {
+      final Map<String, dynamic> map = row as Map<String, dynamic>;
+      final Map<String, dynamic>? customer = map['customers'] as Map<String, dynamic>?;
+      final DateTime visitedOn = DateTime.tryParse(map['visited_on']?.toString() ?? '') ?? DateTime.now();
+      points.add(VisitChartPoint(
+        visitedOn: DateTime(visitedOn.year, visitedOn.month, visitedOn.day),
+        result: map['result']?.toString() ?? '',
+        projectId: map['project_id']?.toString() ?? '',
+        customerTags: _tagsOf(customer?['tags']),
+      ));
+    }
+    return points;
+  }
+
+  static List<String> _tagsOf(dynamic tags) {
+    if (tags is! List) return [];
+    final List<String> names = [];
+    for (final dynamic tag in tags) {
+      names.add(tag.toString());
+    }
+    return names;
+  }
+
+  List<VisitChartPoint> _offlineChartPoints(DateTime from, DateTime to) {
+    final Map<String, List<String>> tagsByCustomer = {};
+    for (final Map<String, dynamic> customer in OfflineDataStore.customers) {
+      tagsByCustomer[customer['id'].toString()] = _tagsOf(customer['tags']);
+    }
+    final List<VisitChartPoint> points = [];
+    for (final VisitResult result in _offlineResults) {
+      if (result.visitedOn.isBefore(from) || result.visitedOn.isAfter(to)) continue;
+      points.add(VisitChartPoint(
+        visitedOn: result.visitedOn,
+        result: result.result,
+        projectId: result.projectId,
+        customerTags: tagsByCustomer[result.customerId] ?? const [],
+      ));
+    }
+    return points;
   }
 
   /// 客戶狀態的來源：這位客戶最新一筆結果（沒有結果回傳 null）

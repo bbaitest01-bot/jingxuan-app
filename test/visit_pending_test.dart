@@ -89,7 +89,7 @@ void main() {
       expect(find.text('來自行程：保單說明'), findsOneWidget);
       // 客戶已經帶好
       expect(find.widgetWithText(OutlinedButton, '王大明'), findsOneWidget);
-      await tester.tap(find.text('✔ 有意願／已成交'));
+      await tester.tap(find.widgetWithText(ChoiceChip, '✔ 有意願／已成交'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('儲存'));
       await tester.pumpAndSettle();

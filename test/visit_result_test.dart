@@ -24,7 +24,7 @@ Future<void> recordVisit(WidgetTester tester, {required String customerName, req
   await tester.pumpAndSettle();
   await tester.tap(find.text(customerName).last);
   await tester.pumpAndSettle();
-  await tester.tap(find.text(resultText));
+  await tester.tap(find.widgetWithText(ChoiceChip, resultText));
   await tester.pumpAndSettle();
   await tester.tap(find.text('儲存'));
   await tester.pumpAndSettle();
@@ -143,7 +143,7 @@ void main() {
       await tester.tap(find.text('修改'));
       await tester.pumpAndSettle();
       expect(find.text('修改拜訪結果'), findsOneWidget);
-      await tester.tap(find.text('✔ 有意願／已成交'));
+      await tester.tap(find.widgetWithText(ChoiceChip, '✔ 有意願／已成交'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('儲存'));
       await tester.pumpAndSettle();
@@ -178,7 +178,7 @@ void main() {
       await tester.tap(find.text('陳美玲').last);
       await tester.pumpAndSettle();
       expect(find.text('這位客戶不在專案名單裡，一樣會算進度'), findsOneWidget);
-      await tester.tap(find.text('✖ 無意願／暫不考慮'));
+      await tester.tap(find.widgetWithText(ChoiceChip, '✖ 無意願／暫不考慮'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('儲存'));
       await tester.pumpAndSettle();

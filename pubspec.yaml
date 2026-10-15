@@ -66,6 +66,9 @@ dependencies:
   http: ^1.2.1
   url_launcher: ^6.3.0
 
+  # Line charts for visit performance (專案拜訪成效圖表，4-2d)
+  fl_chart: ^1.2.0
+
   # Internationalization support
   flutter_localizations:
     sdk: flutter
