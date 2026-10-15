@@ -58,8 +58,9 @@ class VisitChartControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Column 改成撐滿寬度，底下兩列的「兩端對齊」才會生效：標題／期間在左，週月年／‹ › 在右
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Wrap(
           spacing: 12,

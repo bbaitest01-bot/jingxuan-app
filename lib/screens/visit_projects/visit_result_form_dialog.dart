@@ -11,19 +11,19 @@ import '../customers/customer_status_widgets.dart';
 import '../visit_records/visit_record_customer_picker.dart';
 import 'visit_record_link_picker.dart';
 
-/// 從行程記錄結果時帶進視窗的資料（4-2c）：客戶、拜訪日期、行程編號
+/// 預先帶進視窗的資料：從行程記錄（4-2c，有行程編號）或從專案名單記錄（沒有行程編號）
 class VisitResultPreset {
   final String customerId;
   final String customerName;
   final DateTime visitedOn;
-  final String scheduleEventId;
+  final String? scheduleEventId;
   final String eventTitle;
 
   const VisitResultPreset({
     required this.customerId,
     required this.customerName,
     required this.visitedOn,
-    required this.scheduleEventId,
+    this.scheduleEventId,
     this.eventTitle = '',
   });
 }
@@ -300,7 +300,7 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
 
   String _dialogTitle() {
     if (_isEditing) return '修改拜訪結果';
-    if (widget.preset != null) return '記錄行程結果';
+    if (widget.preset?.scheduleEventId != null) return '記錄行程結果';
     return '記錄拜訪';
   }
 

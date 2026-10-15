@@ -20,7 +20,7 @@ String _timeText(DateTime time) {
   return '$hour:$minute';
 }
 
-/// 專案拜訪頁上方：「還沒記錄結果」與「已記錄（最近 7 天）」（4-2c）。兩個都空就不顯示
+/// 專案拜訪「待記錄」分頁：「還沒記錄結果」與「已記錄（最近 7 天）」（4-2c）
 class VisitPendingSection extends StatelessWidget {
   final PendingVisitLists lists;
   final DateTime today;
@@ -41,7 +41,6 @@ class VisitPendingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (lists.isEmpty) return const SizedBox.shrink();
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -57,7 +56,10 @@ class VisitPendingSection extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
             ),
             if (lists.pending.isEmpty)
-              const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('都記錄完了 👍')),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(lists.isEmpty ? '目前沒有要記錄的行程。在今日行程新增有選客戶的行程，時間到了會出現在這裡。' : '都記錄完了 👍'),
+              ),
             ..._buildPendingRows(),
             if (lists.recentlyDone.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -146,7 +148,9 @@ class _EventRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 寬度給滿，兩端對齊才會生效（行程在左、按鈕在右）
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
       child: Wrap(
