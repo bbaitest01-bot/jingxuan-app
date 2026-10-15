@@ -5,6 +5,7 @@ import '../../../router/app_routes.dart';
 import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../visit_records/visit_record_widgets.dart';
+import '../customer_status_widgets.dart';
 
 /// 客戶細節頁的一個區塊外框：標題（含筆數）、右上角按鈕、內容
 class CustomerDetailSection extends StatelessWidget {
@@ -84,7 +85,7 @@ class CustomerBasicInfoSection extends StatelessWidget {
       _InfoRow(label: '電話', value: customer['phone']?.toString() ?? ''),
       _InfoRow(label: 'Email', value: customer['email']?.toString() ?? ''),
       _InfoRow(label: '性別', value: CustomerService.genderLabel(customer['gender'] as String?)),
-      _InfoRow(label: '客戶狀態', value: _statusText(customer['client_status'] as String?)),
+      _StatusRow(customerId: customer['id']?.toString() ?? '', status: customer['client_status'] as String?),
     ];
     // 匯入時帶進來的自訂欄位（例：生日、職業）
     for (final MapEntry<String, dynamic> entry in customAttributes.entries) {
@@ -119,12 +120,26 @@ class CustomerBasicInfoSection extends StatelessWidget {
   }
 }
 
-// 例：「✔ 有意願／已成交」；未設定就顯示「未設定」
-String _statusText(String? status) {
-  final String symbol = CustomerService.clientStatusSymbol(status);
-  final String label = CustomerService.clientStatusLabel(status);
-  if (symbol.isEmpty) return label;
-  return '$symbol $label';
+/// 客戶狀態一列：狀態＋來源（例：「✔ 有意願／已成交（日常拜訪，10/14）」，4-2b）
+class _StatusRow extends StatelessWidget {
+  final String customerId;
+  final String? status;
+
+  const _StatusRow({required this.customerId, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(width: 90, child: Text('客戶狀態', style: TextStyle(fontSize: 13, color: Colors.grey))),
+          Expanded(child: CustomerStatusSourceText(customerId: customerId, status: status)),
+        ],
+      ),
+    );
+  }
 }
 
 class _InfoRow extends StatelessWidget {

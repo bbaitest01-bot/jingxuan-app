@@ -8,6 +8,7 @@ class VisitProjectCard extends StatelessWidget {
   final VisitProject project;
   final VisitProjectProgress progress;
   final DateTime today;
+  final VoidCallback onRecord;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -16,6 +17,7 @@ class VisitProjectCard extends StatelessWidget {
     required this.project,
     required this.progress,
     required this.today,
+    required this.onRecord,
     required this.onEdit,
     required this.onDelete,
   });
@@ -51,6 +53,12 @@ class VisitProjectCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
+                FilledButton.icon(
+                  onPressed: onRecord,
+                  icon: const Icon(Icons.add_task, size: 18),
+                  label: const Text('記錄拜訪'),
+                  style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                ),
                 OutlinedButton.icon(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),

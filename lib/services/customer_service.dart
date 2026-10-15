@@ -11,7 +11,6 @@ class CustomerFormData {
   final List<String> tags;
   final String notes;
   final String? gender; // male 男／female 女／null 不填（4-3b）
-  final String? clientStatus; // positive ✔／considering △／negative ✖／null 未設定（4-3c）
   final Uint8List? imageBytes;
   final String? imageName;
   final bool isImageCleared;
@@ -24,7 +23,6 @@ class CustomerFormData {
     required this.tags,
     required this.notes,
     this.gender,
-    this.clientStatus,
     required this.imageBytes,
     required this.imageName,
     required this.isImageCleared,
@@ -304,13 +302,13 @@ class CustomerService {
       'tags': form.tags,
       'notes': form.notes,
       'gender': form.gender,
-      'client_status': form.clientStatus,
       'custom_attributes': const <String, dynamic>{},
     });
   }
 
   /// 修改一位客戶。表單沒有自訂欄位，所以不送 custom_attributes，
-  /// 資料庫裡原本的自訂欄位（例如批次匯入帶進來的）會保留（問題 C14）
+  /// 資料庫裡原本的自訂欄位（例如批次匯入帶進來的）會保留（問題 C14）。
+  /// 客戶狀態不送：4-2b 起由專案拜訪結果經資料庫自動帶入
   Future<void> updateCustomer(String id, CustomerFormData form, String avatarUrl) async {
     await _supabase.from('customers').update({
       'name': form.name,
@@ -321,7 +319,6 @@ class CustomerService {
       'tags': form.tags,
       'notes': form.notes,
       'gender': form.gender,
-      'client_status': form.clientStatus,
     }).eq('id', id);
   }
 
@@ -334,7 +331,6 @@ class CustomerService {
     required String phone,
     required String email,
     required String? gender,
-    required String? clientStatus,
     required String notes,
     required List<String> tags,
     required Map<String, dynamic> customAttributes,
@@ -345,7 +341,6 @@ class CustomerService {
       'phone': phone,
       'email': email,
       'gender': gender,
-      'client_status': clientStatus,
       'notes': notes,
       'tags': tags,
       'custom_attributes': customAttributes,

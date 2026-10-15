@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../models/visit_result.dart';
 import '../../services/customer_service.dart';
+import '../../services/visit_result_service.dart';
 
 /// 客戶狀態的顏色：✔ 綠、△ 橘、✖ 紅（4-3c）
 Color customerStatusColor(String? status) {
@@ -59,46 +61,79 @@ class CustomerNameWithStatus extends StatelessWidget {
   }
 }
 
-/// 客戶狀態選擇：✔ 有意願／△ 考慮中／✖ 無意願／未設定（表單與抽屜共用）
-class CustomerStatusSelector extends StatelessWidget {
+/// 客戶狀態＋來源（4-2b 起狀態由專案拜訪結果自動帶入，客戶管理只顯示）
+/// 例：「✔ 有意願／已成交（日常拜訪，10/14）」；沒有拜訪結果時說明怎麼帶入
+class CustomerStatusSourceText extends StatefulWidget {
+  final String customerId;
   final String? status;
-  final ValueChanged<String?> onChanged;
 
-  const CustomerStatusSelector({super.key, required this.status, required this.onChanged});
+  const CustomerStatusSourceText({super.key, required this.customerId, required this.status});
+
+  @override
+  State<CustomerStatusSourceText> createState() => _CustomerStatusSourceTextState();
+}
+
+class _CustomerStatusSourceTextState extends State<CustomerStatusSourceText> {
+  ClientStatusSource? _source;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSource();
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomerStatusSourceText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool changed = oldWidget.customerId != widget.customerId || oldWidget.status != widget.status;
+    if (changed) _loadSource();
+  }
+
+  Future<void> _loadSource() async {
+    if (widget.customerId.isEmpty) {
+      setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final ClientStatusSource? source = await VisitResultService.instance.fetchStatusSource(widget.customerId);
+      if (!mounted) return;
+      setState(() {
+        _source = source;
+        _isLoading = false;
+      });
+    } catch (_) {
+      // 讀不到來源時只顯示狀態本身，不影響其他資料
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).colorScheme.primary;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Icon(Icons.flag_outlined, color: primaryColor, size: 18),
-        ),
-        const SizedBox(width: 8),
-        const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Text('客戶狀態', style: TextStyle(fontSize: 13)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: CustomerService.clientStatusOptions.map((String? option) {
-              final String symbol = CustomerService.clientStatusSymbol(option);
-              final String label = CustomerService.clientStatusLabel(option).split('／').first;
-              return ChoiceChip(
-                label: Text(symbol.isEmpty ? label : '$symbol $label'),
-                selected: status == option,
-                onSelected: (_) => onChanged(option),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
+    final String? status = widget.status;
+    final String symbol = CustomerService.clientStatusSymbol(status);
+    final String label = CustomerService.clientStatusLabel(status);
+    String statusText = label;
+    if (symbol.isNotEmpty) statusText = '$symbol $label';
+
+    String sourceText = '';
+    final ClientStatusSource? source = _source;
+    if (_isLoading) {
+      sourceText = '';
+    } else if (source != null) {
+      sourceText = '（${source.projectTitle}，${source.visitedOn.month}/${source.visitedOn.day}）';
+    } else if (symbol.isNotEmpty) {
+      sourceText = '（之前手動設定，記錄拜訪後會自動更新）';
+    } else {
+      sourceText = '（記錄拜訪後自動帶入）';
+    }
+
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: statusText, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(status))),
+        TextSpan(text: sourceText, style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
+      ]),
     );
   }
 }
