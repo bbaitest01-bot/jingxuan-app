@@ -28,6 +28,12 @@ Future<void> pumpPage(WidgetTester tester, {Size size = const Size(1200, 1600)})
   await tester.pumpAndSettle();
 }
 
+// 專案拜訪頁分成三頁：總覽／待記錄（N）／拜訪紀錄
+Future<void> openTab(WidgetTester tester, String label) async {
+  await tester.tap(find.textContaining(label).first);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('行程日期的說法：今天、昨天、其他日期加星期', () {
     final DateTime today = DateTime(2026, 10, 16, 15);
@@ -78,6 +84,9 @@ void main() {
 
     testWidgets('從清單記錄結果：客戶帶好、移到「已記錄」、客戶狀態更新', (WidgetTester tester) async {
       await pumpPage(tester);
+      // 分頁標題直接顯示待記錄筆數
+      expect(find.text('待記錄（2）'), findsOneWidget);
+      await openTab(tester, '待記錄（');
       expect(find.text('還沒記錄結果（2）'), findsOneWidget);
       expect(find.text('今天'), findsOneWidget);
       expect(find.text('昨天・過期未記錄'), findsOneWidget);
@@ -102,12 +111,15 @@ void main() {
 
     testWidgets('沒拜訪：移出清單、不算進度；按復原回來', (WidgetTester tester) async {
       await pumpPage(tester);
+      await openTab(tester, '待記錄（');
       await tester.tap(find.text('沒拜訪').first);
       await tester.pumpAndSettle();
       expect(find.text('還沒記錄結果（1）'), findsOneWidget);
       expect(find.text('復原'), findsOneWidget);
+      await openTab(tester, '總覽');
       expect(find.text('0 / 20 次'), findsOneWidget);
 
+      await openTab(tester, '待記錄（');
       await tester.tap(find.text('復原'));
       await tester.pumpAndSettle();
       expect(find.text('還沒記錄結果（2）'), findsOneWidget);
@@ -135,6 +147,7 @@ void main() {
 
     testWidgets('手機寬度：待記錄清單不超出', (WidgetTester tester) async {
       await pumpPage(tester, size: const Size(375, 1200));
+      await openTab(tester, '待記錄（');
       expect(tester.takeException(), isNull);
       expect(find.text('還沒記錄結果（2）'), findsOneWidget);
     });

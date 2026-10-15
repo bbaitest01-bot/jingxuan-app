@@ -16,6 +16,12 @@ Future<void> pumpPage(WidgetTester tester, {Size size = const Size(1200, 1400)})
   await tester.pumpAndSettle();
 }
 
+// 專案拜訪頁分成三頁：總覽／待記錄（N）／拜訪紀錄
+Future<void> openTab(WidgetTester tester, String label) async {
+  await tester.tap(find.textContaining(label).first);
+  await tester.pumpAndSettle();
+}
+
 // 從上方按鈕記錄一筆：選客戶、選結果、儲存
 Future<void> recordVisit(WidgetTester tester, {required String customerName, required String resultText}) async {
   await tester.tap(find.widgetWithText(FilledButton, '記錄拜訪').first);
@@ -87,6 +93,7 @@ void main() {
           projects: const [],
           filterProjectId: null,
           hasMore: false,
+          today: DateTime(2026, 10, 16),
           onFilterChanged: (_) {},
           onEdit: (_) {},
           onShowMore: () {},
@@ -111,13 +118,15 @@ void main() {
 
     testWidgets('記錄一筆：日常拜訪進度＋1、出現在紀錄、客戶狀態變成這次結果', (WidgetTester tester) async {
       await pumpPage(tester);
+      await openTab(tester, '拜訪紀錄');
       expect(find.textContaining('還沒有拜訪結果'), findsOneWidget);
 
       await recordVisit(tester, customerName: '王大明', resultText: '✔ 有意願／已成交');
 
-      expect(find.text('1 / 20 次'), findsOneWidget);
       expect(find.text('王大明'), findsOneWidget);
       expect(statusOf('c1'), 'positive');
+      await openTab(tester, '總覽');
+      expect(find.text('1 / 20 次'), findsOneWidget);
     });
 
     testWidgets('沒選結果時擋下並提示', (WidgetTester tester) async {
@@ -139,6 +148,7 @@ void main() {
       await pumpPage(tester);
       await recordVisit(tester, customerName: '陳美玲', resultText: '△ 考慮中／待跟進');
       expect(statusOf('c2'), 'considering');
+      await openTab(tester, '拜訪紀錄');
 
       await tester.tap(find.text('修改'));
       await tester.pumpAndSettle();
@@ -197,6 +207,8 @@ void main() {
         note: '說明醫療險缺口，約下週帶建議書再談一次',
       ));
       await pumpPage(tester, size: const Size(375, 900));
+      expect(tester.takeException(), isNull);
+      await openTab(tester, '拜訪紀錄');
       expect(tester.takeException(), isNull);
       expect(find.text('拜訪結果紀錄'), findsOneWidget);
       expect(find.text('修改'), findsOneWidget);

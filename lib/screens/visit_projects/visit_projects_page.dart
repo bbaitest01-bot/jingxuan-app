@@ -8,7 +8,9 @@ import '../../widgets/custom_toast.dart';
 import 'visit_chart_card.dart';
 import 'visit_pending_section.dart';
 import 'visit_project_card.dart';
+import 'visit_project_detail_dialog.dart';
 import 'visit_project_form_dialog.dart';
+import 'visit_projects_header.dart';
 import 'visit_result_form_dialog.dart';
 import 'visit_result_list_section.dart';
 
@@ -18,8 +20,8 @@ const double visitProjectTwoColumnWidth = 720;
 /// 拜訪結果紀錄一次顯示幾筆，按「顯示更多」再多這麼多
 const int visitResultPageSize = 20;
 
-/// 專案拜訪頁（/projects）：我的專案卡片、建立／編輯／刪除專案（4-2a）；
-/// 記錄拜訪與拜訪結果紀錄（4-2b）；還沒記錄結果的行程（4-2c）；最上方的成效圖表（4-2d）。
+/// 專案拜訪頁（/projects）。上方按鈕「建立專案」「記錄拜訪」，下面分三頁（2026-10-16 沛沛決定）：
+/// 總覽（成效圖表 4-2d＋我的專案 4-2a）／待記錄（還沒記錄結果的行程 4-2c）／拜訪紀錄（拜訪結果 4-2b）。
 class VisitProjectsPage extends StatefulWidget {
   const VisitProjectsPage({super.key});
 
@@ -40,6 +42,7 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
   String? _errorMessage;
   // 每重讀一次加 1，讓圖表跟著重讀
   int _refreshCount = 0;
+  int _tabIndex = VisitProjectsTab.overview;
 
   @override
   void initState() {
@@ -222,6 +225,12 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
     }
   }
 
+  // 「看名單與紀錄」：視窗裡有記錄或修改就重讀
+  Future<void> _openDetail(VisitProject project) async {
+    final bool changed = await showVisitProjectDetailDialog(context, project: project, allProjects: _projects);
+    if (changed && mounted) await _loadProjects();
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -229,7 +238,13 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _ProjectsHeader(onCreate: _openCreate, onRecord: () => _openRecord()),
+          VisitProjectsHeader(onCreate: _openCreate, onRecord: () => _openRecord()),
+          const SizedBox(height: 12),
+          VisitProjectsTabBar(
+            selectedIndex: _tabIndex,
+            pendingCount: _pendingLists.pending.length,
+            onChanged: (int index) => setState(() => _tabIndex = index),
+          ),
           const SizedBox(height: 16),
           _buildBody(),
         ],
@@ -256,94 +271,62 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
     }
 
     final DateTime today = DateTime.now();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isTwoColumns = constraints.maxWidth >= visitProjectTwoColumnWidth;
-        double cardWidth = constraints.maxWidth;
-        if (isTwoColumns) cardWidth = (constraints.maxWidth - 16) / 2;
-        final List<Widget> cards = [];
-        for (final VisitProject project in _projects) {
-          cards.add(SizedBox(
-            width: cardWidth,
-            child: VisitProjectCard(
-              project: project,
-              progress: VisitProjectProgress.calculate(project, _results, today),
-              today: today,
-              onRecord: () => _openRecord(projectId: project.id),
-              onEdit: () => _openEdit(project),
-              onDelete: () => _confirmDelete(project),
-            ),
-          ));
-        }
-        final bool hasMore = _resultRecords.length > _resultLimit;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            VisitChartCard(projects: _projects, refreshToken: _refreshCount),
-            const SizedBox(height: 16),
-            VisitPendingSection(
-              lists: _pendingLists,
-              today: today,
-              onRecord: _recordFromEvent,
-              onSkip: (PendingVisitEvent event) => _setSkipped(event, true),
-              onUndoSkip: (PendingVisitEvent event) => _setSkipped(event, false),
-              onEditResult: _editEventResult,
-            ),
-            if (!_pendingLists.isEmpty) const SizedBox(height: 16),
-            Wrap(spacing: 16, runSpacing: 16, children: cards),
-            const SizedBox(height: 16),
-            VisitResultListSection(
-              results: _resultRecords.take(_resultLimit).toList(),
-              projects: _projects,
-              filterProjectId: _filterProjectId,
-              hasMore: hasMore,
-              onFilterChanged: _changeFilter,
-              onEdit: _openEditResult,
-              onShowMore: _showMoreResults,
-            ),
-          ],
-        );
-      },
-    );
+    if (_tabIndex == VisitProjectsTab.pending) {
+      return VisitPendingSection(
+        lists: _pendingLists,
+        today: today,
+        onRecord: _recordFromEvent,
+        onSkip: (PendingVisitEvent event) => _setSkipped(event, true),
+        onUndoSkip: (PendingVisitEvent event) => _setSkipped(event, false),
+        onEditResult: _editEventResult,
+      );
+    }
+    if (_tabIndex == VisitProjectsTab.results) {
+      return VisitResultListSection(
+        results: _resultRecords.take(_resultLimit).toList(),
+        projects: _projects,
+        filterProjectId: _filterProjectId,
+        hasMore: _resultRecords.length > _resultLimit,
+        today: today,
+        onFilterChanged: _changeFilter,
+        onEdit: _openEditResult,
+        onShowMore: _showMoreResults,
+      );
+    }
+    return _buildOverview(today);
   }
-}
 
-/// 頁面上方：說明與「建立專案」按鈕（頁首已顯示「專案拜訪」，這裡不重複放標題）
-class _ProjectsHeader extends StatelessWidget {
-  final VoidCallback onCreate;
-  final VoidCallback onRecord;
-
-  const _ProjectsHeader({required this.onCreate, required this.onRecord});
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
+  // 總覽：成效圖表＋我的專案（寬螢幕卡片排兩欄）
+  Widget _buildOverview(DateTime today) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '設定拜訪目標，追蹤每一期的進度',
-          style: TextStyle(fontSize: 14, color: Theme.of(context).hintColor),
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('建立專案'),
-              style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            ),
-            FilledButton.icon(
-              onPressed: onRecord,
-              icon: const Icon(Icons.add_task, size: 18),
-              label: const Text('記錄拜訪'),
-              style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            ),
-          ],
+        VisitChartCard(projects: _projects, refreshToken: _refreshCount),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isTwoColumns = constraints.maxWidth >= visitProjectTwoColumnWidth;
+            double cardWidth = constraints.maxWidth;
+            if (isTwoColumns) cardWidth = (constraints.maxWidth - 16) / 2;
+            final List<Widget> cards = [];
+            for (int index = 0; index < _projects.length; index++) {
+              final VisitProject project = _projects[index];
+              cards.add(SizedBox(
+                width: cardWidth,
+                child: VisitProjectCard(
+                  project: project,
+                  progress: VisitProjectProgress.calculate(project, _results, today),
+                  today: today,
+                  color: visitProjectColor(context, index),
+                  onRecord: () => _openRecord(projectId: project.id),
+                  onDetail: () => _openDetail(project),
+                  onEdit: () => _openEdit(project),
+                  onDelete: () => _confirmDelete(project),
+                ),
+              ));
+            }
+            return Wrap(spacing: 16, runSpacing: 16, children: cards);
+          },
         ),
       ],
     );

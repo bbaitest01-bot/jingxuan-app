@@ -3,12 +3,29 @@ import '../../models/visit_project.dart';
 import '../../services/customer_service.dart';
 import '../customers/customer_status_widgets.dart';
 
+/// 每個專案的代表色（依專案在清單裡的順序；第一個用主題色）。
+/// 卡片的色點和成效圖表「按專案」的線用同一個顏色，方便對照
+Color visitProjectColor(BuildContext context, int index) {
+  final List<Color> palette = [
+    Theme.of(context).colorScheme.primary,
+    Colors.blue,
+    Colors.purple,
+    Colors.orange,
+    Colors.teal,
+    Colors.pink,
+  ];
+  return palette[index % palette.length];
+}
+
 /// 專案卡片：名稱、期間、這一期進度、✔△✖ 次數、名單還有誰沒拜訪
 class VisitProjectCard extends StatelessWidget {
   final VisitProject project;
   final VisitProjectProgress progress;
   final DateTime today;
+  // 卡片色點（跟圖表的線同色）
+  final Color color;
   final VoidCallback onRecord;
+  final VoidCallback onDetail;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -17,7 +34,9 @@ class VisitProjectCard extends StatelessWidget {
     required this.project,
     required this.progress,
     required this.today,
+    required this.color,
     required this.onRecord,
+    required this.onDetail,
     required this.onEdit,
     required this.onDelete,
   });
@@ -35,7 +54,7 @@ class VisitProjectCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ProjectTitleRow(project: project),
+            _ProjectTitleRow(project: project, color: color),
             const SizedBox(height: 4),
             Text(project.periodText(today), style: TextStyle(fontSize: 13, color: mutedColor)),
             if (project.purpose.isNotEmpty) ...[
@@ -60,6 +79,12 @@ class VisitProjectCard extends StatelessWidget {
                   style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 ),
                 OutlinedButton.icon(
+                  onPressed: onDetail,
+                  icon: const Icon(Icons.groups_outlined, size: 18),
+                  label: const Text('看名單與紀錄'),
+                  style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                ),
+                OutlinedButton.icon(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('編輯'),
@@ -82,14 +107,17 @@ class VisitProjectCard extends StatelessWidget {
 
 class _ProjectTitleRow extends StatelessWidget {
   final VisitProject project;
+  final Color color;
 
-  const _ProjectTitleRow({required this.project});
+  const _ProjectTitleRow({required this.project, required this.color});
 
   @override
   Widget build(BuildContext context) {
     final Color primaryColor = Theme.of(context).colorScheme.primary;
     return Row(
       children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             project.title,

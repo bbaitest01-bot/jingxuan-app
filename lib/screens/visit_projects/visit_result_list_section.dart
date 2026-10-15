@@ -5,6 +5,7 @@ import '../../models/visit_result.dart';
 import '../../router/app_routes.dart';
 import '../../services/customer_service.dart';
 import '../customers/customer_status_widgets.dart';
+import 'visit_pending_section.dart';
 
 /// 專案拜訪頁下方的「拜訪結果紀錄」：新的在上面，可依專案篩選，每筆可修改（P3、P5）
 class VisitResultListSection extends StatelessWidget {
@@ -12,6 +13,7 @@ class VisitResultListSection extends StatelessWidget {
   final List<VisitProject> projects;
   final String? filterProjectId;
   final bool hasMore;
+  final DateTime today;
   final ValueChanged<String?> onFilterChanged;
   final ValueChanged<VisitResult> onEdit;
   final VoidCallback onShowMore;
@@ -22,6 +24,7 @@ class VisitResultListSection extends StatelessWidget {
     required this.projects,
     required this.filterProjectId,
     required this.hasMore,
+    required this.today,
     required this.onFilterChanged,
     required this.onEdit,
     required this.onShowMore,
@@ -31,7 +34,7 @@ class VisitResultListSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget> rows = [];
     for (final VisitResult result in results) {
-      rows.add(_VisitResultRow(result: result, onEdit: () => onEdit(result)));
+      rows.add(_VisitResultRow(result: result, today: today, onEdit: () => onEdit(result)));
     }
 
     return Card(
@@ -42,15 +45,19 @@ class VisitResultListSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text('拜訪結果紀錄', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                _ProjectFilter(projects: projects, value: filterProjectId, onChanged: onFilterChanged),
-              ],
+            // 外層給滿寬，兩端對齊才會生效（標題在左、篩選在右）
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text('拜訪結果紀錄', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  _ProjectFilter(projects: projects, value: filterProjectId, onChanged: onFilterChanged),
+                ],
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -92,9 +99,10 @@ class _ProjectFilter extends StatelessWidget {
 
 class _VisitResultRow extends StatelessWidget {
   final VisitResult result;
+  final DateTime today;
   final VoidCallback onEdit;
 
-  const _VisitResultRow({required this.result, required this.onEdit});
+  const _VisitResultRow({required this.result, required this.today, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +118,8 @@ class _VisitResultRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 48,
-            child: Text(VisitProject.formatMonthDay(result.visitedOn), style: TextStyle(fontSize: 13, color: mutedColor)),
+            width: 76,
+            child: Text(friendlyEventDate(result.visitedOn, today), style: TextStyle(fontSize: 13, color: mutedColor)),
           ),
           SizedBox(
             width: 24,
