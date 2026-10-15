@@ -11,6 +11,7 @@ import '../services/google_calendar_sync_service.dart';
 import 'custom_toast.dart';
 import '../main.dart';
 import 'categorized_tag_accordion_selector.dart';
+import '../screens/visit_projects/schedule_visit_result_bar.dart';
 
 class ScheduleEventDialog extends StatefulWidget {
   final DateTime initialDate;
@@ -417,6 +418,8 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
             ],
           ),
           const SizedBox(height: 16),
+          // 有客戶、時間已到的行程：記錄拜訪結果（4-2c）
+          if (isEdit) ScheduleVisitResultBar(eventId: widget.eventToEdit?.id ?? ''),
 
           // Customer Selector Section (關聯客戶)
           Container(
