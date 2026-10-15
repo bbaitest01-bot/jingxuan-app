@@ -8,7 +8,7 @@ import '../models/schedule_event.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/voice_scheduler_fab.dart';
 import 'customer_management_tab.dart';
-import 'visit_projects_tab.dart';
+import 'visit_projects/visit_projects_page.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'trash_bin_screen.dart';
@@ -454,7 +454,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (customerId != null) return CustomerDetailPage(customerId: customerId);
         return const CustomerManagementTab();
       case '專案拜訪':
-        return const VisitProjectsTab();
+        return const VisitProjectsPage();
       case '拜訪紀錄':
         return VisitRecordsPage(recordId: widget.visitRecordId);
       case '人脈拓撲':

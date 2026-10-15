@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:typed_data';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 
@@ -33,7 +31,7 @@ class CustomerFormData {
   });
 }
 
-/// 客戶管理頁用到的資料庫存取（customers、visit_projects 等表）。
+/// 客戶管理頁用到的資料庫存取（customers 等表；專案改由 VisitProjectService）。
 /// 只負責讀寫資料；離線模式的提示與畫面更新留在畫面。
 class CustomerService {
   static final CustomerService instance = CustomerService._internal();
@@ -384,93 +382,5 @@ class CustomerService {
     await _supabase.from('customers').update({
       'deleted_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', id);
-  }
-
-  /// 建立拜訪專案，並把客戶加入專案的拜訪清單
-  Future<void> createVisitProject({
-    required String title,
-    required String purpose,
-    required List<Map<String, dynamic>> customers,
-  }) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('使用者未登入');
-
-    // 1. Insert into visit_projects
-    final projectResult = await _supabase.from('visit_projects').insert({
-      'profile_id': user.id,
-      'title': title,
-      'purpose': purpose,
-    }).select().single();
-
-    final String projectId = projectResult['id'];
-
-    // 2. Insert into visit_project_customers
-    final List<Map<String, dynamic>> projectCustomers = customers.map((customer) {
-      return {
-        'visit_project_id': projectId,
-        'customer_id': customer['id'],
-        'is_visited': false,
-      };
-    }).toList();
-
-    await _supabase.from('visit_project_customers').insert(projectCustomers);
-  }
-
-  /// 離線預覽模式：把拜訪專案存到瀏覽器本機
-  Future<void> createOfflineVisitProject({
-    required String title,
-    required String purpose,
-    required List<Map<String, dynamic>> customers,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final String projectId = 'mock-proj-${DateTime.now().millisecondsSinceEpoch}';
-
-    // 1. Save new project metadata
-    final projectJson = {
-      'id': projectId,
-      'title': title,
-      'purpose': purpose,
-      'is_completed': false,
-      'created_at': DateTime.now().toIso8601String(),
-    };
-
-    List<dynamic> localProjects = [];
-    final storedProjects = prefs.getString('offline_visit_projects');
-    if (storedProjects != null) {
-      localProjects = jsonDecode(storedProjects);
-    }
-    localProjects.insert(0, projectJson);
-    await prefs.setString('offline_visit_projects', jsonEncode(localProjects));
-
-    // 2. Save project checklist customers
-    final List<Map<String, dynamic>> projectCustomers = [];
-    for (var i = 0; i < customers.length; i++) {
-      final customer = customers[i];
-      projectCustomers.add({
-        'id': 'mock-vpc-$projectId-$i',
-        'visit_project_id': projectId,
-        'customer_id': customer['id'],
-        'is_visited': false,
-        'created_at': DateTime.now().toIso8601String(),
-        'customer': {
-          'id': customer['id'],
-          'name': customer['name'],
-          'nickname': customer['nickname'],
-          'phone': customer['phone'],
-          'email': customer['email'],
-          'tags': customer['tags'],
-          'avatar_url': customer['avatar_url'],
-          'notes': customer['notes'],
-        }
-      });
-    }
-
-    List<dynamic> localProjCustomers = [];
-    final storedProjCustomers = prefs.getString('offline_visit_project_customers');
-    if (storedProjCustomers != null) {
-      localProjCustomers = jsonDecode(storedProjCustomers);
-    }
-    localProjCustomers.addAll(projectCustomers);
-    await prefs.setString('offline_visit_project_customers', jsonEncode(localProjCustomers));
   }
 }
