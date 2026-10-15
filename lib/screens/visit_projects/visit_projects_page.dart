@@ -5,6 +5,7 @@ import '../../services/visit_pending_service.dart';
 import '../../services/visit_project_service.dart';
 import '../../services/visit_result_service.dart';
 import '../../widgets/custom_toast.dart';
+import 'visit_chart_card.dart';
 import 'visit_pending_section.dart';
 import 'visit_project_card.dart';
 import 'visit_project_form_dialog.dart';
@@ -18,7 +19,7 @@ const double visitProjectTwoColumnWidth = 720;
 const int visitResultPageSize = 20;
 
 /// 專案拜訪頁（/projects）：我的專案卡片、建立／編輯／刪除專案（4-2a）；
-/// 記錄拜訪與拜訪結果紀錄（4-2b）；還沒記錄結果的行程（4-2c）。成效圖表（4-2d）之後加在這頁。
+/// 記錄拜訪與拜訪結果紀錄（4-2b）；還沒記錄結果的行程（4-2c）；最上方的成效圖表（4-2d）。
 class VisitProjectsPage extends StatefulWidget {
   const VisitProjectsPage({super.key});
 
@@ -37,6 +38,8 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
   int _resultLimit = visitResultPageSize;
   bool _isLoading = true;
   String? _errorMessage;
+  // 每重讀一次加 1，讓圖表跟著重讀
+  int _refreshCount = 0;
 
   @override
   void initState() {
@@ -66,6 +69,7 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
         _results = results;
         _resultRecords = resultRecords;
         _pendingLists = pendingLists;
+        _refreshCount++;
         _isLoading = false;
       });
     } catch (e) {
@@ -275,6 +279,8 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            VisitChartCard(projects: _projects, refreshToken: _refreshCount),
+            const SizedBox(height: 16),
             VisitPendingSection(
               lists: _pendingLists,
               today: today,
