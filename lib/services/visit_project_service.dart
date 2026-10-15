@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../models/visit_project.dart';
+import 'visit_result_service.dart';
 
 /// 建立或修改專案時填的內容
 class VisitProjectDraft {
@@ -115,7 +116,7 @@ class VisitProjectService {
   /// 自己從某天起的拜訪結果（算各專案這一期的進度用）
   Future<List<VisitResultSummary>> fetchResultsSince(DateTime fromDate) async {
     final String? userId = _currentUserId;
-    if (userId == null) return [];
+    if (userId == null) return VisitResultService.instance.offlineSummariesSince(fromDate);
 
     final List<dynamic> rows = await _supabase
         .from('visit_results')
@@ -201,7 +202,7 @@ class VisitProjectService {
   /// 這個專案底下有幾筆拜訪結果（刪除前提示用）
   Future<int> countResults(String projectId) async {
     final String? userId = _currentUserId;
-    if (userId == null) return 0;
+    if (userId == null) return VisitResultService.instance.countOfflineResultsOfProject(projectId);
     final List<dynamic> rows = await _supabase
         .from('visit_results')
         .select('id')
@@ -216,6 +217,7 @@ class VisitProjectService {
     final String? userId = _currentUserId;
     if (userId == null) {
       _offlineProjects.removeWhere((item) => item.id == project.id);
+      VisitResultService.instance.removeOfflineResultsOfProject(project.id);
       return;
     }
     await _supabase.from('visit_projects').delete().eq('id', project.id).eq('profile_id', userId);

@@ -53,7 +53,7 @@ void main() {
     expect(find.text('✔ 有意願'), findsNothing);
   });
 
-  testWidgets('客戶表單可以選客戶狀態，送出的資料帶著狀態', (WidgetTester tester) async {
+  testWidgets('客戶表單不能選狀態，只顯示狀態來源（4-2b）', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1400, 1800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -77,12 +77,14 @@ void main() {
     // 表單裡有持續播放的動畫，改成固定等一下
     await tester.tap(find.text('打開'));
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('客戶狀態'), findsOneWidget);
-    await tester.tap(find.text('✔ 有意願'));
-    await tester.pump(const Duration(milliseconds: 300));
+    // 來源是讀完才顯示，多跑一個畫面
+    await tester.pump(const Duration(milliseconds: 100));
+    // 4-2b 起表單不能選狀態，只顯示狀態與來源
+    expect(find.text('✔ 有意願'), findsNothing);
+    expect(find.textContaining('記錄拜訪後自動帶入', findRichText: true), findsOneWidget);
     await tester.tap(find.byType(ElevatedButton).last);
     await tester.pump(const Duration(milliseconds: 500));
-    expect(submitted?.clientStatus, 'positive');
+    expect(submitted?.name, '王小明');
   });
 
   testWidgets('客戶整頁：標題旁有狀態標記，基本資料顯示完整說明', (WidgetTester tester) async {
@@ -96,6 +98,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: CustomerDetailPage(customerId: 'c5'))));
     await tester.pumpAndSettle();
     expect(find.text('✖ 無意願'), findsOneWidget);
-    expect(find.text('✖ 無意願／暫不考慮'), findsOneWidget);
+    // 沒有拜訪結果、但之前手動設過狀態：顯示狀態並說明之後會自動更新
+    expect(find.textContaining('✖ 無意願／暫不考慮', findRichText: true), findsOneWidget);
+    expect(find.textContaining('之前手動設定', findRichText: true), findsOneWidget);
   });
 }

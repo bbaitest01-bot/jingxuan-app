@@ -101,7 +101,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   late TextEditingController _notesController;
   late TextEditingController _tagsController;
   String? _gender; // 性別 male／female／null（4-3b）
-  String? _clientStatus; // 客戶狀態（4-3c）
 
   // Dynamic custom attributes controllers: Key -> TextEditingController
   final Map<String, TextEditingController> _customAttrControllers = {};
@@ -130,7 +129,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     _phoneController = TextEditingController(text: widget.customer['phone'] ?? '');
     _emailController = TextEditingController(text: widget.customer['email'] ?? '');
     _gender = widget.customer['gender'] as String?;
-    _clientStatus = widget.customer['client_status'] as String?;
     _notesController = TextEditingController(text: widget.customer['notes'] ?? '');
     final tags = (widget.customer['tags'] as List?)?.map((e) => e.toString()).toList() ?? [];
     _tagsController = TextEditingController(text: tags.join(', '));
@@ -178,7 +176,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       'phone': _phoneController.text.trim(),
       'email': _emailController.text.trim(),
       'gender': _gender,
-      'client_status': _clientStatus,
       'notes': _notesController.text.trim(),
       'tags': _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
       'custom_attributes': customAttributes,
@@ -254,7 +251,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     updated['phone'] = _phoneController.text.trim();
     updated['email'] = _emailController.text.trim();
     updated['gender'] = _gender;
-    updated['client_status'] = _clientStatus;
     updated['notes'] = _notesController.text.trim();
     updated['tags'] = _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
@@ -283,7 +279,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
         phone: updated['phone'],
         email: updated['email'],
         gender: _gender,
-        clientStatus: _clientStatus,
         notes: updated['notes'],
         tags: List<String>.from(updated['tags']),
         customAttributes: customAttributes,
@@ -488,7 +483,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           const SizedBox(height: 12),
           CustomerGenderSelector(gender: _gender, onChanged: (String? value) => setState(() => _gender = value)),
           const SizedBox(height: 8),
-          CustomerStatusSelector(status: _clientStatus, onChanged: (String? value) => setState(() => _clientStatus = value)),
+          // 客戶狀態由專案拜訪結果自動帶入，這裡只顯示來源（4-2b）
+          CustomerStatusSourceText(customerId: widget.customer['id']?.toString() ?? '', status: widget.customer['client_status'] as String?),
           const SizedBox(height: 18),
 
           // 🌟 自訂擴充屬性專區 (Custom Attributes)
