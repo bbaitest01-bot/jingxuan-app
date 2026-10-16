@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../main.dart' show isOfflineMode;
 import '../../models/visit_record.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
@@ -23,6 +24,8 @@ class VisitRecordStatusChip extends StatelessWidget {
   const VisitRecordStatusChip({super.key, required this.record});
 
   Color _statusColor(BuildContext context) {
+    // 整理中卡住超過 5 分鐘，跟失敗一樣用紅色
+    if (record.isOrganizeStale(DateTime.now())) return Colors.redAccent;
     switch (record.status) {
       case VisitRecord.statusProcessing:
         return Theme.of(context).colorScheme.primary;
@@ -46,7 +49,7 @@ class VisitRecordStatusChip extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
-        record.statusLabel,
+        record.isOrganizeStale(DateTime.now()) ? '失敗' : record.statusLabel,
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
       ),
     );
@@ -186,10 +189,13 @@ class _RecordVisitRecordDialogState extends State<_RecordVisitRecordDialog> {
   Future<void> _createFromTranscript(String transcript) async {
     setState(() => _isCreating = true);
     try {
+      // 錄音建立的紀錄一開始就是「整理中」，接著在背景送去 AI 整理（4-E1，沛沛決定錄音才自動整理）
       final VisitRecord record = await VisitRecordService.instance.createRecord(
         title: VisitRecord.defaultTitle(DateTime.now()),
         rawTranscript: transcript,
+        startOrganizing: !isOfflineMode,
       );
+      if (!isOfflineMode) VisitRecordService.instance.startOrganizeInBackground(record.id);
       if (!mounted) return;
       Navigator.of(context).pop(record);
     } catch (e) {
