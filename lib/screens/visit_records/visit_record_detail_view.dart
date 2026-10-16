@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/visit_record.dart';
@@ -5,6 +6,7 @@ import '../../router/app_routes.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import 'visit_record_customer_picker.dart';
+import 'visit_record_organize_banner.dart';
 import 'visit_record_widgets.dart';
 
 /// 單篇拜訪紀錄（/visit-records/:id）：左邊原始轉錄（不能改，一律保留），右邊整理後內容（可編輯）
@@ -24,7 +26,11 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLinkingCustomer = false;
+  bool _isRequestingOrganize = false;
   String? _errorMessage;
+  // AI 整理中時，每幾秒看一次狀態（4-E1）
+  Timer? _statusTimer;
+  static const Duration _statusCheckInterval = Duration(seconds: 4);
 
   @override
   void initState() {
@@ -41,6 +47,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _titleController.dispose();
     _organizedController.dispose();
     super.dispose();
@@ -67,6 +74,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
         _record = record;
         _isLoading = false;
       });
+      _watchOrganizing(record);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -74,6 +82,49 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
         _isLoading = false;
       });
     }
+  }
+
+  // 整理中（還沒卡住）就開始定時看狀態；其他狀態停止
+  void _watchOrganizing(VisitRecord record) {
+    _statusTimer?.cancel();
+    _statusTimer = null;
+    if (!record.isProcessing || record.isOrganizeStale(DateTime.now())) return;
+    _statusTimer = Timer.periodic(_statusCheckInterval, (_) => _checkOrganizeStatus());
+  }
+
+  Future<void> _checkOrganizeStatus() async {
+    final VisitRecord? oldRecord = _record;
+    if (oldRecord == null) return;
+    try {
+      final VisitRecord? latest = await VisitRecordService.instance.fetchRecord(widget.recordId);
+      if (!mounted || latest == null) return;
+      // 使用者還沒自己改過整理後內容，才把 AI 的結果放進去，避免蓋掉正在打的字
+      final bool hasUserEdits = _organizedController.text != (oldRecord.organizedContent ?? '');
+      if (!hasUserEdits) _organizedController.text = latest.organizedContent ?? '';
+      setState(() => _record = latest);
+      if (latest.status == VisitRecord.statusDone && oldRecord.isProcessing) {
+        CustomToast.show(context, 'AI 整理完成', ToastType.success);
+      }
+      _watchOrganizing(latest);
+    } catch (_) {
+      // 網路一時不穩就等下一次再看
+    }
+  }
+
+  // 失敗或卡住時按「重新整理」
+  Future<void> _retryOrganize(VisitRecord record) async {
+    setState(() => _isRequestingOrganize = true);
+    try {
+      await VisitRecordService.instance.requestOrganize(record.id);
+      if (!mounted) return;
+      CustomToast.show(context, '已重新送出整理', ToastType.success);
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '重新整理失敗：$e', ToastType.error);
+    }
+    if (!mounted) return;
+    setState(() => _isRequestingOrganize = false);
+    await _loadRecord();
   }
 
   Future<void> _save() async {
@@ -198,6 +249,11 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
                 onClear: () => _changeCustomer(record, null),
               ),
               const SizedBox(height: 16),
+              VisitRecordOrganizeBanner(
+                record: record,
+                isRequesting: _isRequestingOrganize,
+                onRetry: () => _retryOrganize(record),
+              ),
               _buildContentPanels(record, isWide),
             ],
           ),
@@ -279,7 +335,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
     );
     final Widget organizedPanel = _ContentPanel(
       title: '整理後內容',
-      subtitle: '可以自己整理；之後接上自動整理也會放在這裡',
+      subtitle: '錄音建立的紀錄會由 AI 自動整理到這裡；也可以自己修改',
       action: TextButton(
         onPressed: () => _copyRawToOrganized(record),
         child: const Text('複製原始轉錄'),

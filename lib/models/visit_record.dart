@@ -15,6 +15,8 @@ class VisitRecord {
   final DateTime updatedAt;
   // 放進垃圾桶的時間；null 代表正常紀錄（4-D）
   final DateTime? deletedAt;
+  // 開始 AI 整理的時間（4-E1）；用來判斷「整理中」是不是卡住了
+  final DateTime? processingStartedAt;
 
   const VisitRecord({
     required this.id,
@@ -30,7 +32,11 @@ class VisitRecord {
     this.organizedContent,
     this.failureReason,
     this.deletedAt,
+    this.processingStartedAt,
   });
+
+  /// 「整理中」超過這麼久還沒結束，就當作失敗，讓使用者可以重新整理（R8）
+  static const Duration organizeStaleAfter = Duration(minutes: 5);
 
   // 處理狀態：raw 尚未整理／processing 整理中／done 完成／failed 失敗
   static const String statusRaw = 'raw';
@@ -76,8 +82,22 @@ class VisitRecord {
       createdAt: _parseTime(json['created_at']),
       updatedAt: _parseTime(json['updated_at']),
       deletedAt: json['deleted_at'] == null ? null : _parseTime(json['deleted_at']),
+      processingStartedAt: json['processing_started_at'] == null ? null : _parseTime(json['processing_started_at']),
     );
   }
+
+  bool get isProcessing => status == statusProcessing;
+
+  /// 整理中但已經超過 5 分鐘（或沒有開始時間）：視為卡住，顯示失敗與「重新整理」
+  bool isOrganizeStale(DateTime now) {
+    if (!isProcessing) return false;
+    final DateTime? startedAt = processingStartedAt;
+    if (startedAt == null) return true;
+    return now.difference(startedAt) > organizeStaleAfter;
+  }
+
+  /// 是否要顯示「整理失敗」：真的失敗，或整理中卡住
+  bool isOrganizeFailed(DateTime now) => status == statusFailed || isOrganizeStale(now);
 
   /// 放進垃圾桶或還原（傳 null 代表還原）
   VisitRecord withDeletedAt(DateTime? time) {

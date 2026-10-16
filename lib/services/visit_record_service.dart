@@ -100,8 +100,9 @@ class VisitRecordService {
     return VisitRecord.fromJson(row);
   }
 
-  /// 新增一篇（手動打字或之後的錄音轉文字）；內容存在「原始轉錄」
-  Future<VisitRecord> createRecord({required String title, required String rawTranscript}) async {
+  /// 新增一篇（手動打字或錄音轉文字）；內容存在「原始轉錄」。
+  /// [startOrganizing] 為 true（錄音建立）時，一開始就標成「整理中」，接著呼叫 [requestOrganize]
+  Future<VisitRecord> createRecord({required String title, required String rawTranscript, bool startOrganizing = false}) async {
     final String cleanTitle = _cleanTitle(title);
     final String cleanContent = rawTranscript.trim();
     if (cleanContent.length > maxContentLength) {
@@ -124,12 +125,63 @@ class VisitRecordService {
       return record;
     }
 
+    final Map<String, dynamic> newRow = {'title': cleanTitle, 'raw_transcript': cleanContent};
+    if (startOrganizing) {
+      newRow['status'] = VisitRecord.statusProcessing;
+      newRow['processing_started_at'] = DateTime.now().toUtc().toIso8601String();
+    }
     final Map<String, dynamic> row = await _supabase
         .from('visit_records')
-        .insert({'title': cleanTitle, 'raw_transcript': cleanContent})
+        .insert(newRow)
         .select(_selectColumns)
         .single();
     return VisitRecord.fromJson(row);
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI 整理（4-E1）：交給雲端函式 organize-visit-record，它再帶密碼呼叫 n8n。
+  // App 只送紀錄編號；n8n 的網址與密碼只在伺服器。整理在伺服器背景進行，結果寫回這篇。
+  // ---------------------------------------------------------------------------
+
+  /// 請伺服器開始（或重新）整理這篇。伺服器收到就回覆，整理結果之後寫回資料庫
+  Future<void> requestOrganize(String recordId) async {
+    if (_currentUserId == null) throw Exception('離線預覽模式無法使用 AI 整理');
+    try {
+      await _supabase.functions.invoke('organize-visit-record', body: {'recordId': recordId});
+    } on FunctionException catch (error) {
+      final dynamic details = error.details;
+      String reason = '無法開始整理（${error.status}）';
+      if (details is Map && details['message'] is String) reason = details['message'] as String;
+      await _markOrganizeFailed(recordId, reason);
+      throw Exception(reason);
+    } catch (error) {
+      await _markOrganizeFailed(recordId, '連不上整理服務，請稍後重新整理');
+      rethrow;
+    }
+  }
+
+  /// 錄音建立後在背景開始整理；失敗也不打斷使用者（單篇頁會顯示失敗與「重新整理」）
+  Future<void> startOrganizeInBackground(String recordId) async {
+    try {
+      await requestOrganize(recordId);
+    } catch (error) {
+      debugPrint('[VisitRecordService] 開始 AI 整理失敗：$error');
+    }
+  }
+
+  // 呼叫不到雲端函式時，自己把狀態改成失敗，免得一直顯示「整理中」
+  Future<void> _markOrganizeFailed(String recordId, String reason) async {
+    final String? userId = _currentUserId;
+    if (userId == null) return;
+    try {
+      await _supabase
+          .from('visit_records')
+          .update({'status': VisitRecord.statusFailed, 'failure_reason': reason})
+          .eq('id', recordId)
+          .eq('profile_id', userId);
+    } catch (error) {
+      debugPrint('[VisitRecordService] 寫入整理失敗狀態失敗：$error');
+    }
   }
 
   /// 修改標題與整理後內容（原始轉錄不改，一律保留）
