@@ -2,15 +2,14 @@ import 'package:flutter/material.dart';
 import '../../main.dart';
 import '../../services/app_localizations.dart';
 import '../../services/app_settings.dart';
-import '../../widgets/notification_center_popover.dart';
+import '../../widgets/notification_bell_button.dart';
 import 'home_menu.dart';
 
 /// 電腦版右側內容區最上方的頂欄：頁面標題、離線提示、通知小鈴鐺。
 class HomeWebHeader extends StatelessWidget {
   final String activeMenu;
-  final int unreadCount;
 
-  const HomeWebHeader({super.key, required this.activeMenu, required this.unreadCount});
+  const HomeWebHeader({super.key, required this.activeMenu});
 
   @override
   Widget build(BuildContext context) {
@@ -57,41 +56,8 @@ class HomeWebHeader extends StatelessWidget {
                     ],
                   ),
                 ),
-              // Notification Center Bell (Touch target >= 44x44, Minimal Amber Dot)
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, size: 22),
-                      color: textColor,
-                      tooltip: '訊息通知中心',
-                      onPressed: () => NotificationCenterPopover.show(context),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF59E0B),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFFF59E0B),
-                                blurRadius: 4,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              // 通知鈴鐺（4-E3a：未讀顯示紅色數字）
+              NotificationBellButton(iconColor: textColor),
             ],
           )
         ],
@@ -105,7 +71,6 @@ class HomeWebHeader extends StatelessWidget {
 class HomeMobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String activeMenu;
   final bool isSchedulePage;
-  final int unreadCount;
   final VoidCallback onRefresh;
   final VoidCallback onAddEvent;
 
@@ -113,7 +78,6 @@ class HomeMobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.activeMenu,
     required this.isSchedulePage,
-    required this.unreadCount,
     required this.onRefresh,
     required this.onAddEvent,
   });
@@ -162,36 +126,7 @@ class HomeMobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             onPressed: onAddEvent,
           ),
         ],
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              icon: Icon(Icons.notifications, size: 22, color: textColor),
-              tooltip: '訊息通知中心',
-              onPressed: () => NotificationCenterPopover.show(context),
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF59E0B),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFFF59E0B),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
+        NotificationBellButton(iconColor: textColor),
         const SizedBox(width: 8),
       ],
     );

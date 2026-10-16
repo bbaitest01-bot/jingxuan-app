@@ -18,7 +18,6 @@ import '../models/user_role.dart';
 import '../router/app_router.dart';
 import '../router/app_routes.dart';
 import '../services/auth_status_service.dart';
-import '../services/notification_service.dart';
 import '../services/profile_service.dart';
 import '../services/schedule_service.dart';
 import 'admin_dashboard_tab.dart';
@@ -33,6 +32,7 @@ import 'home/schedule/schedule_page.dart';
 import 'home/schedule/schedule_page_state.dart';
 import 'customers/detail/customer_detail_page.dart';
 import 'visit_records/visit_records_page.dart';
+import '../widgets/notification_bell_button.dart';
 
 /// 登入後的外殼（側邊欄＋頂欄＋內容區）。
 /// 目前顯示哪一頁由網址決定：路由把網址轉成選單名稱 [activeMenu] 傳進來。
@@ -74,7 +74,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   UserRole _userRole = UserRole.agent;
   UserRole _activeViewRole = UserRole.agent;
-  final NotificationService _notifService = NotificationService();
   StreamSubscription<AuthState>? _authSubscription;
 
   @override
@@ -82,7 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _isSidebarCollapsed = AppSettings.instance.isSidebarCollapsedByDefault;
     AppSettings.instance.addListener(_handleSettingsChanged);
-    _notifService.addListener(_handleNotifChanged);
     ScheduleService.instance.eventsRevision.addListener(_handleScheduleChanged);
     if (!isOfflineMode) {
       try {
@@ -124,7 +122,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _authSubscription?.cancel();
-    _notifService.removeListener(_handleNotifChanged);
     ScheduleService.instance.eventsRevision.removeListener(_handleScheduleChanged);
     AppSettings.instance.removeListener(_handleSettingsChanged);
     super.dispose();
@@ -134,10 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleScheduleChanged() {
     if (!mounted || !_isViewModeReady) return;
     _fetchEventsForSelectedDate(silent: true);
-  }
-
-  void _handleNotifChanged() {
-    if (mounted) setState(() {});
   }
 
   Future<void> _fetchEventsForSelectedDate({bool silent = false}) async {
@@ -369,7 +362,6 @@ class _HomeScreenState extends State<HomeScreen> {
               : HomeMobileAppBar(
                   activeMenu: _activeMenu,
                   isSchedulePage: _activeMenu == '今日行程',
-                  unreadCount: _notifService.unreadCount,
                   onRefresh: () => _fetchEventsForSelectedDate(),
                   onAddEvent: () => _openAddEditEventDialog(),
                 ),
@@ -381,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // 電腦版頂欄
-                    if (isWideScreen) HomeWebHeader(activeMenu: _activeMenu, unreadCount: _notifService.unreadCount),
+                    if (isWideScreen) HomeWebHeader(activeMenu: _activeMenu),
                     // 主要內容區：依目前選單顯示對應頁面
                     Expanded(child: _buildActivePage(isWideScreen)),
                   ],
@@ -398,6 +390,8 @@ class _HomeScreenState extends State<HomeScreen> {
               : null,
         ),
         const SpotlightTourOverlay(),
+        // 接收通知、新通知跳出提示（4-E3a）
+        const NotificationArrivalWatcher(),
       ],
     );
   }

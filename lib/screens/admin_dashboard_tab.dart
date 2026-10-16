@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/app_notification.dart';
-import '../services/notification_service.dart';
 import '../widgets/custom_toast.dart';
 
 class AdminDashboardTab extends StatefulWidget {
@@ -123,14 +121,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
       // Fallback
     }
 
-    // Insert real notification into NotificationService
-    NotificationService().addNotification(
-      senderName: '團隊主管',
-      title: '📋 團隊資產過戶通知',
-      content: '主管已將客戶「${customer['name']}」成功轉派過戶給業務員 $newAgentName。',
-      type: NotificationType.customerReassigned,
-      targetCustomerId: customer['id'].toString(),
-    );
+    // 2026-10-17（4-E3a）拿掉只存在主管畫面記憶體的「過戶通知」：鈴鐺改讀資料庫，主管功能暫緩（X11、全景地圖 4-E ⑥）
 
     setState(() {
       customer['agent'] = newAgentName;

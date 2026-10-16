@@ -139,6 +139,11 @@ class _CustomToastState extends State<CustomToast> with SingleTickerProviderStat
         break;
     }
 
+    // 底色與文字跟著主題（2026-10-17：原本寫死深色，白色主題下也是黑框）
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final Color backgroundColor = colorScheme.surface;
+    final Color textColor = colorScheme.onSurface;
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -148,7 +153,7 @@ class _CustomToastState extends State<CustomToast> with SingleTickerProviderStat
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF161B22),
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor, width: 1.5),
               boxShadow: [
@@ -166,7 +171,7 @@ class _CustomToastState extends State<CustomToast> with SingleTickerProviderStat
                 Expanded(
                   child: Text(
                     widget.message,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (widget.actionLabel != null && widget.onActionPressed != null) ...[
@@ -197,9 +202,9 @@ class _CustomToastState extends State<CustomToast> with SingleTickerProviderStat
                     });
                   },
                   borderRadius: BorderRadius.circular(12),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4.0),
-                    child: Icon(Icons.close, color: Colors.white54, size: 16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(Icons.close, color: textColor.withValues(alpha: 0.55), size: 16),
                   ),
                 ),
               ],

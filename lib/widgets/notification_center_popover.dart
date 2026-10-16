@@ -1,22 +1,25 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import '../models/app_notification.dart';
 import '../services/notification_service.dart';
 
+/// 鈴鐺打開的通知清單（4-E3a，問題 M2、M4）：
+/// 分類列只放有內容的分類；點一則 → 標為已讀 → 前往該則的網址（例如那篇拜訪紀錄）
 class NotificationCenterPopover extends StatefulWidget {
-  final VoidCallback? onClose;
+  const NotificationCenterPopover({super.key});
 
-  const NotificationCenterPopover({super.key, this.onClose});
+  // 分類列顯示哪些分類；行程提醒在 4-E3b 做好後再加入
+  static const List<NotificationCategory> visibleCategories = [NotificationCategory.visitRecord];
 
   static void show(BuildContext context) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      builder: (BuildContext dialogContext) => Dialog(
         alignment: Alignment.topRight,
-        child: Container(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420, maxHeight: 600),
           child: const NotificationCenterPopover(),
         ),
@@ -30,319 +33,203 @@ class NotificationCenterPopover extends StatefulWidget {
 
 class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
   final NotificationService _service = NotificationService();
-  NotificationType? _selectedFilter;
+  // null 代表「全部」
+  NotificationCategory? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    // 打開時重讀一次，即時推送斷線時也不會漏掉
+    _service.loadNotifications();
+  }
+
+  List<AppNotification> _filteredNotifications() {
+    final List<AppNotification> allNotifications = _service.notifications;
+    if (_selectedCategory == null) return allNotifications;
+    return allNotifications.where((AppNotification item) => item.type.category == _selectedCategory).toList();
+  }
+
+  // 點一則通知：標為已讀、關掉清單、前往該則的網址
+  void _openNotification(AppNotification notification) {
+    _service.markAsRead(notification.id);
+    final String? linkPath = notification.linkPath;
+    final GoRouter router = GoRouter.of(context);
+    Navigator.of(context).pop();
+    if (linkPath != null && linkPath.isNotEmpty) router.go(linkPath);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.94);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-
     return AnimatedBuilder(
       animation: _service,
-      builder: (context, _) {
-        final allNotifs = _service.notifications;
-        final filteredNotifs = _selectedFilter == null
-            ? allNotifs
-            : allNotifs.where((n) => n.type == _selectedFilter).toList();
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: borderColor, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.12),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. Header Bar (Touch Target > 44px)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: borderColor)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B), size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Text(
-                                '訊息通知中心',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
-                              ),
-                              const SizedBox(width: 8),
-                              if (_service.unreadCount > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF59E0B),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    '${_service.unreadCount} 未讀',
-                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Mark All as Read Button (Touch target >= 44x44)
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                          child: TextButton.icon(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              foregroundColor: const Color(0xFF6366F1),
-                            ),
-                            onPressed: _service.unreadCount > 0 ? () => _service.markAllAsRead() : null,
-                            icon: const Icon(Icons.done_all_rounded, size: 16),
-                            label: const Text('全標已讀', style: TextStyle(fontSize: 12)),
-                          ),
-                        ),
-                        // Close Button (Touch target >= 44x44)
-                        IconButton(
-                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          color: subTextColor,
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // 2. Category Filter Chips (Horizontal Scroll, Touch Target >= 44px height)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Row(
-                      children: [
-                        _buildFilterChip('全部', null, isDark, textColor),
-                        ...NotificationType.values.map((t) => _buildFilterChip(t.labelZh, t, isDark, textColor)),
-                      ],
-                    ),
-                  ),
-
-                  const Divider(height: 1),
-
-                  // 3. Notification Items List
-                  Flexible(
-                    child: filteredNotifs.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.mark_email_read_outlined, size: 48, color: subTextColor.withValues(alpha: 0.5)),
-                                const SizedBox(height: 12),
-                                Text('目前沒有通知', style: TextStyle(fontSize: 14, color: subTextColor)),
-                              ],
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            padding: const EdgeInsets.all(12),
-                            itemCount: filteredNotifs.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 8),
-                            itemBuilder: (ctx, i) {
-                              final item = filteredNotifs[i];
-                              return _buildNotificationCard(item, isDark, textColor, subTextColor);
-                            },
-                          ),
-                  ),
-                ],
-              ),
+      builder: (BuildContext context, _) {
+        final List<AppNotification> notifications = _filteredNotifications();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _NotificationHeader(
+              unreadCount: _service.unreadCount,
+              onMarkAllRead: _service.markAllAsRead,
+              onClose: () => Navigator.of(context).pop(),
             ),
-          ),
+            _buildCategoryBar(),
+            const Divider(height: 1),
+            Flexible(child: _buildList(notifications)),
+          ],
         );
       },
     );
   }
 
-  Widget _buildFilterChip(String label, NotificationType? type, bool isDark, Color textColor) {
-    final isSelected = _selectedFilter == type;
-    final activeColor = type?.themeColor ?? const Color(0xFF6366F1);
+  // 分類列：手機寬度可以左右滑
+  Widget _buildCategoryBar() {
+    final List<Widget> chips = [_buildCategoryChip('全部', null)];
+    for (final NotificationCategory category in NotificationCenterPopover.visibleCategories) {
+      chips.add(_buildCategoryChip(category.label, category));
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(children: chips),
+    );
+  }
 
+  Widget _buildCategoryChip(String label, NotificationCategory? category) {
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 36),
-        child: FilterChip(
-          selected: isSelected,
-          label: Text(label),
-          avatar: type != null ? Icon(type.icon, size: 12, color: isSelected ? Colors.white : activeColor) : null,
-          selectedColor: activeColor,
-          backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-          labelStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.white : textColor,
-          ),
-          onSelected: (_) {
-            setState(() {
-              _selectedFilter = type;
-            });
-          },
-        ),
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _selectedCategory == category,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        onSelected: (_) => setState(() => _selectedCategory = category),
       ),
     );
   }
 
-  Widget _buildNotificationCard(AppNotification notif, bool isDark, Color textColor, Color subTextColor) {
-    final cardBg = notif.isRead
-        ? (isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC))
-        : (isDark ? const Color(0xFF1E293B) : Colors.white);
-    final borderColor = notif.isRead
-        ? (isDark ? const Color(0xFF334155).withValues(alpha: 0.5) : const Color(0xFFE2E8F0))
-        : notif.type.themeColor.withValues(alpha: 0.5);
-
-    return Container(
+  Widget _buildList(List<AppNotification> notifications) {
+    if (notifications.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+            SizedBox(height: 12),
+            Text('目前沒有通知', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: notif.isRead ? 1 : 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: notif.type.themeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(notif.type.icon, size: 16, color: notif.type.themeColor),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          notif.title,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: notif.isRead ? FontWeight.normal : FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        if (!notif.isRead) ...[
-                          const SizedBox(width: 6),
-                          const CircleAvatar(radius: 3, backgroundColor: Color(0xFFF59E0B)),
-                        ],
-                      ],
-                    ),
-                    Text(
-                      '發送者：${notif.senderName} • ${_formatTimeAgo(notif.createdAt)}',
-                      style: TextStyle(fontSize: 10, color: subTextColor),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            notif.content,
-            style: TextStyle(fontSize: 12, color: textColor.withValues(alpha: 0.9), height: 1.4),
-          ),
-          const SizedBox(height: 8),
+      itemCount: notifications.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (BuildContext context, int index) {
+        final AppNotification notification = notifications[index];
+        return NotificationCard(notification: notification, onTap: () => _openNotification(notification));
+      },
+    );
+  }
+}
 
-          // Action Buttons Bar (Bidirectional Feedback, touch target >= 44px)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (notif.type == NotificationType.managerTaskNote) ...[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      _service.markAsRead(notif.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✅ 已標記完成主管交辦，已發送雙向完成通知予主管！'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
-                    label: const Text('已完成交辦', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ] else if (notif.type == NotificationType.customerReassigned) ...[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF6366F1),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    ),
-                    onPressed: () {
-                      _service.markAsRead(notif.id);
-                      Navigator.of(context).pop();
-                    },
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
-                    label: const Text('查看客戶卡片', style: TextStyle(fontSize: 11)),
-                  ),
-                ),
-              ],
-              const SizedBox(width: 8),
-              if (!notif.isRead)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: subTextColor,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    ),
-                    onPressed: () => _service.markAsRead(notif.id),
-                    child: const Text('標為已讀', style: TextStyle(fontSize: 11)),
-                  ),
-                ),
-            ],
+/// 清單上方：標題、未讀數、全部已讀、關閉
+class _NotificationHeader extends StatelessWidget {
+  final int unreadCount;
+  final VoidCallback onMarkAllRead;
+  final VoidCallback onClose;
+
+  const _NotificationHeader({required this.unreadCount, required this.onMarkAllRead, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 4),
+      child: Row(
+        children: [
+          Icon(Icons.notifications_active_rounded, color: primaryColor),
+          const SizedBox(width: 8),
+          const Text('通知', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          if (unreadCount > 0) Text('$unreadCount 則未讀', style: TextStyle(fontSize: 12, color: primaryColor)),
+          const Spacer(),
+          TextButton(
+            onPressed: unreadCount > 0 ? onMarkAllRead : null,
+            child: const Text('全部已讀'),
+          ),
+          IconButton(
+            tooltip: '關閉',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: onClose,
           ),
         ],
       ),
     );
   }
+}
 
-  String _formatTimeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes} 分鐘前';
-    if (diff.inHours < 24) return '${diff.inHours} 小時前';
-    return '${diff.inDays} 天前';
+/// 一則通知：完成綠勾、失敗紅色驚嘆號；未讀的粗體＋小圓點
+class NotificationCard extends StatelessWidget {
+  final AppNotification notification;
+  final VoidCallback onTap;
+
+  const NotificationCard({super.key, required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color typeColor = notification.type.color;
+    final bool isUnread = !notification.isRead;
+    Color borderColor = Colors.grey.withValues(alpha: 0.3);
+    if (isUnread) borderColor = typeColor.withValues(alpha: 0.6);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(notification.type.icon, color: typeColor, size: 22),
+            const SizedBox(width: 10),
+            Expanded(child: _buildTexts(isUnread)),
+            if (isUnread)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: CircleAvatar(radius: 4, backgroundColor: typeColor),
+              ),
+          ],
+        ),
+      ),
+    );
   }
+
+  Widget _buildTexts(bool isUnread) {
+    FontWeight titleWeight = FontWeight.normal;
+    if (isUnread) titleWeight = FontWeight.bold;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(notification.title, style: TextStyle(fontSize: 14, fontWeight: titleWeight)),
+        const SizedBox(height: 4),
+        Text(notification.content, style: const TextStyle(fontSize: 13, height: 1.4)),
+        const SizedBox(height: 4),
+        Text(formatNotificationTime(notification.createdAt, DateTime.now()), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
+    );
+  }
+}
+
+/// 「剛剛／5 分鐘前／3 小時前／2 天前」
+String formatNotificationTime(DateTime createdAt, DateTime now) {
+  final Duration difference = now.difference(createdAt);
+  if (difference.inMinutes < 1) return '剛剛';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} 分鐘前';
+  if (difference.inHours < 24) return '${difference.inHours} 小時前';
+  return '${difference.inDays} 天前';
 }
