@@ -1,93 +1,93 @@
 import 'package:flutter/material.dart';
 
+/// 通知分類（鈴鐺上方的分類列）。
+/// 只放「已經有內容」的分類；行程提醒在 4-E3b 才會加進分類列（沛沛決定：展示時不放還沒有的功能）
+enum NotificationCategory {
+  visitRecord('拜訪紀錄'),
+  schedule('行程提醒');
+
+  final String label;
+  const NotificationCategory(this.label);
+}
+
+/// 通知類型，對應資料表 notifications.type（4-E3a）
 enum NotificationType {
-  customerReassigned('customer_reassigned', '過戶通知', Icons.assignment_ind_rounded, Color(0xFF6366F1)),
-  managerTaskNote('manager_task_note', '主管交辦', Icons.mark_chat_read_rounded, Color(0xFFF59E0B)),
-  draftCustomer('draft_customer', '待補齊草稿', Icons.contact_mail_rounded, Color(0xFFF59E0B)),
-  aiSmartAlert('ai_smart_alert', 'AI 提醒', Icons.auto_awesome_rounded, Color(0xFF10B981)),
-  systemNotice('system_notice', '系統公告', Icons.campaign_rounded, Color(0xFF3B82F6));
+  visitRecordReady('visit_record_ready', NotificationCategory.visitRecord, Icons.check_circle_rounded, Colors.green),
+  visitRecordFailed('visit_record_failed', NotificationCategory.visitRecord, Icons.error_rounded, Colors.redAccent),
+  scheduleReminder('schedule_reminder', NotificationCategory.schedule, Icons.alarm_rounded, Colors.orange);
 
-  final String dbValue;
-  final String labelZh;
+  final String databaseValue;
+  final NotificationCategory category;
   final IconData icon;
-  final Color themeColor;
+  final Color color;
 
-  const NotificationType(this.dbValue, this.labelZh, this.icon, this.themeColor);
+  const NotificationType(this.databaseValue, this.category, this.icon, this.color);
 
-  static NotificationType fromString(String? val) {
-    if (val == null) return NotificationType.systemNotice;
-    return NotificationType.values.firstWhere(
-      (e) => e.dbValue == val,
-      orElse: () => NotificationType.systemNotice,
-    );
+  /// 資料庫的文字轉成類型；不認得的回傳 null（由呼叫的地方略過）
+  static NotificationType? fromDatabaseValue(String? value) {
+    for (final NotificationType type in NotificationType.values) {
+      if (type.databaseValue == value) return type;
+    }
+    return null;
   }
 }
 
+/// 一則通知（資料表 notifications）
 class AppNotification {
   final String id;
   final String profileId;
-  final String senderName;
+  final NotificationType type;
   final String title;
   final String content;
-  final NotificationType type;
+  final String? linkPath;
+  final String? targetVisitRecordId;
   final bool isRead;
-  final String? targetCustomerId;
   final DateTime createdAt;
 
-  AppNotification({
+  const AppNotification({
     required this.id,
     required this.profileId,
-    required this.senderName,
+    required this.type,
     required this.title,
     required this.content,
-    required this.type,
     required this.isRead,
-    this.targetCustomerId,
     required this.createdAt,
+    this.linkPath,
+    this.targetVisitRecordId,
   });
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) {
+  /// 從資料庫的一列轉換；類型不認得時回傳 null
+  static AppNotification? fromJson(Map<String, dynamic> json) {
+    final NotificationType? type = NotificationType.fromDatabaseValue(json['type'] as String?);
+    if (type == null) return null;
+
+    final String? createdAtText = json['created_at'] as String?;
+    DateTime createdAt = DateTime.now();
+    if (createdAtText != null) createdAt = DateTime.parse(createdAtText).toLocal();
+
     return AppNotification(
       id: json['id'] as String,
       profileId: json['profile_id'] as String? ?? '',
-      senderName: json['sender_name'] as String? ?? '系統',
+      type: type,
       title: json['title'] as String? ?? '',
       content: json['content'] as String? ?? '',
-      type: NotificationType.fromString(json['type'] as String?),
+      linkPath: json['link_path'] as String?,
+      targetVisitRecordId: json['target_visit_record_id'] as String?,
       isRead: json['is_read'] as bool? ?? false,
-      targetCustomerId: json['target_customer_id'] as String?,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'] as String) 
-          : DateTime.now(),
+      createdAt: createdAt,
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'profile_id': profileId,
-      'sender_name': senderName,
-      'title': title,
-      'content': content,
-      'type': type.dbValue,
-      'is_read': isRead,
-      'target_customer_id': targetCustomerId,
-      'created_at': createdAt.toIso8601String(),
-    };
-  }
-
-  AppNotification copyWith({
-    bool? isRead,
-  }) {
+  AppNotification copyWith({bool? isRead}) {
     return AppNotification(
       id: id,
       profileId: profileId,
-      senderName: senderName,
+      type: type,
       title: title,
       content: content,
-      type: type,
+      linkPath: linkPath,
+      targetVisitRecordId: targetVisitRecordId,
       isRead: isRead ?? this.isRead,
-      targetCustomerId: targetCustomerId,
       createdAt: createdAt,
     );
   }
