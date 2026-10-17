@@ -8,6 +8,7 @@ import '../widgets/google_sign_in_button.dart';
 import '../main.dart';
 import '../services/spotlight_tour_service.dart';
 import 'tag_manager_screen.dart';
+import 'settings/accent_color_picker.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -122,77 +123,7 @@ class SettingsScreen extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                         const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: AppThemeColors.palette.map((item) {
-                            final String name = item['name'];
-                            final Color color = item['color'];
-                            final bool isSelected = settings.primaryColor.value == color.value;
-
-                            String displayName = name;
-                            if (name == '商務青藍') {
-                              displayName = context.l10n('accent_teal');
-                            } else if (name == '皇家寶藍') {
-                              displayName = context.l10n('accent_blue');
-                            } else if (name == '翡翠鮮綠') {
-                              displayName = context.l10n('accent_green');
-                            } else if (name == '高雅奢紫') {
-                              displayName = context.l10n('accent_purple');
-                            } else if (name == '暖陽琥珀') {
-                              displayName = context.l10n('accent_amber');
-                            }
-
-                            return InkWell(
-                              onTap: () => settings.setPrimaryColor(color),
-                              borderRadius: BorderRadius.circular(12),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? color.withOpacity(0.15)
-                                      : (isDark ? const Color(0xFF21262D) : Colors.grey.shade100),
-                                  border: Border.all(
-                                    color: isSelected ? color : Colors.transparent,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 16,
-                                      height: 16,
-                                      decoration: BoxDecoration(
-                                        color: color,
-                                        shape: BoxShape.circle,
-                                        boxShadow: isSelected
-                                            ? [
-                                                BoxShadow(
-                                                  color: color.withOpacity(0.6),
-                                                  blurRadius: 6,
-                                                  spreadRadius: 1,
-                                                )
-                                              ]
-                                            : null,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      displayName,
-                                      style: TextStyle(
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                        AccentColorPicker(settings: settings),
                       ],
                     ),
                   ),

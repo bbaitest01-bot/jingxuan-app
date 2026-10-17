@@ -8,6 +8,7 @@ import 'router/app_router.dart';
 import 'services/app_settings.dart';
 import 'services/auth_status_service.dart';
 import 'services/app_localizations.dart';
+import 'theme/app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -94,56 +95,10 @@ class _MyAppState extends State<MyApp> {
     return ListenableBuilder(
       listenable: AppSettings.instance,
       builder: (context, child) {
-        final primaryColor = AppSettings.instance.primaryColor;
-
-        // Dark Theme
-        final darkTheme = ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          primaryColor: primaryColor,
-          scaffoldBackgroundColor: const Color(0xFF0D1117),
-          colorScheme: ColorScheme.dark(
-            primary: primaryColor,
-            secondary: primaryColor.withOpacity(0.8),
-            surface: const Color(0xFF161B22),
-            background: const Color(0xFF0D1117),
-          ),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF161B22),
-            elevation: 0,
-          ),
-          cardTheme: const CardThemeData(
-            color: Color(0xFF161B22),
-            elevation: 2,
-          ),
-        );
-
-        // Light Theme
-        final lightTheme = ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.light,
-          primaryColor: primaryColor,
-          scaffoldBackgroundColor: const Color(0xFFF6F8FA),
-          colorScheme: ColorScheme.light(
-            primary: primaryColor,
-            secondary: primaryColor.withOpacity(0.8),
-            surface: Colors.white,
-            background: const Color(0xFFF6F8FA),
-          ),
-          appBarTheme: AppBarTheme(
-            backgroundColor: Colors.white,
-            elevation: 1,
-            iconTheme: IconThemeData(color: primaryColor),
-            titleTextStyle: const TextStyle(
-                color: Colors.black87,
-                fontSize: 18,
-                fontWeight: FontWeight.bold),
-          ),
-          cardTheme: const CardThemeData(
-            color: Colors.white,
-            elevation: 2,
-          ),
-        );
+        // 主題集中在 lib/theme/app_theme.dart：明亮、深色兩套，顏色跟著選的主題色
+        final AppAccent accent = AppSettings.instance.accent;
+        final ThemeData lightTheme = AppTheme.light(accent);
+        final ThemeData darkTheme = AppTheme.dark(accent);
 
         return MaterialApp.router(
           routerConfig: _router,

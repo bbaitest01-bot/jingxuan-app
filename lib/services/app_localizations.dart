@@ -75,11 +75,10 @@ class AppLocalizations {
       'pref_language_desc': '切換專案介面顯示之語言語系 (對齊 Phase 6 i18n)',
       
       // Color Palettes
-      'accent_teal': '商務青藍',
-      'accent_blue': '皇家寶藍',
-      'accent_green': '翡翠鮮綠',
-      'accent_purple': '高雅奢紫',
-      'accent_amber': '暖陽琥珀',
+      'accent_deep_sea': '深海藍',
+      'accent_ink_green': '墨綠',
+      'accent_wine': '酒紅',
+      'accent_graphite': '石墨',
       
       // Cloud Sync Banners
       'cloud_sync_synced': 'Supabase 雲端偏好對齊 (Cloud Synced)',
@@ -299,11 +298,10 @@ class AppLocalizations {
       'pref_language_desc': 'Switch application interface display language (Align with Phase 6 i18n)',
       
       // Color Palettes
-      'accent_teal': 'Teal Cyan',
-      'accent_blue': 'Royal Blue',
-      'accent_green': 'Emerald Green',
-      'accent_purple': 'Royal Purple',
-      'accent_amber': 'Amber Gold',
+      'accent_deep_sea': 'Deep Sea Blue',
+      'accent_ink_green': 'Ink Green',
+      'accent_wine': 'Wine Red',
+      'accent_graphite': 'Graphite',
       
       // Cloud Sync Banners
       'cloud_sync_synced': 'Supabase Cloud Synced',
