@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../services/app_localizations.dart';
 import '../services/auth_error_messages.dart';
+import '../theme/app_theme.dart';
+import 'auth_dialog_parts.dart';
 
 class ForgotPasswordDialog extends StatefulWidget {
   final String initialEmail;
@@ -88,62 +90,37 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
+    // 底色、圓角、框線來自主題的 DialogTheme
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: const Color(0xFF1E293B),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: _isSent ? _buildSuccessView(context) : _buildFormView(context, theme),
+          child: _isSent ? _buildSuccessView(context) : _buildFormView(context),
         ),
       ),
     );
   }
 
-  Widget _buildFormView(BuildContext context, ThemeData theme) {
+  Widget _buildFormView(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final String? errorMessage = _errorMessage;
+    Widget sendButtonChild = Text(context.l10n('send_reset_link'));
+    if (_isLoading) {
+      sendButtonChild = const ButtonSpinner();
+    }
+
     return Form(
       key: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00ADB5).withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.lock_reset_rounded,
-                  color: Color(0xFF00ADB5),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  context.l10n('forgot_password_title'),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white60, size: 20),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+          AuthDialogHeader(icon: Icons.lock_reset_rounded, title: context.l10n('forgot_password_title')),
           const SizedBox(height: 16),
           Text(
             context.l10n('forgot_password_desc'),
-            style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            style: TextStyle(color: colors.ink2, fontSize: 13, height: 1.5),
           ),
           const SizedBox(height: 20),
           TextFormField(
@@ -151,15 +128,9 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleSendResetLink(),
-            style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               labelText: context.l10n('email_label'),
-              labelStyle: const TextStyle(color: Colors.white60),
-              prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF00ADB5)),
-              border: const OutlineInputBorder(),
-              focusedBorder: const OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF00ADB5), width: 2),
-              ),
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -171,20 +142,9 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               return null;
             },
           ),
-          if (_errorMessage != null) ...[
+          if (errorMessage != null) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
-              ),
-              child: Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-              ),
-            ),
+            AuthErrorBox(message: errorMessage),
           ],
           const SizedBox(height: 24),
           Row(
@@ -192,32 +152,13 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
             children: [
               TextButton(
                 onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                child: Text(
-                  context.l10n('cancel'),
-                  style: const TextStyle(color: Colors.white60),
-                ),
+                style: TextButton.styleFrom(foregroundColor: colors.ink2),
+                child: Text(context.l10n('cancel')),
               ),
               const SizedBox(width: 12),
-              ElevatedButton(
+              FilledButton(
                 onPressed: _isLoading ? null : _handleSendResetLink,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00ADB5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Text(context.l10n('send_reset_link')),
+                child: sendButtonChild,
               ),
             ],
           ),
@@ -227,54 +168,32 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
   }
 
   Widget _buildSuccessView(BuildContext context) {
+    final AppColors colors = context.appColors;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.teal.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.mark_email_read_rounded,
-            color: Color(0xFF00ADB5),
-            size: 48,
-          ),
+          decoration: BoxDecoration(color: colors.okSoft, shape: BoxShape.circle),
+          child: Icon(Icons.mark_email_read_rounded, color: colors.ok, size: 40),
         ),
         const SizedBox(height: 16),
         Text(
           context.l10n('reset_link_sent_title'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: AppTextStyles.serif(fontSize: 18, color: colors.ink),
         ),
         const SizedBox(height: 12),
         Text(
           context.l10n('reset_link_sent_desc'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 13,
-            height: 1.4,
-          ),
+          style: TextStyle(color: colors.ink2, fontSize: 13, height: 1.5),
         ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
+          child: FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00ADB5),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
             child: Text(context.l10n('done')),
           ),
         ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../services/app_localizations.dart';
+import '../theme/app_theme.dart';
+import 'auth_dialog_parts.dart';
+import 'custom_toast.dart';
 
 class ResetPasswordDialog extends StatefulWidget {
   final VoidCallback? onSuccess;
@@ -59,18 +62,10 @@ class _ResetPasswordDialogState extends State<ResetPasswordDialog> {
           _isLoading = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('密碼設定成功！'),
-              ],
-            ),
-            backgroundColor: Color(0xFF00ADB5),
-          ),
-        );
+        // 提示要在視窗還開著時貼上畫面（等這一格畫完），之後關掉視窗提示仍會留著
+        CustomToast.show(context, '密碼設定成功！', ToastType.success);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
 
         widget.onSuccess?.call();
         Navigator.of(context).pop(true);
@@ -85,13 +80,26 @@ class _ResetPasswordDialogState extends State<ResetPasswordDialog> {
     }
   }
 
+  // 密碼欄的「顯示／隱藏」按鈕
+  Widget _visibilityButton(bool isObscured, VoidCallback onPressed) {
+    IconData icon = Icons.visibility_outlined;
+    if (isObscured) {
+      icon = Icons.visibility_off_outlined;
+    }
+    return IconButton(icon: Icon(icon, size: 20), onPressed: onPressed);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final AppColors colors = context.appColors;
+    final String? errorMessage = _errorMessage;
+    Widget confirmButtonChild = Text(context.l10n('confirm'));
+    if (_isLoading) {
+      confirmButtonChild = const ButtonSpinner();
+    }
 
+    // 底色、圓角、框線來自主題的 DialogTheme；輸入框樣式來自主題
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: const Color(0xFF1E293B),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Padding(
@@ -102,63 +110,20 @@ class _ResetPasswordDialogState extends State<ResetPasswordDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00ADB5).withOpacity(0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.key_rounded,
-                        color: Color(0xFF00ADB5),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        context.l10n('reset_password_title'),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white60, size: 20),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
+                AuthDialogHeader(icon: Icons.key_rounded, title: context.l10n('reset_password_title')),
                 const SizedBox(height: 20),
-                
-                // New Password Input
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: context.l10n('new_password_label'),
-                    labelStyle: const TextStyle(color: Colors.white60),
-                    prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF00ADB5)),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white60,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    border: const OutlineInputBorder(),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF00ADB5), width: 2),
-                    ),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: _visibilityButton(_obscurePassword, () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    }),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -171,33 +136,19 @@ class _ResetPasswordDialogState extends State<ResetPasswordDialog> {
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Confirm New Password Input
                 TextFormField(
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _handleUpdatePassword(),
-                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     labelText: context.l10n('confirm_new_password_label'),
-                    labelStyle: const TextStyle(color: Colors.white60),
-                    prefixIcon: const Icon(Icons.lock_reset, color: Color(0xFF00ADB5)),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white60,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
-                    border: const OutlineInputBorder(),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF00ADB5), width: 2),
-                    ),
+                    prefixIcon: const Icon(Icons.lock_reset),
+                    suffixIcon: _visibilityButton(_obscureConfirmPassword, () {
+                      setState(() {
+                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                      });
+                    }),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -209,55 +160,23 @@ class _ResetPasswordDialogState extends State<ResetPasswordDialog> {
                     return null;
                   },
                 ),
-
-                if (_errorMessage != null) ...[
+                if (errorMessage != null) ...[
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
-                    ),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-                    ),
-                  ),
+                  AuthErrorBox(message: errorMessage),
                 ],
-
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
                       onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                      child: Text(
-                        context.l10n('cancel'),
-                        style: const TextStyle(color: Colors.white60),
-                      ),
+                      style: TextButton.styleFrom(foregroundColor: colors.ink2),
+                      child: Text(context.l10n('cancel')),
                     ),
                     const SizedBox(width: 12),
-                    ElevatedButton(
+                    FilledButton(
                       onPressed: _isLoading ? null : _handleUpdatePassword,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00ADB5),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Text(context.l10n('confirm')),
+                      child: confirmButtonChild,
                     ),
                   ],
                 ),

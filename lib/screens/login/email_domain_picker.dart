@@ -1,135 +1,72 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
+
 /// 信箱欄位上方的「常用信箱網域 ▾」選單：選了就把 @gmail.com 等網域接到信箱後面
 class EmailDomainPicker extends StatelessWidget {
   final ValueChanged<String> onSelected;
 
   const EmailDomainPicker({super.key, required this.onSelected});
 
+  // 選單內容：顯示名稱 → 網域
+  static const List<MapEntry<String, String>> _domains = [
+    MapEntry('Google', '@gmail.com'),
+    MapEntry('Yahoo 台灣', '@yahoo.com.tw'),
+    MapEntry('Outlook', '@outlook.com'),
+    MapEntry('Apple iCloud', '@icloud.com'),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
     return PopupMenuButton<String>(
       onSelected: onSelected,
       tooltip: '快速套用常用電子信箱網域',
-      offset: const Offset(0, 32),
+      offset: const Offset(0, 28),
+      color: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        side: BorderSide(color: colors.line),
       ),
-      color: const Color(0xFF1E293B),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFF00ADB5)
-              .withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: const Color(0xFF00ADB5)
-                .withValues(alpha: 0.3),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.alternate_email_rounded,
-                size: 14,
-                color: Color(0xFF00ADB5)),
-            SizedBox(width: 4),
-            Text(
-              '常用信箱網域 ▾',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF00ADB5),
-              ),
-            ),
-          ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Text(
+          '常用信箱網域 ▾',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: colors.acc),
         ),
       ),
-      itemBuilder: (BuildContext context) =>
-          <PopupMenuEntry<String>>[
-        const PopupMenuItem<String>(
-          value: '@gmail.com',
-          child: Row(
-            children: [
-              Text('🌐 ',
-                  style: TextStyle(fontSize: 14)),
-              Text('Google ',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
-              Expanded(
-                child: Text('(@gmail.com)',
-                    style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12),
-                    overflow:
-                        TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: '@yahoo.com.tw',
-          child: Row(
-            children: [
-              Text('✉️ ',
-                  style: TextStyle(fontSize: 14)),
-              Text('Yahoo 台灣 ',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
-              Expanded(
-                child: Text('(@yahoo.com.tw)',
-                    style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12),
-                    overflow:
-                        TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: '@outlook.com',
-          child: Row(
-            children: [
-              Text('💼 ',
-                  style: TextStyle(fontSize: 14)),
-              Text('Outlook ',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
-              Expanded(
-                child: Text('(@outlook.com)',
-                    style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12),
-                    overflow:
-                        TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: '@icloud.com',
-          child: Row(
-            children: [
-              Text('🍏 ',
-                  style: TextStyle(fontSize: 14)),
-              Text('Apple iCloud ',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
-              Expanded(
-                child: Text('(@icloud.com)',
-                    style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12),
-                    overflow:
-                        TextOverflow.ellipsis),
-              ),
-            ],
+      itemBuilder: (BuildContext context) => _domains
+          .map((MapEntry<String, String> domain) => PopupMenuItem<String>(
+                value: domain.value,
+                child: _DomainMenuRow(name: domain.key, domain: domain.value),
+              ))
+          .toList(),
+    );
+  }
+}
+
+/// 選單裡的一列：左邊名稱、右邊網域（等寬字）
+class _DomainMenuRow extends StatelessWidget {
+  final String name;
+  final String domain;
+
+  const _DomainMenuRow({required this.name, required this.domain});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return Row(
+      children: [
+        Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.ink)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            domain,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.mono(fontSize: 12, fontWeight: FontWeight.w400, color: colors.ink3),
           ),
         ),
       ],

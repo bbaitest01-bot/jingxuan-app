@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// 官方 100% 精準 4 色 Google "G" 標誌 (基於向量 Bezier Path 完美渲染，無任何扭曲)
 class GoogleGLogoIcon extends StatelessWidget {
   final double size;
@@ -82,8 +84,8 @@ class _OfficialGoogleGLogoPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// 高質感自訂 Google 登入按鈕 (支援適配深色/淺色模式、Hover 動效與滿版圓角)
-class GoogleStyleSignInButton extends StatefulWidget {
+/// Google 登入按鈕：次要按鈕樣式（surface 底、細框、深色字），左邊是 Google 標誌
+class GoogleStyleSignInButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final String label;
   final bool isLoading;
@@ -96,84 +98,31 @@ class GoogleStyleSignInButton extends StatefulWidget {
   });
 
   @override
-  State<GoogleStyleSignInButton> createState() => _GoogleStyleSignInButtonState();
-}
-
-class _GoogleStyleSignInButtonState extends State<GoogleStyleSignInButton> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final AppColors colors = context.appColors;
 
-    // Premium Color Palette matching system design system
-    final backgroundColor = isDark
-        ? (_isHovered ? const Color(0xFF2D3748) : const Color(0xFF1E293B))
-        : (_isHovered ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9));
+    Widget content = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const GoogleGLogoIcon(size: 18),
+        const SizedBox(width: 10),
+        Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      ],
+    );
+    if (isLoading) {
+      content = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: colors.ink2),
+      );
+    }
 
-    final borderColor = isDark
-        ? (_isHovered ? const Color(0xFF475569) : const Color(0xFF334155))
-        : (_isHovered ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0));
-
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(24), // Modern capsule pill shape
-          border: Border.all(color: borderColor, width: 1.2),
-          boxShadow: _isHovered
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : [],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: widget.isLoading ? null : widget.onPressed,
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (widget.isLoading)
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(textColor),
-                      ),
-                    )
-                  else ...[
-                    const GoogleGLogoIcon(size: 20),
-                    const SizedBox(width: 12),
-                    Text(
-                      widget.label,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
+    // 外觀（底色、框線、圓角）來自主題的 OutlinedButton 設定
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        child: content,
       ),
     );
   }
