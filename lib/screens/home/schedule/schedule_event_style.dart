@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/schedule_event.dart';
+import '../../../theme/app_theme.dart';
 
 /// 日時間軸上一個行程的排版位置：排在第幾欄、這一群重疊的行程總共幾欄
 class TimelineEventLayout {
@@ -80,39 +81,75 @@ List<TimelineEventLayout> computeTimelineLayouts(
   return layouts;
 }
 
-// 行程類型的代表色（圓點、邊框、標籤文字）
-Color scheduleEventTypeColor(String type, Color defaultColor) {
+/// 行程類型的固定配色（「清爽組」，2026-10-18 沛沛選定）。
+/// 四種類型都用固定顏色、不跟主題色變，才能保證彼此分得開；每種有代表色（實心）與淡底色，明亮、深色各一套。
+/// 實心色上的字用 `onAcc`：明亮模式白字，深色模式代表色比較亮，改用深色字。
+class ScheduleEventPalette {
+  // 客戶拜訪：藍
+  static const Color visitLight = Color(0xFF2F6DB5);
+  static const Color visitLightSoft = Color(0xFFE4EDF8);
+  static const Color visitDark = Color(0xFF7FB0E8);
+  static const Color visitDarkSoft = Color(0xFF1A2A3D);
+  // 會議談判：青綠
+  static const Color meetingLight = Color(0xFF1A7A6C);
+  static const Color meetingLightSoft = Color(0xFFE0F0EC);
+  static const Color meetingDark = Color(0xFF6CC3B3);
+  static const Color meetingDarkSoft = Color(0xFF142D29);
+  // 跟進提醒：橘
+  static const Color reminderLight = Color(0xFFA85A12);
+  static const Color reminderLightSoft = Color(0xFFF6E8D8);
+  static const Color reminderDark = Color(0xFFE8A35E);
+  static const Color reminderDarkSoft = Color(0xFF33251A);
+  // 個人行程：灰
+  static const Color personalLight = Color(0xFF6B717C);
+  static const Color personalLightSoft = Color(0xFFECEDEF);
+  static const Color personalDark = Color(0xFFA0A6AF);
+  static const Color personalDarkSoft = Color(0xFF23272D);
+}
+
+// 把資料庫裡的類型代碼歸成四類：visit、meeting、reminder、personal
+String _scheduleEventCategory(String type) {
   switch (type) {
     case 'meeting':
-      return Colors.orange;
+      return 'meeting';
     case 'visit':
     case 'customer_visit':
-      return Colors.blue;
+      return 'visit';
     case 'reminder':
     case 'follow_up':
-      return Colors.purple;
-    case 'general':
-    case 'personal':
+      return 'reminder';
     default:
-      return defaultColor;
+      return 'personal';
   }
 }
 
-// 行程類型的卡片底色（深色／淺色模式各一套）
-Color scheduleEventTypeBackgroundColor(String type, bool isDark) {
-  switch (type) {
-    case 'meeting':
-      return isDark ? const Color(0xFF7C2D12).withValues(alpha: 0.5) : const Color(0xFFFFEDD5);
+// 行程類型的代表色（月網格實心色條、圓點、卡片框線與標籤字）
+Color scheduleEventTypeColor(BuildContext context, String type) {
+  final bool isDark = Theme.of(context).brightness == Brightness.dark;
+  switch (_scheduleEventCategory(type)) {
     case 'visit':
-    case 'customer_visit':
-      return isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.5) : const Color(0xFFDBEAFE);
+      return isDark ? ScheduleEventPalette.visitDark : ScheduleEventPalette.visitLight;
+    case 'meeting':
+      return isDark ? ScheduleEventPalette.meetingDark : ScheduleEventPalette.meetingLight;
     case 'reminder':
-    case 'follow_up':
-      return isDark ? const Color(0xFF581C87).withValues(alpha: 0.5) : const Color(0xFFF3E8FF);
-    case 'general':
-    case 'personal':
+      return isDark ? ScheduleEventPalette.reminderDark : ScheduleEventPalette.reminderLight;
     default:
-      return isDark ? const Color(0xFF1F2937).withValues(alpha: 0.5) : const Color(0xFFF3F4F6);
+      return isDark ? ScheduleEventPalette.personalDark : ScheduleEventPalette.personalLight;
+  }
+}
+
+// 行程類型的淡底色（日時間軸卡片底色），和代表色成對
+Color scheduleEventTypeSoftColor(BuildContext context, String type) {
+  final bool isDark = Theme.of(context).brightness == Brightness.dark;
+  switch (_scheduleEventCategory(type)) {
+    case 'visit':
+      return isDark ? ScheduleEventPalette.visitDarkSoft : ScheduleEventPalette.visitLightSoft;
+    case 'meeting':
+      return isDark ? ScheduleEventPalette.meetingDarkSoft : ScheduleEventPalette.meetingLightSoft;
+    case 'reminder':
+      return isDark ? ScheduleEventPalette.reminderDarkSoft : ScheduleEventPalette.reminderLightSoft;
+    default:
+      return isDark ? ScheduleEventPalette.personalDarkSoft : ScheduleEventPalette.personalLightSoft;
   }
 }
 
@@ -151,45 +188,35 @@ class ScheduleBulletItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22).withValues(alpha: 0.8) : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isDark ? const Color(0xFF30363D) : Colors.grey.shade300, width: 1),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        border: Border.all(color: colors.line, width: 1),
       ),
       child: Row(
         children: [
-          // Glowing bullet point
+          // 類型色小圓點（新風格不加發光）
           Container(
-            width: 10,
-            height: 10,
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(
               color: bulletColor,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: bulletColor.withValues(alpha: 0.8),
-                  blurRadius: 6,
-                  spreadRadius: 1,
-                )
-              ]
             ),
           ),
           const SizedBox(width: 12),
           Text(
             timeRange,
-            style: TextStyle(
-              color: isDark ? Colors.white38 : Colors.black54,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTextStyles.mono(fontSize: 12, color: colors.ink3),
           ),
           const SizedBox(width: 12),
           Text(
             title,
             style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
+              color: colors.ink,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -225,25 +252,20 @@ class ScheduleCardItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
+    final AppColors colors = context.appColors;
+    final Color textColor = colors.ink;
+    final Color subTextColor = colors.ink2;
     final bool hasLocation = location.isNotEmpty && location != '未指定地點';
 
+    // 淡類型色底＋同色細框，不加陰影
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.control),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: borderColor.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            )
-          ],
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          border: Border.all(color: borderColor.withValues(alpha: 0.45), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,8 +292,8 @@ class ScheduleCardItem extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: borderColor.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(4),
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text(
                     tag,
@@ -287,7 +309,7 @@ class ScheduleCardItem extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   timeRange,
-                  style: TextStyle(color: subTextColor, fontSize: 11, fontWeight: FontWeight.w500),
+                  style: AppTextStyles.mono(fontSize: 11, color: subTextColor),
                 ),
                 if (hasLocation) ...[
                   const SizedBox(width: 10),
