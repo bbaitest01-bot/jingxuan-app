@@ -64,4 +64,27 @@ void main() {
       expect(fallbackColors?.acc, AppThemeColors.deepSea.lightAccent);
     });
   });
+
+  // UI-3（問題總表 X16）：字型都改成內建的，網頁版第一個畫面就是正確的字
+  group('內建字型', () {
+    test('內文用思源黑體，沒有被預設的 Roboto 蓋掉', () {
+      final ThemeData theme = AppTheme.light(AppThemeColors.deepSea);
+      expect(theme.textTheme.bodyMedium?.fontFamily, AppTextStyles.bodyFamily);
+      expect(theme.textTheme.labelLarge?.fontFamily, AppTextStyles.bodyFamily);
+    });
+
+    test('標題用思源宋體，明亮和深色都一樣', () {
+      final ThemeData lightTheme = AppTheme.light(AppThemeColors.deepSea);
+      final ThemeData darkTheme = AppTheme.dark(AppThemeColors.wine);
+      expect(lightTheme.textTheme.titleLarge?.fontFamily, AppTextStyles.titleFamily);
+      expect(darkTheme.textTheme.headlineSmall?.fontFamily, AppTextStyles.titleFamily);
+      expect(lightTheme.textTheme.titleLarge?.fontWeight, AppTextStyles.titleWeight);
+    });
+
+    test('等寬字裡沒有的中文改用內建黑體', () {
+      final TextStyle monoStyle = AppTextStyles.mono(fontSize: 14);
+      expect(monoStyle.fontFamily, AppTextStyles.monoFamily);
+      expect(monoStyle.fontFamilyFallback, contains(AppTextStyles.bodyFamily));
+    });
+  });
 }

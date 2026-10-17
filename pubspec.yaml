@@ -84,9 +84,6 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
 
-  # UI 換皮字體：標題 Noto Serif TC、數字 IBM Plex Mono（lib/theme/app_text_styles.dart）
-  google_fonts: ^8.2.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -110,6 +107,26 @@ flutter:
   uses-material-design: true
 
   # .env 不再打包為 asset（Web 版會被公開下載）；金鑰改用 --dart-define 傳入
+
+  # 內建字型（lib/theme/app_text_styles.dart）。只收常用字的子集，用 tool/build_font_subset.py 產生；
+  # 放進專案是為了讓網頁版第一個畫面就是正確的字，不會先出現方框（問題總表 X16）。授權見 assets/fonts/OFL-*.txt
+  fonts:
+    - family: NotoSansTC
+      fonts:
+        - asset: assets/fonts/NotoSansTC-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoSansTC-Bold.ttf
+          weight: 700
+    - family: NotoSerifTC
+      fonts:
+        - asset: assets/fonts/NotoSerifTC-SemiBold.ttf
+          weight: 600
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexMono-Medium.ttf
+          weight: 500
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

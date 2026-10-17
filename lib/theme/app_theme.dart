@@ -57,7 +57,8 @@ class AppTheme {
       canvasColor: colors.surface,
       dividerColor: colors.line,
       textTheme: textTheme,
-      fontFamilyFallback: AppTextStyles.systemChineseFallback,
+      // 全站內文用內建的思源黑體，網頁版第一個畫面就是正確的字
+      fontFamily: AppTextStyles.bodyFamily,
       extensions: <ThemeExtension<dynamic>>[colors],
 
       // 主要按鈕：主題色底、onAcc 字
@@ -189,7 +190,9 @@ class AppTheme {
 
   static TextTheme _buildTextTheme(Brightness brightness, AppColors colors) {
     final TextTheme baseTextTheme = ThemeData(useMaterial3: true, brightness: brightness).textTheme;
+    // 預設文字樣式帶有 Roboto 字型名稱，要明確換成內建黑體，否則會蓋掉 ThemeData 的 fontFamily
     final TextTheme coloredTextTheme = baseTextTheme.apply(
+      fontFamily: AppTextStyles.bodyFamily,
       bodyColor: colors.ink,
       displayColor: colors.ink,
     );

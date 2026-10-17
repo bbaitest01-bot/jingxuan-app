@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
 import '../services/voice_transcription_service.dart';
+import '../theme/app_text_styles.dart';
 
 enum RecordingState {
   preparing, // 麥克風啟動中（還沒開始收音），避免一打開就講話被漏掉
@@ -281,10 +282,9 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             const SizedBox(height: 48),
             Text(
               _formatDuration(_seconds),
-              style: TextStyle(
+              // 計時數字用內建等寬字（原本的 Courier 網頁版沒有，會另外下載備用字）
+              style: AppTextStyles.mono(
                 fontSize: 24,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Courier',
                 color: primaryColor,
               ),
             ),

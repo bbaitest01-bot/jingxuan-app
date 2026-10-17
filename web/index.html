@@ -34,8 +34,57 @@
 
   <title>insurance_helper</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    載入畫面：Flutter 第一次打開要先下載程式與內建字型（約 7MB），期間原本是一片白。
+    這裡先顯示「經選助手」與進度條，Flutter 畫出第一個畫面（flutter-first-frame）後就移除。
+    顏色跟著上次的明暗設定（shared_preferences 存在瀏覽器的 flutter.prefs_theme_mode）。
+  -->
+  <style>
+    #app-loading {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+      background: #0E1319; color: #ECEEF1;
+      font-family: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+      transition: opacity 0.3s ease;
+    }
+    #app-loading.is-light { background: #F6F5F1; color: #161E29; }
+    #app-loading .loading-brand { font-size: 22px; font-weight: 600; letter-spacing: 0.08em; }
+    #app-loading .loading-bar { width: 120px; height: 2px; overflow: hidden; background: rgba(128, 128, 128, 0.25); }
+    #app-loading .loading-bar::after {
+      content: ""; display: block; width: 40%; height: 100%; background: currentColor;
+      animation: app-loading-slide 1.2s ease-in-out infinite;
+    }
+    #app-loading.is-hidden { opacity: 0; pointer-events: none; }
+    @keyframes app-loading-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @media (prefers-reduced-motion: reduce) { #app-loading .loading-bar::after { animation: none; width: 100%; } }
+  </style>
 </head>
 <body>
+  <div id="app-loading" role="status" aria-live="polite">
+    <div class="loading-brand">經選助手</div>
+    <div class="loading-bar" aria-hidden="true"></div>
+  </div>
+  <script>
+    (function () {
+      var loadingElement = document.getElementById("app-loading");
+      try {
+        // shared_preferences 在網頁版把值存成 JSON 字串，例如 "\"light\""
+        var savedThemeMode = window.localStorage.getItem("flutter.prefs_theme_mode");
+        var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+        var isLight = savedThemeMode === "\"light\"" || (savedThemeMode === "\"system\"" && prefersLight);
+        if (isLight) {
+          loadingElement.classList.add("is-light");
+        }
+      } catch (error) {
+        // 瀏覽器不允許讀取時，就用預設的深色
+      }
+      window.addEventListener("flutter-first-frame", function () {
+        loadingElement.classList.add("is-hidden");
+        window.setTimeout(function () { loadingElement.remove(); }, 400);
+      });
+    })();
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
