@@ -27,11 +27,8 @@ void showSignupVerifyDialog(
           },
           child: const Text('返回登入'),
         ),
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00ADB5),
-            foregroundColor: Colors.white,
-          ),
+        // 樣式來自主題的主要按鈕
+        FilledButton.icon(
           onPressed: () async {
             final url = Uri.parse('https://mail.google.com/');
             if (await canLaunchUrl(url)) {

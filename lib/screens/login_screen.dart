@@ -9,8 +9,11 @@ import '../services/auth_status_service.dart';
 import '../services/login_service.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/forgot_password_dialog.dart';
+import '../theme/app_theme.dart';
+import 'login/login_brand_panel.dart';
 import 'login/login_form_card.dart';
 import 'login/login_offline_banner.dart';
+import 'login/login_theme_toggle.dart';
 import 'login/signup_verify_dialog.dart';
 
 /// 登入頁（網址 /login）的外框：保管表單狀態，處理登入、註冊、Google 登入。
@@ -250,110 +253,116 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // 寬度超過這個值才左右兩欄；手機與窄視窗改成上下排列
+  static const double _twoColumnMinWidth = 900;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final AppColors colors = context.appColors;
 
     return Scaffold(
-      body: Stack(
+      backgroundColor: colors.bg,
+      body: Column(
         children: [
-          // Background subtle gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF0F172A), // Slate 900
-                  Color(0xFF020617), // Slate 950
-                ],
-              ),
+          // 離線預覽模式：最上方的提示列，附「直接跳過登入」
+          if (isOfflineMode)
+            LoginOfflineBanner(
+              reason: offlineReason,
+              // 離線預覽：標記已跳過登入，守門規則就會放行到今日行程
+              onSkipLogin: () {
+                AuthStatusService.instance.enterOfflinePreview();
+                context.go(AppRoutes.schedule);
+              },
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                if (constraints.maxWidth >= _twoColumnMinWidth) {
+                  return _buildTwoColumnLayout(constraints);
+                }
+                return _buildStackedLayout();
+              },
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // Outer scroll view for keyboard resizing
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Icon(
-                        Icons.shield_outlined,
-                        size: 64,
-                        color: Color(0xFF00ADB5),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // App Title
-                      Text(
-                        'insurance_helper',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // App Subtitle
-                      Text(
-                        '智慧保險 CRM & AI 語意跟進排程',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white60,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      LoginFormCard(
-                        isSignUp: _isSignUp,
-                        isLoading: _isLoading,
-                        obscurePassword: _obscurePassword,
-                        nameController: _nameController,
-                        emailController: _emailController,
-                        passwordController: _passwordController,
-                        onSubmit: _handleSubmit,
-                        onGoogleSignIn: _handleGoogleSignIn,
-                        onToggleObscurePassword: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                        onToggleSignUp: _toggleSignUpMode,
-                        onForgotPassword: _openForgotPasswordDialog,
-                        onDomainSelected: _appendEmailDomain,
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+  // 寬螢幕：左欄品牌、右欄表單
+  Widget _buildTwoColumnLayout(BoxConstraints constraints) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            // 視窗太矮時左欄可以捲動，不會溢出
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: const IntrinsicHeight(child: LoginBrandPanel()),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+                  child: _buildForm(),
                 ),
               ),
-            ),
+              const Positioned(top: 16, right: 16, child: LoginThemeToggle()),
+            ],
           ),
+        ),
+      ],
+    );
+  }
 
-          // Offline Preview Mode Banner at top
-          if (isOfflineMode)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LoginOfflineBanner(
-                reason: offlineReason,
-                // 離線預覽：標記已跳過登入，守門規則就會放行到今日行程
-                onSkipLogin: () {
-                  AuthStatusService.instance.enterOfflinePreview();
-                  context.go(AppRoutes.schedule);
-                },
-              ),
-            ),
+  // 窄螢幕：精簡品牌在上、表單在下，一起捲動
+  Widget _buildStackedLayout() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Stack(
+            children: [
+              LoginBrandPanel(isCompact: true),
+              Positioned(top: 12, right: 12, child: LoginThemeToggle()),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+            child: _buildForm(),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildForm() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 380),
+      child: Form(
+        key: _formKey,
+        child: LoginFormCard(
+          isSignUp: _isSignUp,
+          isLoading: _isLoading,
+          obscurePassword: _obscurePassword,
+          nameController: _nameController,
+          emailController: _emailController,
+          passwordController: _passwordController,
+          onSubmit: _handleSubmit,
+          onGoogleSignIn: _handleGoogleSignIn,
+          onToggleObscurePassword: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+          onToggleSignUp: _toggleSignUpMode,
+          onForgotPassword: _openForgotPasswordDialog,
+          onDomainSelected: _appendEmailDomain,
+        ),
       ),
     );
   }

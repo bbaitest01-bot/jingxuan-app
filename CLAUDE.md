@@ -31,8 +31,9 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 ## 2. UI 視覺規範
 
 - 提示訊息一律用 `CustomToast.show(context, message, ToastType.success|warning|error)`（`lib/widgets/custom_toast.dart`），不要直接用 `ScaffoldMessenger` / `SnackBar`。
-- 顏色取 `Theme.of(context).colorScheme.primary` 或 `AppSettings.instance.primaryColor`，不要寫死色碼；主題色定義在 `lib/services/app_settings.dart`（`AppThemeColors`）。
-- 卡片、對話框、按鈕圓角統一 `BorderRadius.circular(12)`。
+- 顏色用 `context.appColors.xxx`（`lib/theme/app_theme.dart`，token：bg、surface、surface2、line、ink、ink2、ink3、ok、okSoft、warn、warnSoft、acc、accSoft、onAcc），不要寫死 `Colors.xxx` 或色碼；放在主題色上的字用 `onAcc`。主題色定義在 `lib/theme/app_accent.dart`（`AppThemeColors`）。
+- 圓角：按鈕、輸入框 `AppRadius.control`（8）；卡片、對話框 `AppRadius.card`（12）；Chip `AppRadius.pill`（999）。
+- 字體：標題自動用宋體；數字、時間用 `AppTextStyles.mono()`；刪除等危險按鈕用 `AppButtonStyles.danger(context)`。
 - UI 工作可參考 `.claude/skills/` 的設計類 skills（impeccable-design、taste-skill、ui-ux-pro-max 等）；資料庫工作先讀 `supabase`、`supabase-postgres-best-practices`。
 
 ## 3. 架構紅線
@@ -55,7 +56,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 ## 5. Quality Gate（「收工」(`/finish`) 前必過）
 
 - [ ] Supabase RLS：SQL/Table 改動已設定安全政策，且以新 migration 呈現
-- [ ] UI 規範：CustomToast、主題色、12px 圓角
+- [ ] UI 規範：CustomToast、顏色用 `context.appColors`、圓角 8／12
 - [ ] 工具包同步：`pubspec.yaml` 異動已更新 `../jingxuan-vault/工具包.md`
 - [ ] Null-Safety：核心流程有例外捕獲與空值防護
 - [ ] `flutter analyze` 0 error 且未新增 warning；`flutter test` 全過

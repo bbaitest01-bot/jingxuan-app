@@ -84,6 +84,9 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
 
+  # UI 換皮字體：標題 Noto Serif TC、數字 IBM Plex Mono（lib/theme/app_text_styles.dart）
+  google_fonts: ^8.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

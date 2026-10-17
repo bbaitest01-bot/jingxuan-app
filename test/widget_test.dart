@@ -18,8 +18,8 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('insurance_helper'), findsOneWidget);
-    expect(find.text('業務員登入'), findsOneWidget);
+    expect(find.text('經選助手'), findsOneWidget);
+    expect(find.text('歡迎回來，請使用你的帳號登入。'), findsOneWidget);
   });
 
   testWidgets('HomeScreen sidebar navigation and Customer Tab UI offline tests', (WidgetTester tester) async {

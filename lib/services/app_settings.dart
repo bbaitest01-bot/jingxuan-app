@@ -2,23 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import '../theme/app_accent.dart';
 
-/// Available primary theme colors for personalization
-class AppThemeColors {
-  static const Color tealCyan = Color(0xFF00ADB5);
-  static const Color royalBlue = Color(0xFF2563EB);
-  static const Color emeraldGreen = Color(0xFF10B981);
-  static const Color royalPurple = Color(0xFF8B5CF6);
-  static const Color amberGold = Color(0xFFF59E0B);
-
-  static const List<Map<String, dynamic>> palette = [
-    {'name': '商務青藍', 'color': tealCyan},
-    {'name': '皇家寶藍', 'color': royalBlue},
-    {'name': '翡翠鮮綠', 'color': emeraldGreen},
-    {'name': '高雅奢紫', 'color': royalPurple},
-    {'name': '暖陽琥珀', 'color': amberGold},
-  ];
-}
+export '../theme/app_accent.dart' show AppAccent, AppThemeColors;
 
 class AppSettings extends ChangeNotifier {
   static final AppSettings instance = AppSettings._internal();
@@ -26,7 +12,7 @@ class AppSettings extends ChangeNotifier {
 
   // Settings State
   ThemeMode _themeMode = ThemeMode.dark;
-  Color _primaryColor = AppThemeColors.tealCyan;
+  AppAccent _accent = AppThemeColors.defaultAccent;
   String _defaultCustomerViewMode = 'card'; // 'card' or 'list'
   bool _isSidebarCollapsedByDefault = false;
   bool _isSidebarHoverExpandEnabled = false;
@@ -34,7 +20,23 @@ class AppSettings extends ChangeNotifier {
 
   // Getters
   ThemeMode get themeMode => _themeMode;
-  Color get primaryColor => _primaryColor;
+  /// 目前選的主題色（整組：明亮、深色各一組主色與淡底）
+  AppAccent get accent => _accent;
+
+  /// 目前畫面該用的主題色：深色模式回傳比較亮的那個，才看得清楚。
+  /// 新寫的畫面請改用 `Theme.of(context).colorScheme.primary` 或 `context.appColors.acc`
+  Color get primaryColor => _accent.accentFor(_effectiveBrightness());
+
+  /// 依主題模式算出現在是明亮還是深色；「跟隨系統」時看裝置設定
+  Brightness _effectiveBrightness() {
+    if (_themeMode == ThemeMode.light) {
+      return Brightness.light;
+    }
+    if (_themeMode == ThemeMode.dark) {
+      return Brightness.dark;
+    }
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness;
+  }
   String get defaultCustomerViewMode => _defaultCustomerViewMode;
   bool get isSidebarCollapsedByDefault => _isSidebarCollapsedByDefault;
   bool get isSidebarHoverExpandEnabled => _isSidebarHoverExpandEnabled;
@@ -60,10 +62,9 @@ class AppSettings extends ChangeNotifier {
       }
 
       // Load Primary Color
-      final colorInt = prefs.getInt('prefs_primary_color');
-      if (colorInt != null) {
-        _primaryColor = Color(colorInt);
-      }
+      // 舊版存的顏色（例如商務青藍）會在這裡換成新的四種主題色之一
+      final int? storedColorValue = prefs.getInt('prefs_primary_color');
+      _accent = AppThemeColors.accentFromStoredValue(storedColorValue);
 
       // Load Customer View Mode
       _defaultCustomerViewMode = prefs.getString('prefs_customer_view_mode') ?? 'card';
@@ -115,9 +116,15 @@ class AppSettings extends ChangeNotifier {
         }
 
         if (cloudData.containsKey('primary_color_value')) {
-          final colorValue = cloudData['primary_color_value'] as int;
-          if (_primaryColor.value != colorValue) {
-            _primaryColor = Color(colorValue);
+          // 帳號裡可能還是舊版顏色，或不是數字的怪值，一律換成新的主題色
+          final Object? cloudColorValue = cloudData['primary_color_value'];
+          int? storedColorValue;
+          if (cloudColorValue is int) {
+            storedColorValue = cloudColorValue;
+          }
+          final AppAccent cloudAccent = AppThemeColors.accentFromStoredValue(storedColorValue);
+          if (_accent.id != cloudAccent.id) {
+            _accent = cloudAccent;
             hasChanges = true;
           }
         }
@@ -172,10 +179,10 @@ class AppSettings extends ChangeNotifier {
     await _saveAndSync();
   }
 
-  /// Update Primary Accent Color
-  Future<void> setPrimaryColor(Color color) async {
-    if (_primaryColor.value == color.value) return;
-    _primaryColor = color;
+  /// 換主題色
+  Future<void> setAccent(AppAccent accent) async {
+    if (_accent.id == accent.id) return;
+    _accent = accent;
     notifyListeners();
     await _saveAndSync();
   }
@@ -217,7 +224,7 @@ class AppSettings extends ChangeNotifier {
   /// 登出時恢復預設設定（只改這台裝置，不動帳號裡存的設定），避免下一位登入的人沿用上一位的設定
   Future<void> clearForSignOut() async {
     _themeMode = ThemeMode.dark;
-    _primaryColor = AppThemeColors.tealCyan;
+    _accent = AppThemeColors.defaultAccent;
     _defaultCustomerViewMode = 'card';
     _isSidebarCollapsedByDefault = false;
     _isSidebarHoverExpandEnabled = false;
@@ -229,7 +236,7 @@ class AppSettings extends ChangeNotifier {
   /// Reset to factory default settings
   Future<void> resetToDefaults() async {
     _themeMode = ThemeMode.dark;
-    _primaryColor = AppThemeColors.tealCyan;
+    _accent = AppThemeColors.defaultAccent;
     _defaultCustomerViewMode = 'card';
     _isSidebarCollapsedByDefault = false;
     _isSidebarHoverExpandEnabled = false;
@@ -243,7 +250,7 @@ class AppSettings extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('prefs_theme_mode', _themeMode.name);
-      await prefs.setInt('prefs_primary_color', _primaryColor.value);
+      await prefs.setInt('prefs_primary_color', _accent.storedValue);
       await prefs.setString('prefs_customer_view_mode', _defaultCustomerViewMode);
       await prefs.setBool('prefs_sidebar_collapsed', _isSidebarCollapsedByDefault);
       await prefs.setBool('prefs_sidebar_hover_expand', _isSidebarHoverExpandEnabled);
@@ -265,7 +272,7 @@ class AppSettings extends ChangeNotifier {
       if (user != null) {
         final settingsJson = {
           'theme_mode': _themeMode.name,
-          'primary_color_value': _primaryColor.value,
+          'primary_color_value': _accent.storedValue,
           'customer_view_mode': _defaultCustomerViewMode,
           'sidebar_collapsed': _isSidebarCollapsedByDefault,
           'sidebar_hover_expand': _isSidebarHoverExpandEnabled,

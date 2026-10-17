@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 離線預覽模式時，登入頁最上方的橘色橫幅，附「直接跳過登入」按鈕
+import '../../theme/app_theme.dart';
+
+/// 離線預覽模式時，登入頁最上方的提示列，附「直接跳過登入」按鈕
 class LoginOfflineBanner extends StatelessWidget {
   final String reason;
   final VoidCallback onSkipLogin;
@@ -9,47 +11,37 @@ class LoginOfflineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
     return Material(
-      color: Colors.amber.shade900.withValues(alpha: 0.95),
+      color: colors.warnSoft,
       child: SafeArea(
         bottom: false,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.line))),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Icon(Icons.info_outline, size: 16, color: colors.warn),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '⚠️ 離線預覽模式已啟用 ($reason)',
+                  '離線預覽模式（$reason）',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(color: colors.warn, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton(
-                style: TextButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 onPressed: onSkipLogin,
-                child: const Text(
-                  '直接跳過登入',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
+                child: const Text('直接跳過登入'),
+              ),
             ],
           ),
         ),

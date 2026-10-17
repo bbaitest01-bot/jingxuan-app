@@ -27,8 +27,8 @@ void main() {
       await tester.pumpWidget(const MyApp());
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('insurance_helper'), findsOneWidget);
-      expect(find.text('業務員登入'), findsOneWidget);
+      expect(find.text('經選助手'), findsOneWidget);
+      expect(find.text('歡迎回來，請使用你的帳號登入。'), findsOneWidget);
 
       // 點擊「直接跳過登入」進入 HomeScreen
       final Finder skipBtn = find.text('直接跳過登入');
@@ -93,7 +93,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       // 驗證登入介面元素與標題
-      expect(find.text('insurance_helper'), findsOneWidget);
+      expect(find.text('經選助手'), findsOneWidget);
       expect(find.text('常用信箱網域 ▾'), findsOneWidget);
 
       // 點擊常用網域快選按鈕
@@ -102,10 +102,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // 驗證網域選單彈出
-      expect(find.text('(@gmail.com)'), findsOneWidget);
+      expect(find.text('@gmail.com'), findsOneWidget);
 
       // 點擊 Gmail 網域
-      await tester.tap(find.text('(@gmail.com)'));
+      await tester.tap(find.text('@gmail.com'));
       await tester.pumpAndSettle();
 
       // 清除 Toast timer

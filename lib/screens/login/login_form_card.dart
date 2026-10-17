@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/google_sign_in_button.dart';
 import 'email_domain_picker.dart';
 
-/// 登入頁中間的卡片：姓名（註冊時）、信箱、密碼、忘記密碼、登入／註冊按鈕、Google 登入、切換登入與註冊。
+/// 登入頁右欄的表單：標題、姓名（註冊時）、信箱、密碼、忘記密碼、登入／註冊按鈕、Google 登入、切換登入與註冊。
 /// 只負責畫面；按下按鈕後要做的事由外框（LoginScreen）提供。
 class LoginFormCard extends StatelessWidget {
   final bool isSignUp;
@@ -34,222 +35,232 @@ class LoginFormCard extends StatelessWidget {
     required this.onDomainSelected,
   });
 
+  // 輸入框內距：搭配 15 號字，整個框高約 46
+  static const EdgeInsets _fieldPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 13);
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final AppColors colors = context.appColors;
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(
-          color: Color(0xFF1E293B), // Border color Slate 800
-          width: 1,
+    String title = '登入';
+    String subtitle = '歡迎回來，請使用你的帳號登入。';
+    if (isSignUp) {
+      title = '建立業務帳號';
+      subtitle = '填寫資料申請使用，送出後請到信箱完成驗證。';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: AppTextStyles.serif(fontSize: 28, color: colors.ink)),
+        const SizedBox(height: 8),
+        Text(subtitle, style: TextStyle(fontSize: 14, color: colors.ink2)),
+        const SizedBox(height: 32),
+
+        // 姓名（只有註冊時出現）
+        if (isSignUp) ...[
+          const _FieldLabel(text: '姓名'),
+          TextFormField(
+            controller: nameController,
+            textInputAction: TextInputAction.next,
+            style: const TextStyle(fontSize: 15),
+            decoration: const InputDecoration(hintText: '例：王大明（綽號也可以）', contentPadding: _fieldPadding),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return '請輸入姓名';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // 電子信箱：標籤右邊是「常用信箱網域」快選
+        _FieldLabel(text: '電子信箱', trailing: EmailDomainPicker(onSelected: onDomainSelected)),
+        TextFormField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          style: const TextStyle(fontSize: 15),
+          decoration: const InputDecoration(hintText: 'name@example.com', contentPadding: _fieldPadding),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '請輸入 Email';
+            }
+            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+              return '請輸入有效的 Email 格式';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 20),
+
+        // 密碼：登入時標籤右邊是「忘記密碼？」
+        _FieldLabel(text: '密碼', trailing: isSignUp ? null : _ForgotPasswordLink(onPressed: onForgotPassword)),
+        _buildPasswordField(colors),
+        const SizedBox(height: 28),
+
+        SizedBox(
+          height: 48,
+          child: FilledButton(
+            onPressed: isLoading ? null : onSubmit,
+            child: _buildSubmitLabel(colors),
+          ),
+        ),
+        const SizedBox(height: 24),
+        const _OrDivider(),
+        const SizedBox(height: 24),
+        GoogleStyleSignInButton(
+          onPressed: onGoogleSignIn,
+          label: '使用 Google 帳號登入',
+          isLoading: isLoading,
+        ),
+        const SizedBox(height: 28),
+        _buildSwitchModeRow(colors),
+      ],
+    );
+  }
+
+  Widget _buildPasswordField(AppColors colors) {
+    IconData visibilityIcon = Icons.visibility_outlined;
+    if (obscurePassword) {
+      visibilityIcon = Icons.visibility_off_outlined;
+    }
+    return TextFormField(
+      controller: passwordController,
+      obscureText: obscurePassword,
+      textInputAction: TextInputAction.done,
+      style: const TextStyle(fontSize: 15),
+      onFieldSubmitted: (_) {
+        if (!isLoading) {
+          onSubmit();
+        }
+      },
+      decoration: InputDecoration(
+        hintText: '至少 6 個字元',
+        contentPadding: _fieldPadding,
+        suffixIcon: IconButton(
+          icon: Icon(visibilityIcon, size: 20, color: colors.ink3),
+          tooltip: '顯示／隱藏密碼',
+          onPressed: onToggleObscurePassword,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isSignUp ? '建立業務帳號' : '業務員登入',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return '請輸入密碼';
+        }
+        if (value.length < 6) {
+          return '密碼長度需至少 6 個字元';
+        }
+        return null;
+      },
+    );
+  }
 
-            // Name Input (Only shown on Sign Up)
-            if (isSignUp) ...[
-              TextFormField(
-                controller: nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: '姓名 (綽號就好惹~)',
-                  hintText: '例：王大明',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return '請輸入姓名';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
+  Widget _buildSubmitLabel(AppColors colors) {
+    if (isLoading) {
+      return SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: colors.onAcc),
+      );
+    }
+    if (isSignUp) {
+      return const Text('註冊帳號', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600));
+    }
+    return const Text('登入', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600));
+  }
 
-            // Email Input Label & Quick Domain Selector
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '電子信箱',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70,
-                  ),
-                ),
-                EmailDomainPicker(onSelected: onDomainSelected),
-              ],
-            ),
-            const SizedBox(height: 8),
+  // 最下面：「還沒有帳號？申請使用」或「已有帳號？返回登入」
+  Widget _buildSwitchModeRow(AppColors colors) {
+    String question = '還沒有帳號？';
+    String actionLabel = '申請使用';
+    if (isSignUp) {
+      question = '已有帳號？';
+      actionLabel = '返回登入';
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(question, style: TextStyle(fontSize: 14, color: colors.ink2)),
+        TextButton(
+          onPressed: onToggleSignUp,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(actionLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
+}
 
-            // Email Input
-            TextFormField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                hintText: '請輸入 Email 帳號',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '請輸入 Email';
-                }
-                if (!RegExp(
-                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                    .hasMatch(value.trim())) {
-                  return '請輸入有效的 Email 格式';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+/// 輸入框上方的欄位名稱，右邊可放一個小按鈕
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  final Widget? trailing;
 
-            // Password Input
-            TextFormField(
-              controller: passwordController,
-              obscureText: obscurePassword,
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) {
-                if (!isLoading) {
-                  onSubmit();
-                }
-              },
-              decoration: InputDecoration(
-                labelText: '密碼',
-                prefixIcon: const Icon(Icons.lock_outline),
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    color: Colors.white54,
-                  ),
-                  onPressed: onToggleObscurePassword,
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return '請輸入密碼';
-                }
-                if (value.length < 6) {
-                  return '密碼長度需至少 6 個字元';
-                }
-                return null;
-              },
-            ),
-            if (!isSignUp) ...[
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: onForgotPassword,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize:
-                        MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text(
-                    '忘記密碼？',
-                    style: TextStyle(
-                      color: Color(0xFF00ADB5),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
+  const _FieldLabel({required this.text, this.trailing});
 
-            // Submit Button
-            ElevatedButton(
-              onPressed: isLoading ? null : onSubmit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00ADB5),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(
-                                Colors.white),
-                      ),
-                    )
-                  : Text(isSignUp ? '註冊帳號' : '登入'),
-            ),
-            const SizedBox(height: 16),
-
-            // Divider
-            const Row(
-              children: [
-                Expanded(
-                    child: Divider(color: Colors.white24)),
-                Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    '或使用第三方帳號',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.white54),
-                  ),
-                ),
-                Expanded(
-                    child: Divider(color: Colors.white24)),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Google Sign-In Button
-            GoogleStyleSignInButton(
-              onPressed: onGoogleSignIn,
-              label: '使用 Google 繼續',
-              isLoading: isLoading,
-            ),
-            const SizedBox(height: 12),
-
-            // Toggle Sign In / Sign Up
-            TextButton(
-              onPressed: onToggleSignUp,
-              child: Text(
-                isSignUp ? '已有帳號？返回登入' : '沒有帳號？立即註冊一個',
-                style: const TextStyle(
-                  color: Color(0xFF00ADB5),
-                ),
-              ),
-            ),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> children = [
+      Expanded(
+        child: Text(
+          text,
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.appColors.ink),
         ),
       ),
+    ];
+    final Widget? trailingWidget = trailing;
+    if (trailingWidget != null) {
+      children.add(trailingWidget);
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SizedBox(height: 24, child: Row(children: children)),
+    );
+  }
+}
+
+/// 「忘記密碼？」文字連結
+class _ForgotPasswordLink extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _ForgotPasswordLink({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: const Text('忘記密碼？', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+    );
+  }
+}
+
+/// 兩條細線中間一個「或」
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return Row(
+      children: [
+        Expanded(child: Divider(color: colors.line, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text('或', style: TextStyle(fontSize: 12, color: colors.ink3)),
+        ),
+        Expanded(child: Divider(color: colors.line, height: 1)),
+      ],
     );
   }
 }

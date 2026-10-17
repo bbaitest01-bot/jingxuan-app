@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import '../theme/app_theme.dart';
 import '../widgets/custom_toast.dart';
 
 class PendingApprovalScreen extends StatefulWidget {
@@ -67,108 +68,73 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final AppColors colors = context.appColors;
+
+    Widget refreshIcon = const Icon(Icons.refresh_rounded, size: 18);
+    String refreshLabel = '重新整理審核狀態';
+    if (_isChecking) {
+      refreshIcon = SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2, color: colors.onAcc),
+      );
+      refreshLabel = '檢查中...';
+    }
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: colors.bg,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 440),
+            // 卡片底色、細框、圓角來自主題的 CardTheme
             child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
-              ),
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.pending_actions_rounded,
-                        size: 40,
-                        color: Color(0xFFF59E0B),
+                    Align(
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(color: colors.warnSoft, shape: BoxShape.circle),
+                        child: Icon(Icons.pending_actions_rounded, size: 32, color: colors.warn),
                       ),
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      '📋 帳號審核中 (Pending Approval)',
+                      '帳號審核中',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
+                      style: AppTextStyles.serif(fontSize: 22, color: colors.ink),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     Text(
                       '您的帳號已成功完成驗證！\n'
                       '登入帳號：${widget.userEmail}\n'
                       '申請通訊處：國泰台北第一通訊處 (TAIPEI-01)\n\n'
                       '基於通訊處個資與客戶資產安全防護，新註冊帳號需由「團隊主管」於戰情室進行身分確認並點擊開通後，方可登入存取系統。',
                       textAlign: TextAlign.start,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.6,
-                        color: isDark ? Colors.white70 : Colors.black87,
-                      ),
+                      style: TextStyle(fontSize: 13, height: 1.6, color: colors.ink2),
                     ),
                     const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: _isChecking ? null : _checkStatus,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00ADB5),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      icon: _isChecking
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.refresh_rounded, size: 18),
-                      label: Text(
-                        _isChecking ? '檢查中...' : '🔄 重新整理審核狀態',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                    SizedBox(
+                      height: 46,
+                      child: FilledButton.icon(
+                        onPressed: _isChecking ? null : _checkStatus,
+                        icon: refreshIcon,
+                        label: Text(refreshLabel),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _handleSignOut,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
-                        side: const BorderSide(color: Colors.redAccent),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      icon: const Icon(Icons.logout_rounded, size: 18),
-                      label: const Text(
-                        '🚪 返回登入頁',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                    SizedBox(
+                      height: 46,
+                      child: OutlinedButton.icon(
+                        onPressed: _handleSignOut,
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text('返回登入頁'),
                       ),
                     ),
                   ],
