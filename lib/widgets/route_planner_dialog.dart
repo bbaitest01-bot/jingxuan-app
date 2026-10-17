@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/schedule_event.dart';
+import '../theme/app_theme.dart';
 import 'custom_toast.dart';
 
 class RoutePlannerDialog extends StatefulWidget {
@@ -93,42 +94,42 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = Theme.of(context).primaryColor;
-    final dateStr = DateFormat('yyyy年MM月dd日', 'zh_TW').format(widget.selectedDate);
-    final dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
+    final AppColors colors = context.appColors;
+    final String dateStr = DateFormat('yyyy年MM月dd日', 'zh_TW').format(widget.selectedDate);
     final bool isMobile = widget.isBottomSheet ?? (MediaQuery.of(context).size.width < 768);
 
     Widget buildContent() {
+      double titleSize = 18;
+      if (isMobile) {
+        titleSize = 16;
+      }
+
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header (包含 Expanded 防擠壓標題與 X 按鈕)
+          // 標題列：圖示、標題（宋體）、關閉
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  color: colors.accSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.control),
                 ),
-                child: Icon(Icons.alt_route, color: primaryColor, size: 22),
+                child: Icon(Icons.alt_route, color: colors.acc, size: 22),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '行程路線規劃 ($dateStr)',
-                  style: TextStyle(
-                    fontSize: isMobile ? 16 : 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: AppTextStyles.serif(fontSize: titleSize, color: colors.ink),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, color: colors.ink2),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
@@ -136,21 +137,21 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
           const SizedBox(height: 8),
           Text(
             '起點自動為目前位置。勾選要前往的地點，將依時間順序自動在 Google Maps 規劃多站駕駛路線：',
-            style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+            style: TextStyle(fontSize: 12, color: colors.ink2),
           ),
           const SizedBox(height: 12),
 
-          // Select All / Deselect All Bar
+          // 全選／全不選與已選站數
           Row(
             children: [
               TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: primaryColor),
+                style: TextButton.styleFrom(foregroundColor: colors.acc),
                 icon: const Icon(Icons.select_all, size: 16),
                 label: const Text('全選'),
                 onPressed: () => _toggleSelectAll(true),
               ),
               TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: isDark ? Colors.white70 : Colors.black54),
+                style: TextButton.styleFrom(foregroundColor: colors.ink2),
                 icon: const Icon(Icons.deselect, size: 16),
                 label: const Text('全不選'),
                 onPressed: () => _toggleSelectAll(false),
@@ -158,18 +159,18 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
               const Spacer(),
               Text(
                 '已選擇 ${_selectedIds.length} / ${_validEvents.length} 站',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryColor),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.acc),
               ),
             ],
           ),
-          Divider(color: isDark ? const Color(0xFF30363D) : Colors.grey.shade300),
+          Divider(color: colors.line),
 
-          // Event Checkbox List
+          // 行程勾選清單
           if (_validEvents.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24.0),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
               child: Center(
-                child: Text('今日尚無任何包含地點的行程記錄', style: TextStyle(color: Colors.grey)),
+                child: Text('今日尚無任何包含地點的行程記錄', style: TextStyle(color: colors.ink3)),
               ),
             )
           else
@@ -178,92 +179,12 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: _validEvents.length,
-                itemBuilder: (ctx, index) {
-                  final event = _validEvents[index];
-                  final isSelected = _selectedIds.contains(event.id);
-                  final orderNum = index + 1;
-
-                  return CheckboxListTile(
-                    value: isSelected,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedIds.add(event.id);
-                        } else {
-                          _selectedIds.remove(event.id);
-                        }
-                      });
-                    },
-                    secondary: CircleAvatar(
-                      radius: 12,
-                      backgroundColor: isSelected ? primaryColor : Colors.grey,
-                      child: Text('$orderNum', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                    title: Text(
-                      '${DateFormat('HH:mm').format(event.startAt)} ${event.title}',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '📍 ${event.location}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    activeColor: primaryColor,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    dense: true,
-                  );
-                },
+                itemBuilder: (ctx, index) => _buildStopTile(colors, index),
               ),
             ),
 
           const SizedBox(height: 16),
-
-          // Action Buttons
-          if (isMobile)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _validEvents.isEmpty ? null : _launchGoogleMapsNavigation,
-                  icon: const Icon(Icons.navigation, color: Colors.white, size: 18),
-                  label: const Text('開啟 Google 地圖導航 (免費)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-              ],
-            )
-          else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _validEvents.isEmpty ? null : _launchGoogleMapsNavigation,
-                  icon: const Icon(Icons.navigation, color: Colors.white, size: 18),
-                  label: const Text('開啟 Google 地圖導航 (免費)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
+          _buildActions(isMobile),
         ],
       );
     }
@@ -271,15 +192,9 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
     if (isMobile) {
       return Container(
         decoration: BoxDecoration(
-          color: dialogBg,
+          color: colors.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+          border: Border(top: BorderSide(color: colors.line)),
         ),
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.88,
@@ -294,14 +209,14 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 頂部小把手 (Drag handle)
+            // 頂部小把手
             Center(
               child: Container(
                 width: 40,
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white24 : Colors.grey.shade300,
+                  color: colors.line,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -317,8 +232,6 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
     }
 
     return Dialog(
-      backgroundColor: dialogBg,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: Padding(
@@ -328,6 +241,80 @@ class _RoutePlannerDialogState extends State<RoutePlannerDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  // 一站：順序編號、時間與標題、地點；勾選後編號變主題色
+  Widget _buildStopTile(AppColors colors, int index) {
+    final ScheduleEvent event = _validEvents[index];
+    final bool isSelected = _selectedIds.contains(event.id);
+    final int orderNum = index + 1;
+    Color badgeColor = colors.surface2;
+    Color badgeTextColor = colors.ink3;
+    if (isSelected) {
+      badgeColor = colors.acc;
+      badgeTextColor = colors.onAcc;
+    }
+
+    return CheckboxListTile(
+      value: isSelected,
+      onChanged: (val) {
+        setState(() {
+          if (val == true) {
+            _selectedIds.add(event.id);
+          } else {
+            _selectedIds.remove(event.id);
+          }
+        });
+      },
+      secondary: CircleAvatar(
+        radius: 12,
+        backgroundColor: badgeColor,
+        child: Text('$orderNum', style: AppTextStyles.mono(fontSize: 11, color: badgeTextColor)),
+      ),
+      title: Text(
+        '${DateFormat('HH:mm').format(event.startAt)} ${event.title}',
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink),
+      ),
+      subtitle: Text(
+        '${event.location}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 12, color: colors.ink2),
+      ),
+      activeColor: colors.acc,
+      checkColor: colors.onAcc,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      dense: true,
+    );
+  }
+
+  // 下方按鈕：手機版上下排、電腦版靠右並排
+  Widget _buildActions(bool isMobile) {
+    final Widget navigateButton = FilledButton.icon(
+      onPressed: _validEvents.isEmpty ? null : _launchGoogleMapsNavigation,
+      icon: const Icon(Icons.navigation, size: 18),
+      label: const Text('開啟 Google 地圖導航 (免費)', style: TextStyle(fontWeight: FontWeight.bold)),
+      style: FilledButton.styleFrom(
+        padding: isMobile
+            ? const EdgeInsets.symmetric(vertical: 14)
+            : const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      ),
+    );
+    final Widget cancelButton = TextButton(
+      onPressed: () => Navigator.pop(context),
+      child: const Text('取消'),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [navigateButton, const SizedBox(height: 8), cancelButton],
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [cancelButton, const SizedBox(width: 12), navigateButton],
     );
   }
 }

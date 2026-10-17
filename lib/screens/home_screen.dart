@@ -320,8 +320,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isWideScreen = screenWidth >= 768;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color primaryColor = AppSettings.instance.primaryColor;
 
     // 側邊欄（電腦版放左邊，手機版放在抽屜裡）
     Widget sidebarContent() {
@@ -382,11 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           floatingActionButton: _activeMenu == '今日行程'
-              ? VoiceSchedulerFab(
-                  onPressed: _openVoiceSchedulerDialog,
-                  isDark: isDark,
-                  primaryColor: primaryColor,
-                )
+              ? VoiceSchedulerFab(onPressed: _openVoiceSchedulerDialog)
               : null,
         ),
         const SpotlightTourOverlay(),

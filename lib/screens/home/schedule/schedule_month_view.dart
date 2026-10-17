@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/schedule_event.dart';
 import '../../../services/app_settings.dart';
+import '../../../theme/app_theme.dart';
 import 'schedule_event_style.dart';
 import 'schedule_page_state.dart';
 
@@ -13,9 +14,10 @@ class ScheduleMonthView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color primaryColor = AppSettings.instance.primaryColor;
-    final Color borderColor = isDark ? const Color(0xFF21262D) : Colors.grey.shade200;
+    final AppColors colors = context.appColors;
+    final Color borderColor = colors.line;
+    // 週末的星期標題用主題的危險色（偏暗紅），保留日曆「週末紅字」的習慣
+    final Color weekendColor = Theme.of(context).colorScheme.error;
 
     if (data.isLoading && data.events.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -51,7 +53,7 @@ class ScheduleMonthView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161B22) : Colors.grey.shade100,
+            color: colors.surface2,
             border: Border(bottom: BorderSide(color: borderColor)),
           ),
           child: Row(
@@ -64,7 +66,7 @@ class ScheduleMonthView extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
-                      color: isWeekend ? Colors.redAccent : (isDark ? Colors.white70 : Colors.black87),
+                      color: isWeekend ? weekendColor : colors.ink2,
                     ),
                   ),
                 ),
@@ -113,6 +115,12 @@ class ScheduleMonthView extends StatelessWidget {
                             final bool isSelected = cellDate.year == data.selectedDate.year &&
                                 cellDate.month == data.selectedDate.month &&
                                 cellDate.day == data.selectedDate.day;
+                            final _MonthCellStyle cellStyle = _MonthCellStyle.of(
+                              colors,
+                              isSelected: isSelected,
+                              isToday: isToday,
+                              isCurrentMonthDay: isCurrentMonthDay,
+                            );
 
                             return Expanded(
                               child: InkWell(
@@ -125,25 +133,14 @@ class ScheduleMonthView extends StatelessWidget {
                                     actions.selectDateAndReload(cellDate);
                                   }
                                 },
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(AppRadius.control),
                                 child: Container(
                                   margin: const EdgeInsets.symmetric(horizontal: 2),
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? primaryColor.withValues(alpha: 0.08)
-                                        : (isCurrentMonthDay
-                                            ? (isDark ? const Color(0xFF161B22) : Colors.white)
-                                            : (isDark ? const Color(0xFF0D1117).withValues(alpha: 0.3) : Colors.grey.shade50)),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? primaryColor
-                                          : isToday
-                                              ? primaryColor.withValues(alpha: 0.5)
-                                              : (isCurrentMonthDay ? borderColor : borderColor.withValues(alpha: 0.3)),
-                                      width: isSelected ? 2.0 : 1.0,
-                                    ),
+                                    color: cellStyle.background,
+                                    borderRadius: BorderRadius.circular(AppRadius.control),
+                                    border: Border.all(color: cellStyle.border, width: cellStyle.borderWidth),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,23 +152,13 @@ class ScheduleMonthView extends StatelessWidget {
                                             padding: const EdgeInsets.all(4),
                                             decoration: isToday
                                                 ? BoxDecoration(
-                                                    color: primaryColor,
+                                                    color: colors.acc,
                                                     shape: BoxShape.circle,
                                                   )
                                                 : null,
                                             child: Text(
                                               '${cellDate.day}',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                                color: isToday
-                                                    ? Colors.white
-                                                    : (isSelected
-                                                        ? primaryColor
-                                                        : (isCurrentMonthDay
-                                                            ? (isDark ? Colors.white70 : Colors.black87)
-                                                            : (isDark ? Colors.white30 : Colors.black38))),
-                                              ),
+                                              style: AppTextStyles.mono(fontSize: 12, color: cellStyle.dayNumber),
                                             ),
                                           ),
                                         ],
@@ -241,7 +228,8 @@ class ScheduleMonthView extends StatelessWidget {
                                 ? event.tag!.trim()
                                 : event.title;
 
-                            final Color bannerBg = scheduleEventTypeColor(event.eventType, primaryColor);
+                            // 行程色條：實心類型色底；字用 onAcc（明亮模式白字，深色模式類型色變亮，改用深色字才看得清楚）
+                            final Color bannerColor = scheduleEventTypeColor(context, event.eventType);
 
                             bannerWidgets.add(
                               Positioned(
@@ -251,24 +239,17 @@ class ScheduleMonthView extends StatelessWidget {
                                 height: 22.0,
                                 child: InkWell(
                                   onTap: () => actions.openEventEditor(event),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(AppRadius.control),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: bannerBg.withValues(alpha: 0.85),
-                                      borderRadius: BorderRadius.circular(6),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: bannerBg.withValues(alpha: 0.3),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
+                                      color: bannerColor,
+                                      borderRadius: BorderRadius.circular(AppRadius.control),
                                     ),
                                     child: Text(
                                       displayTag,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: colors.onAcc,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -291,6 +272,60 @@ class ScheduleMonthView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 月網格一格的顏色：選中、今天、本月、其他月份各有不同
+class _MonthCellStyle {
+  final Color background;
+  final Color border;
+  final double borderWidth;
+  final Color dayNumber;
+
+  const _MonthCellStyle({
+    required this.background,
+    required this.border,
+    required this.borderWidth,
+    required this.dayNumber,
+  });
+
+  factory _MonthCellStyle.of(
+    AppColors colors, {
+    required bool isSelected,
+    required bool isToday,
+    required bool isCurrentMonthDay,
+  }) {
+    // 先決定一般格子：本月白底、其他月份淡灰底與更淡的框
+    Color background = colors.surface;
+    Color border = colors.line;
+    Color dayNumber = colors.ink2;
+    if (!isCurrentMonthDay) {
+      background = colors.bg;
+      border = colors.line.withValues(alpha: 0.5);
+      dayNumber = colors.ink3;
+    }
+
+    double borderWidth = 1.0;
+    if (isToday) {
+      border = colors.acc.withValues(alpha: 0.5);
+      // 今天的日期數字放在主題色圓圈裡
+      dayNumber = colors.onAcc;
+    }
+    if (isSelected) {
+      background = colors.accSoft;
+      border = colors.acc;
+      borderWidth = 2.0;
+      if (!isToday) {
+        dayNumber = colors.acc;
+      }
+    }
+
+    return _MonthCellStyle(
+      background: background,
+      border: border,
+      borderWidth: borderWidth,
+      dayNumber: dayNumber,
     );
   }
 }

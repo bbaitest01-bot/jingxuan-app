@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/app_settings.dart';
 import '../../../services/app_localizations.dart';
+import '../../../theme/app_theme.dart';
 import 'schedule_page_state.dart';
 
 /// 電腦版日時間軸右側的「小月曆」面板：可點選日期、新增行程，下方有今日摘要。
@@ -13,9 +14,8 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color primaryColor = AppSettings.instance.primaryColor;
-    final Color borderColor = isDark ? const Color(0xFF21262D) : Colors.grey.shade200;
+    final AppColors colors = context.appColors;
+    final Color borderColor = colors.line;
 
     final dayEventsCount = data.events.where((e) {
       final DateTime dayStart = DateTime(data.selectedDate.year, data.selectedDate.month, data.selectedDate.day, 0, 0, 0);
@@ -31,14 +31,14 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
     return Container(
       width: 360,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.grey.shade50,
+        color: colors.bg,
         border: Border(left: BorderSide(color: borderColor)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 面板 Header
+            // 面板標題（宋體）與重新整理
             Container(
               padding: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
@@ -49,20 +49,16 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.calendar_month, size: 20, color: isDark ? const Color(0xFFA78BFA) : primaryColor),
+                      Icon(Icons.calendar_month, size: 20, color: colors.acc),
                       const SizedBox(width: 8),
                       Text(
                         '日曆快速導航',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
+                        style: AppTextStyles.serif(fontSize: 16, color: colors.ink),
                       ),
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh, size: 20),
+                    icon: Icon(Icons.refresh, size: 20, color: colors.ink2),
                     onPressed: actions.reload,
                     tooltip: '重新整理',
                   ),
@@ -70,14 +66,9 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            // 小月曆 Picker 卡片 (點選即時切換日時間軸)
+            // 小月曆 Picker 卡片 (點選即時切換日時間軸)；卡片樣式交給主題（白底、細框、圓角 12）
             Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: borderColor),
-              ),
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              margin: EdgeInsets.zero,
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: CalendarDatePicker(
@@ -96,8 +87,8 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161B22) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.card),
                 border: Border.all(color: borderColor),
               ),
               child: Column(
@@ -108,24 +99,20 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
                     children: [
                       Text(
                         dateStr,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
+                        style: AppTextStyles.mono(fontSize: 14, color: colors.ink),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: primaryColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
+                          color: colors.accSoft,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                         child: Text(
                           '$dayEventsCount 筆行程',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: primaryColor,
+                            color: colors.acc,
                           ),
                         ),
                       ),
@@ -135,15 +122,10 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     height: 42,
-                    child: ElevatedButton.icon(
+                    child: FilledButton.icon(
                       onPressed: () => actions.openEventEditor(null),
                       icon: const Icon(Icons.add, size: 18),
                       label: Text(context.l10n('event_add_title'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
                     ),
                   ),
                 ],
@@ -151,25 +133,20 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             // 本日概覽統計卡片
-            _buildTodaySummaryCard(context, isDark, borderColor, primaryColor),
+            _buildTodaySummaryCard(context, colors),
           ],
         ),
       ),
     );
   }
 
-  // 今日摘要卡：總行程數、已完成數等統計
-  Widget _buildTodaySummaryCard(BuildContext context, bool isDark, Color borderColor, Color primaryColor) {
+  // 今日摘要卡：總行程數、已完成數等統計；數字用宋體放大，像示範稿的數字列
+  Widget _buildTodaySummaryCard(BuildContext context, AppColors colors) {
     final totalCount = data.events.length;
     final completedCount = data.events.where((e) => e.isCompleted).length;
 
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: borderColor),
-      ),
-      color: isDark ? const Color(0xFF161B22) : Colors.white,
+      margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -177,18 +154,21 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.pie_chart_outline, size: 18, color: primaryColor),
+                Icon(Icons.pie_chart_outline, size: 18, color: colors.acc),
                 const SizedBox(width: 8),
-                Text(context.l10n('today_summary'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  context.l10n('today_summary'),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: colors.ink),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildSummaryStat(context.l10n('stat_total'), '$totalCount', isDark),
-                _buildSummaryStat(context.l10n('stat_completed'), '$completedCount', isDark),
-                _buildSummaryStat(context.l10n('stat_pending'), '${totalCount - completedCount}', isDark),
+                _buildSummaryStat(context.l10n('stat_total'), '$totalCount', colors),
+                _buildSummaryStat(context.l10n('stat_completed'), '$completedCount', colors),
+                _buildSummaryStat(context.l10n('stat_pending'), '${totalCount - completedCount}', colors),
               ],
             ),
           ],
@@ -197,12 +177,12 @@ class ScheduleMiniCalendarPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryStat(String label, String value, bool isDark) {
+  Widget _buildSummaryStat(String label, String value, AppColors colors) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(value, style: AppTextStyles.serif(fontSize: 22, color: colors.ink)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54)),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.ink3)),
       ],
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/app_settings.dart';
 import '../../../services/app_localizations.dart';
+import '../../../theme/app_theme.dart';
 import 'schedule_event_style.dart';
 import 'schedule_page_state.dart';
 
@@ -15,8 +16,10 @@ class ScheduleDayDetailPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color primaryColor = AppSettings.instance.primaryColor;
-    final Color borderColor = isDark ? const Color(0xFF21262D) : Colors.grey.shade200;
+    final AppColors colors = context.appColors;
+    final Color borderColor = colors.line;
+    // 「現在時間」紅線用主題的危險色
+    final Color nowLineColor = Theme.of(context).colorScheme.error;
 
     final dayEvents = data.events.where((e) {
       final DateTime dayStart = DateTime(data.selectedDate.year, data.selectedDate.month, data.selectedDate.day, 0, 0, 0);
@@ -31,8 +34,8 @@ class ScheduleDayDetailPanel extends StatelessWidget {
 
     final dateStr = DateFormat('MM/dd (EEE)', AppSettings.instance.language).format(data.selectedDate);
 
-    final Color gridColor = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-    final Color hourTextColor = isDark ? Colors.white30 : Colors.black45;
+    final Color gridColor = colors.line;
+    final Color hourTextColor = colors.ink3;
     final List<int> hours = List.generate(24, (index) => index); // 00:00 to 23:00 (24小時滿版時間軸)
     final double totalGridHeight = hours.length * 60.0 + 40.0;
 
@@ -48,7 +51,7 @@ class ScheduleDayDetailPanel extends StatelessWidget {
     return Container(
       width: 360,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.grey.shade50,
+        color: colors.bg,
         border: Border(left: BorderSide(color: borderColor)),
       ),
       child: Column(
@@ -64,29 +67,23 @@ class ScheduleDayDetailPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined, size: 18, color: isDark ? const Color(0xFF60A5FA) : primaryColor),
+                    Icon(Icons.calendar_today_outlined, size: 18, color: colors.acc),
                     const SizedBox(width: 8),
+                    // 面板標題用宋體
                     Text(
                       '$dateStr 行程 (${dayEvents.length})',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+                      style: AppTextStyles.serif(fontSize: 16, color: colors.ink),
                     ),
                   ],
                 ),
-                ElevatedButton.icon(
+                FilledButton.icon(
                   onPressed: () => actions.openEventEditor(null),
                   icon: const Icon(Icons.add, size: 16),
                   label: Text(context.l10n('event_add_title'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
+                  style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],
@@ -117,11 +114,7 @@ class ScheduleDayDetailPanel extends StatelessWidget {
                                     width: 45,
                                     child: Text(
                                       hourLabel,
-                                      style: TextStyle(
-                                        color: hourTextColor,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                      style: AppTextStyles.mono(fontSize: 12, color: hourTextColor),
                                     ),
                                   ),
                                   Expanded(
@@ -151,13 +144,13 @@ class ScheduleDayDetailPanel extends StatelessWidget {
                                 Container(
                                   width: 8,
                                   height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.redAccent,
+                                  decoration: BoxDecoration(
+                                    color: nowLineColor,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
-                                const Expanded(
-                                  child: Divider(color: Colors.redAccent, thickness: 2, height: 2),
+                                Expanded(
+                                  child: Divider(color: nowLineColor, thickness: 2, height: 2),
                                 ),
                               ],
                             ),
@@ -193,12 +186,12 @@ class ScheduleDayDetailPanel extends StatelessWidget {
                             height: cardHeight < 36.0 ? 36.0 : cardHeight,
                             child: InkWell(
                               onTap: () => actions.openEventEditor(event),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(AppRadius.control),
                               child: isShort
                                   ? ScheduleBulletItem(
                                       title: event.title,
                                       timeRange: timeRange,
-                                      bulletColor: scheduleEventTypeColor(event.eventType, primaryColor),
+                                      bulletColor: scheduleEventTypeColor(context, event.eventType),
                                       isDark: isDark,
                                     )
                                   : ScheduleCardItem(
@@ -206,9 +199,9 @@ class ScheduleDayDetailPanel extends StatelessWidget {
                                       timeRange: timeRange,
                                       location: event.location ?? '未指定地點',
                                       tag: displayTag,
-                                      cardColor: scheduleEventTypeBackgroundColor(event.eventType, isDark),
-                                      borderColor: scheduleEventTypeColor(event.eventType, primaryColor),
-                                      accentColor: scheduleEventTypeColor(event.eventType, primaryColor),
+                                      cardColor: scheduleEventTypeSoftColor(context, event.eventType),
+                                      borderColor: scheduleEventTypeColor(context, event.eventType),
+                                      accentColor: scheduleEventTypeColor(context, event.eventType),
                                       isDark: isDark,
                                     ),
                             ),

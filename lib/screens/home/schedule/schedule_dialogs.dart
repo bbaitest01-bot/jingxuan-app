@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../models/schedule_event.dart';
-import '../../../services/app_settings.dart';
 import '../../../widgets/custom_toast.dart';
 import '../../../widgets/route_planner_dialog.dart';
 import '../../../widgets/schedule_event_dialog.dart';
@@ -113,36 +112,13 @@ void showVoiceSchedulerResultToast(BuildContext context, Map<String, dynamic> re
   }
 }
 
-/// 開啟日期選擇器，顏色跟著主題色與深淺模式。使用者取消時回傳 null。
+/// 開啟日期選擇器。使用者取消時回傳 null。
+/// 顏色直接沿用 App 主題（lib/theme/），跟著主題色與明暗模式變，不用另外設定。
 Future<DateTime?> showScheduleDatePicker(BuildContext context, DateTime initialDate) {
-  final Color primaryColor = AppSettings.instance.primaryColor;
   return showDatePicker(
     context: context,
     initialDate: initialDate,
     firstDate: DateTime(2020),
     lastDate: DateTime(2030),
-    builder: (context, child) {
-      final bool isDark = Theme.of(context).brightness == Brightness.dark;
-      ColorScheme colorScheme;
-      if (isDark) {
-        colorScheme = ColorScheme.dark(
-          primary: primaryColor,
-          onPrimary: Colors.white,
-          surface: const Color(0xFF161B22),
-          onSurface: Colors.white,
-        );
-      } else {
-        colorScheme = ColorScheme.light(
-          primary: primaryColor,
-          onPrimary: Colors.white,
-          surface: Colors.white,
-          onSurface: Colors.black87,
-        );
-      }
-      return Theme(
-        data: Theme.of(context).copyWith(colorScheme: colorScheme),
-        child: child!,
-      );
-    },
   );
 }

@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import '../models/schedule_event.dart';
 import '../services/app_localizations.dart';
 import '../services/location_service.dart';
 import '../services/schedule_service.dart';
 import '../services/google_calendar_sync_service.dart';
+import '../theme/app_theme.dart';
 import 'custom_toast.dart';
 import '../main.dart';
 import 'categorized_tag_accordion_selector.dart';
 import '../screens/visit_projects/schedule_visit_result_bar.dart';
+import 'schedule_event/event_form_parts.dart';
+import 'schedule_event/event_location_map_dialog.dart';
 
+/// 新增／編輯行程視窗。電腦版是置中的對話框，手機版是從下方滑上來的面板。
+/// 這個檔案放資料與存檔、刪除的邏輯；畫面零件在 `schedule_event/` 資料夾。
 class ScheduleEventDialog extends StatefulWidget {
   final DateTime initialDate;
   final ScheduleEvent? eventToEdit;
@@ -42,7 +44,6 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
   late TextEditingController _locationController;
   late TextEditingController _tagController;
   late TextEditingController _descriptionController;
-  final TextEditingController _mapSearchController = TextEditingController();
 
   String? _selectedCustomerId;
   List<Map<String, dynamic>> _availableCustomers = [];
@@ -57,13 +58,6 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
   double? _selectedLng;
   bool _isSaving = false;
   bool _isDeleting = false;
-  bool _isSearchingPlace = false;
-
-  List<PlaceSearchResult> _searchResults = [];
-  final MapController _mapController = MapController();
-
-  // 預設台北 101
-  static const LatLng _defaultCenter = LatLng(25.0330, 121.5654);
 
   // 已經存在資料庫的行程才算「編輯」；語音排程帶入的內容還沒有編號，算「新增」（問題 S18）
   bool get _isExistingEvent {
@@ -137,7 +131,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     if (_selectedCustomerId != null && !_isSelectedCustomerListed) {
       return '關聯的客戶已不在名單中（可能已移至垃圾桶）';
     }
-    return '👤 選擇此行程關聯的客戶 (選定後自動帶入備註)';
+    return '選擇此行程關聯的客戶 (選定後自動帶入備註)';
   }
 
   Future<void> _loadCustomers() async {
@@ -172,57 +166,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     _locationController.dispose();
     _tagController.dispose();
     _descriptionController.dispose();
-    _mapSearchController.dispose();
-    _mapController.dispose();
     super.dispose();
-  }
-
-  Future<void> _performSearch(String query) async {
-    if (query.trim().isEmpty) return;
-    setState(() => _isSearchingPlace = true);
-    try {
-      final results = await LocationService.searchPlaces(
-        query,
-        userLat: _selectedLat ?? _defaultCenter.latitude,
-        userLng: _selectedLng ?? _defaultCenter.longitude,
-      );
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-        });
-        if (results.isNotEmpty) {
-          final first = results.first;
-          _mapController.move(LatLng(first.latitude, first.longitude), 15);
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _isSearchingPlace = false);
-    }
-  }
-
-  void _selectSearchResult(PlaceSearchResult item) {
-    setState(() {
-      _selectedLat = item.latitude;
-      _selectedLng = item.longitude;
-      _locationController.text = item.displayName;
-      _searchResults = [];
-      _mapSearchController.text = _locationController.text;
-    });
-    _mapController.move(LatLng(item.latitude, item.longitude), 16);
-  }
-
-  Future<void> _onMapTap(LatLng point) async {
-    setState(() {
-      _selectedLat = point.latitude;
-      _selectedLng = point.longitude;
-    });
-    // 逆向地理編碼取得完整中文名稱
-    final addr = await LocationService.reverseGeocode(point.latitude, point.longitude);
-    if (mounted && addr != null && addr.isNotEmpty) {
-      setState(() {
-        _locationController.text = addr;
-      });
-    }
   }
 
   Future<void> _saveEvent() async {
@@ -328,7 +272,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: AppButtonStyles.dangerText(ctx),
             child: const Text('刪除'),
           ),
         ],
@@ -354,701 +298,199 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isEdit = _isExistingEvent;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    Widget buildFormColumn() {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.event_available, color: Color(0xFF0284C7), size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    isEdit ? context.l10n('event_edit_title') : context.l10n('event_add_title'),
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  if (GoogleCalendarSyncService.instance.isSyncEnabled) ...[
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4285F4).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF4285F4).withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            (widget.eventToEdit?.isGoogleSynced ?? false) ? Icons.sync : Icons.cloud_sync_outlined,
-                            size: 13,
-                            color: const Color(0xFF4285F4),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            (widget.eventToEdit?.isGoogleSynced ?? false) ? 'Google 已對齊' : '自動對齊 Google',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF4285F4), fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // 有客戶、時間已到的行程：記錄拜訪結果（4-2c）
-          if (isEdit) ScheduleVisitResultBar(eventId: widget.eventToEdit?.id ?? ''),
-
-          // Customer Selector Section (關聯客戶)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.person_outline, size: 18, color: Color(0xFF0284C7)),
-                        const SizedBox(width: 6),
-                        Text(
-                          '關聯客戶 (可選)',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_selectedCustomerId != null)
-                      TextButton(
-                        onPressed: () => setState(() => _selectedCustomerId = null),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(40, 24),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text('清除關聯', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<String?>(
-                    // 客戶不在名單裡時先不顯示值（但仍記住 _selectedCustomerId，儲存時不會遺失關聯）
-                    value: _isSelectedCustomerListed ? _selectedCustomerId : null,
-                    isExpanded: true,
-                    hint: Text(
-                      _customerDropdownHint,
-                      style: TextStyle(fontSize: 13, color: isDark ? Colors.white38 : Colors.black38),
-                    ),
-                    items: [
-                      // 有關聯客戶但還不在名單裡（載入中或已刪除）時，先不放「無關聯」選項，
-                      // 否則選單會把空值顯示成「無關聯客戶」，看起來像關聯被清掉；要清除請按「清除關聯」
-                      if (_selectedCustomerId == null || _isSelectedCustomerListed)
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('無關聯客戶 (個人行程)', style: TextStyle(fontSize: 13)),
-                        ),
-                      ..._availableCustomers.map((cust) {
-                        final name = cust['name']?.toString() ?? '未命名';
-                        final phone = cust['phone']?.toString() ?? '';
-                        return DropdownMenuItem<String?>(
-                          value: cust['id'].toString(),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: const Color(0xFF0284C7).withValues(alpha: 0.2),
-                                child: Text(
-                                  name.isNotEmpty ? name[0] : '?',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0284C7)),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                              if (phone.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Text('($phone)', style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45)),
-                              ],
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
-                    onChanged: (val) {
-                      setState(() {
-                        _selectedCustomerId = val;
-                        if (val != null) {
-                          final c = _availableCustomers.firstWhere((x) => x['id'].toString() == val, orElse: () => {});
-                          if (c.isNotEmpty) {
-                            final name = c['name']?.toString() ?? '';
-                            if (_titleController.text.trim().isEmpty || _titleController.text.startsWith('拜訪:')) {
-                              _titleController.text = '拜訪 $name';
-                            }
-                            // Check for customer address in custom_attributes or notes
-                            final customAttrs = c['custom_attributes'] as Map<String, dynamic>?;
-                            final addr = customAttrs?['address']?.toString() ?? '';
-                            if (addr.isNotEmpty && _locationController.text.trim().isEmpty) {
-                              _locationController.text = addr;
-                            }
-                          }
-                        }
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Event Title Input
-          TextFormField(
-            controller: _titleController,
-            textInputAction: TextInputAction.next,
-            onFieldSubmitted: (_) => _saveEvent(),
-            decoration: InputDecoration(
-              labelText: '${context.l10n('event_title_label')} *',
-              hintText: context.l10n('event_title_hint'),
-              prefixIcon: const Icon(Icons.event_note),
-              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-            ),
-            validator: (val) => (val == null || val.trim().isEmpty) ? context.l10n('event_title_hint') : null,
-          ),
-          const SizedBox(height: 16),
-
-          // Date & Time Pickers (Start)
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _startDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _startDate = picked;
-                        if (_endDate.isBefore(_startDate)) {
-                          _endDate = _startDate;
-                        }
-                      });
-                    }
-                  },
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: context.l10n('event_start_date'),
-                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                    ),
-                    child: Text(DateFormat('yyyy/MM/dd').format(_startDate)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final picked = await showTimePicker(
-                      context: context,
-                      initialTime: _startTime,
-                    );
-                    if (picked != null) {
-                      setState(() => _startTime = picked);
-                    }
-                  },
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: context.l10n('event_start_time'),
-                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                      prefixIcon: const Icon(Icons.access_time, size: 18),
-                    ),
-                    child: Text(_startTime.format(context)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Date & Time Pickers (End)
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _endDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (picked != null) {
-                      setState(() => _endDate = picked);
-                    }
-                  },
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: context.l10n('event_end_date'),
-                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                    ),
-                    child: Text(DateFormat('yyyy/MM/dd').format(_endDate)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InkWell(
-                  onTap: () async {
-                    final picked = await showTimePicker(
-                      context: context,
-                      initialTime: _endTime,
-                    );
-                    if (picked != null) {
-                      setState(() => _endTime = picked);
-                    }
-                  },
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: context.l10n('event_end_time'),
-                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                      prefixIcon: const Icon(Icons.access_time, size: 18),
-                    ),
-                    child: Text(_endTime.format(context)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Location Input (with interactive map modal popup button)
-          TextFormField(
-            controller: _locationController,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-              labelText: context.l10n('event_location_label'),
-              hintText: context.l10n('event_location_hint'),
-              prefixIcon: const Icon(Icons.location_on_outlined),
-              suffixIcon: Tooltip(
-                message: '開啟地圖定位選點',
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.map,
-                    color: Color(0xFF0284C7),
-                    size: 22,
-                  ),
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                  visualDensity: VisualDensity.compact,
-                  splashRadius: 20,
-                  onPressed: () => _openInteractiveMapModal(context),
-                ),
-              ),
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 42,
-                minHeight: 42,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-            ),
-          ),
-          if (_selectedLat != null && _selectedLng != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.pin_drop, size: 14, color: Color(0xFF10B981)),
-                const SizedBox(width: 4),
-                Text(
-                  '已定位經緯度: ${_selectedLat!.toStringAsFixed(4)}, ${_selectedLng!.toStringAsFixed(4)}',
-                  style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 16),
-
-          // Description Input (拜訪重點 / 備註)
-          TextFormField(
-            controller: _descriptionController,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: '📝 行程詳細備註 / 拜訪重點',
-              hintText: '例：討論醫療險續約、檢視實支實付收據、客戶偏好下午喝茶...',
-              alignLabelWithHint: true,
-              prefixIcon: Padding(
-                padding: EdgeInsets.only(bottom: 24),
-                child: Icon(Icons.notes_outlined),
-              ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Dynamic Categorized Tag Selector
-          CategorizedTagAccordionSelector(
-            tagsController: _tagController,
-            isDark: isDark,
-            primaryColor: const Color(0xFF0369A1),
-          ),
-          const SizedBox(height: 24),
-
-          // Action Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (isEdit)
-                TextButton.icon(
-                  onPressed: _isDeleting ? null : _deleteEvent,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  label: Text(context.l10n('event_delete_btn'), style: const TextStyle(color: Colors.red)),
-                ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(context.l10n('cancel')),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveEvent,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(
-                        isEdit ? context.l10n('profile_save_changes') : context.l10n('event_add_title'),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-              ),
-            ],
-          ),
-        ],
+  // 選了客戶：自動帶入行程標題與客戶地址（標題空白或是自動產生的才覆蓋）
+  void _onCustomerChanged(String? customerId) {
+    setState(() {
+      _selectedCustomerId = customerId;
+      if (customerId == null) return;
+      final Map<String, dynamic> customer = _availableCustomers.firstWhere(
+        (Map<String, dynamic> item) => item['id'].toString() == customerId,
+        orElse: () => {},
       );
-    }
+      if (customer.isEmpty) return;
+      final String name = customer['name']?.toString() ?? '';
+      if (_titleController.text.trim().isEmpty || _titleController.text.startsWith('拜訪:')) {
+        _titleController.text = '拜訪 $name';
+      }
+      // 客戶自訂欄位裡有地址，而且地點還沒填時帶入
+      final Map<String, dynamic>? customAttributes = customer['custom_attributes'] as Map<String, dynamic>?;
+      final String address = customAttributes?['address']?.toString() ?? '';
+      if (address.isNotEmpty && _locationController.text.trim().isEmpty) {
+        _locationController.text = address;
+      }
+    });
+  }
 
-    final bool isMobile = widget.isBottomSheet ?? (MediaQuery.of(context).size.width < 768);
-
-    if (isMobile) {
-      return Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 頂部小把手 (Drag handle indicator)
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: buildFormColumn(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: MediaQuery.of(context).size.width >= 560 ? 520 : MediaQuery.of(context).size.width * 0.94,
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: buildFormColumn(),
-          ),
-        ),
+  // 打開地圖選點；選到的位置會立刻寫回這個視窗
+  void _openInteractiveMapModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) => EventLocationMapDialog(
+        initialLatitude: _selectedLat,
+        initialLongitude: _selectedLng,
+        initialAddress: _locationController.text,
+        onLocationPicked: (double latitude, double longitude, String? address) {
+          setState(() {
+            _selectedLat = latitude;
+            _selectedLng = longitude;
+            if (address != null && address.isNotEmpty) {
+              _locationController.text = address;
+            }
+          });
+        },
       ),
     );
   }
 
-  // 🗺️ 彈出頂層互動式地圖 Modal (覆蓋最上方，不擠壓底層行程表單)
-  void _openInteractiveMapModal(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+  @override
+  Widget build(BuildContext context) {
+    final bool isMobile = widget.isBottomSheet ?? (MediaQuery.of(context).size.width < 768);
+    return EventDialogFrame(
+      isBottomSheet: isMobile,
+      child: Form(key: _formKey, child: _buildFormColumn(context)),
+    );
+  }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (modalCtx, setModalState) {
-          return Dialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: bgColor,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 800, maxHeight: 650),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Top Modal Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.map_rounded, color: Color(0xFF0284C7), size: 22),
-                          const SizedBox(width: 8),
-                          Text(
-                            '🗺️ 地圖定位點選',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+  // 表單內容：電腦版、手機版共用
+  Widget _buildFormColumn(BuildContext context) {
+    final bool isEdit = _isExistingEvent;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final AppColors colors = context.appColors;
 
-                  // Search Bar Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _mapSearchController,
-                          decoration: InputDecoration(
-                            hintText: '搜尋地點 (例: 星巴克, 台北車站)',
-                            isDense: true,
-                            prefixIcon: const Icon(Icons.search, size: 20),
-                            suffixIcon: _isSearchingPlace
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: Center(
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  )
-                                : IconButton(
-                                    icon: const Icon(Icons.clear, size: 18),
-                                    onPressed: () => _mapSearchController.clear(),
-                                  ),
-                            border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-                          ),
-                          onSubmitted: (val) async {
-                            await _performSearch(val);
-                            setModalState(() {});
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () async {
-                          await _performSearch(_mapSearchController.text);
-                          setModalState(() {});
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0284C7),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: const Text('搜尋'),
-                      ),
-                    ],
-                  ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        EventDialogHeader(
+          isEdit: isEdit,
+          isGoogleSyncEnabled: GoogleCalendarSyncService.instance.isSyncEnabled,
+          isGoogleSynced: widget.eventToEdit?.isGoogleSynced ?? false,
+        ),
+        const SizedBox(height: 16),
+        // 有客戶、時間已到的行程：記錄拜訪結果（4-2c）
+        if (isEdit) ScheduleVisitResultBar(eventId: widget.eventToEdit?.id ?? ''),
 
-                  // Search Results List (if any)
-                  if (_searchResults.isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(top: 6),
-                      constraints: const BoxConstraints(maxHeight: 140),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: _searchResults.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, idx) {
-                          final item = _searchResults[idx];
-                          return ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.location_on, size: 18, color: Color(0xFF0284C7)),
-                            title: Text(item.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            onTap: () {
-                              _selectSearchResult(item);
-                              setModalState(() {});
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 10),
+        EventCustomerSelector(
+          customers: _availableCustomers,
+          // 客戶不在名單裡時先不顯示值（但仍記住 _selectedCustomerId，儲存時不會遺失關聯）
+          dropdownValue: _isSelectedCustomerListed ? _selectedCustomerId : null,
+          hasSelectedCustomer: _selectedCustomerId != null,
+          showNoCustomerOption: _selectedCustomerId == null || _isSelectedCustomerListed,
+          hintText: _customerDropdownHint,
+          onChanged: _onCustomerChanged,
+          onClear: () => setState(() => _selectedCustomerId = null),
+        ),
+        const SizedBox(height: 16),
 
-                  // Interactive Flutter Map View
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Stack(
-                        children: [
-                          FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter: (_selectedLat != null && _selectedLng != null)
-                                  ? LatLng(_selectedLat!, _selectedLng!)
-                                  : _defaultCenter,
-                              initialZoom: 15,
-                              onTap: (_, point) async {
-                                await _onMapTap(point);
-                                setModalState(() {});
-                              },
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.example.insurance_helper',
-                              ),
-                              if (_selectedLat != null && _selectedLng != null)
-                                MarkerLayer(
-                                  markers: [
-                                    Marker(
-                                      point: LatLng(_selectedLat!, _selectedLng!),
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: FloatingActionButton.small(
-                              heroTag: 'recenter_map_modal',
-                              onPressed: () {
-                                if (_selectedLat != null && _selectedLng != null) {
-                                  _mapController.move(LatLng(_selectedLat!, _selectedLng!), 16);
-                                } else {
-                                  _mapController.move(_defaultCenter, 14);
-                                }
-                              },
-                              child: const Icon(Icons.my_location),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+        TextFormField(
+          controller: _titleController,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: (_) => _saveEvent(),
+          decoration: InputDecoration(
+            labelText: '${context.l10n('event_title_label')} *',
+            hintText: context.l10n('event_title_hint'),
+            prefixIcon: const Icon(Icons.event_note),
+          ),
+          validator: (val) => (val == null || val.trim().isEmpty) ? context.l10n('event_title_hint') : null,
+        ),
+        const SizedBox(height: 16),
 
-                  // Bottom Confirmation Bar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _selectedLat != null
-                              ? '📍 已選地點: ${_locationController.text.isNotEmpty ? _locationController.text : "${_selectedLat!.toStringAsFixed(4)}, ${_selectedLng!.toStringAsFixed(4)}"}'
-                              : '💡 請在地圖上點擊位置或搜尋標註定位點',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {});
-                          Navigator.pop(ctx);
-                        },
-                        icon: const Icon(Icons.check_circle_outline, size: 18),
-                        label: const Text('確認套用此地點', style: TextStyle(fontWeight: FontWeight.bold)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        EventDateTimeRow(
+          dateLabel: context.l10n('event_start_date'),
+          timeLabel: context.l10n('event_start_time'),
+          date: _startDate,
+          time: _startTime,
+          onDatePicked: (DateTime picked) {
+            setState(() {
+              _startDate = picked;
+              if (_endDate.isBefore(_startDate)) {
+                _endDate = _startDate;
+              }
+            });
+          },
+          onTimePicked: (TimeOfDay picked) => setState(() => _startTime = picked),
+        ),
+        const SizedBox(height: 16),
+        EventDateTimeRow(
+          dateLabel: context.l10n('event_end_date'),
+          timeLabel: context.l10n('event_end_time'),
+          date: _endDate,
+          time: _endTime,
+          onDatePicked: (DateTime picked) => setState(() => _endDate = picked),
+          onTimePicked: (TimeOfDay picked) => setState(() => _endTime = picked),
+        ),
+        const SizedBox(height: 16),
+
+        // 地點：右邊的地圖按鈕可以打開地圖選點
+        TextFormField(
+          controller: _locationController,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: context.l10n('event_location_label'),
+            hintText: context.l10n('event_location_hint'),
+            prefixIcon: const Icon(Icons.location_on_outlined),
+            suffixIcon: Tooltip(
+              message: '開啟地圖定位選點',
+              child: IconButton(
+                icon: Icon(Icons.map, color: colors.acc, size: 22),
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                visualDensity: VisualDensity.compact,
+                splashRadius: 20,
+                onPressed: () => _openInteractiveMapModal(context),
               ),
             ),
-          );
-        },
-      ),
+            suffixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          ),
+        ),
+        if (_selectedLat != null && _selectedLng != null) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.pin_drop, size: 14, color: colors.ok),
+              const SizedBox(width: 4),
+              Text(
+                '已定位經緯度: ${_selectedLat!.toStringAsFixed(4)}, ${_selectedLng!.toStringAsFixed(4)}',
+                style: AppTextStyles.mono(fontSize: 11, color: colors.ink3),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+
+        // 行程備註／拜訪重點
+        TextFormField(
+          controller: _descriptionController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: '行程詳細備註 / 拜訪重點',
+            hintText: '例：討論醫療險續約、檢視實支實付收據、客戶偏好下午喝茶...',
+            alignLabelWithHint: true,
+            prefixIcon: Padding(
+              padding: EdgeInsets.only(bottom: 24),
+              child: Icon(Icons.notes_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 分類標籤選擇
+        CategorizedTagAccordionSelector(
+          tagsController: _tagController,
+          isDark: isDark,
+          primaryColor: colors.acc,
+        ),
+        const SizedBox(height: 24),
+
+        EventActionBar(
+          isEdit: isEdit,
+          isSaving: _isSaving,
+          isDeleting: _isDeleting,
+          onDelete: _deleteEvent,
+          onSave: _saveEvent,
+        ),
+      ],
     );
   }
 }
