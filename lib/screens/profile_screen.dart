@@ -9,12 +9,12 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import '../utils/platform_file_helper.dart';
 import '../main.dart';
-import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
 import '../services/profile_service.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/reset_password_dialog.dart';
 import '../models/user_role.dart';
+import '../theme/app_theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onProfileUpdated;
@@ -27,6 +27,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
+  // 上次讀到的個人資料（2026-10-19）：切頁回來時先顯示這份，不會先空白再跳出來；
+  // 背景照樣重讀一次。存帳號 id，換人登入時不會看到上一位的資料
+  static Map<String, dynamic>? _cachedProfileRow;
+  static String? _cachedProfileUserId;
+
   final _formKey = GlobalKey<FormState>();
   final GlobalKey _cardRenderKey =
       GlobalKey(); // RepaintBoundary Key for PNG export
@@ -67,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _selectedTheme =
       'system_primary'; // 'system_primary', 'dark_gold', 'cyan_slate', 'emerald', 'custom_color'
   Color _customCardColor =
-      const Color(0xFF8B5CF6); // Default Violet Custom Swatch
+      const Color(0xFF8B5CF6); // 自訂配色的預設色（使用者可改，屬於名片內容，不跟主題）
   String _honorTitle = ''; // Professional Honor Title
   bool _isCardFlipped = false;
   String _glareMode =
@@ -137,7 +142,18 @@ class _ProfileScreenState extends State<ProfileScreen>
       _licenseNoController,
     ]);
 
+    _applyCachedProfile();
     _loadProfileData();
+  }
+
+  // 有上次讀到的資料就先填上（同一個帳號才用）
+  void _applyCachedProfile() {
+    if (isOfflineMode) return;
+    final Map<String, dynamic>? cachedRow = _cachedProfileRow;
+    final User? user = Supabase.instance.client.auth.currentUser;
+    if (cachedRow == null || user == null || _cachedProfileUserId != user.id) return;
+    _userEmail = user.email ?? '';
+    _applyProfileRow(cachedRow, user);
   }
 
   @override
@@ -170,8 +186,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     setState(() {
       _isLoading = true;
     });
-
-    await Future.delayed(const Duration(milliseconds: 200));
 
     if (isOfflineMode) {
       final prefs = await SharedPreferences.getInstance();
@@ -218,23 +232,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             .maybeSingle();
 
         if (data != null && mounted) {
-          setState(() {
-            _nameController.text = data['full_name'] ?? '';
-            _phoneController.text = data['phone'] ?? '';
-            _lineIdController.text = data['line_id'] ?? '';
-            _companyController.text = data['company'] ?? '';
-            _jobTitleController.text = data['job_title'] ?? '';
-            _websiteController.text = data['website'] ?? '';
-            _addressController.text = data['address'] ?? '';
-            _bioController.text = data['bio'] ?? '';
-            _currentAvatarUrl = data['avatar_url'] ?? '';
-            _userRole = UserRole.fromString(data['role']);
-            _accountStatus =
-                data['status'] ?? (user.userMetadata?['status'] ?? 'active');
-            _isGoogleConnected = (data['is_google_connected'] as bool?) ??
-                (user.identities?.any((i) => i.provider == 'google') ?? false);
-            _applySavedBusinessCard(data);
-          });
+          _cachedProfileRow = data;
+          _cachedProfileUserId = user.id;
+          setState(() => _applyProfileRow(data, user));
         }
       }
     } catch (e) {
@@ -249,6 +249,25 @@ class _ProfileScreenState extends State<ProfileScreen>
         });
       }
     }
+  }
+
+  // 把資料庫的一筆個人資料填進畫面
+  void _applyProfileRow(Map<String, dynamic> data, User user) {
+    _nameController.text = data['full_name'] ?? '';
+    _phoneController.text = data['phone'] ?? '';
+    _lineIdController.text = data['line_id'] ?? '';
+    _companyController.text = data['company'] ?? '';
+    _jobTitleController.text = data['job_title'] ?? '';
+    _websiteController.text = data['website'] ?? '';
+    _addressController.text = data['address'] ?? '';
+    _bioController.text = data['bio'] ?? '';
+    _currentAvatarUrl = data['avatar_url'] ?? '';
+    _userRole = UserRole.fromString(data['role']);
+    _accountStatus =
+        data['status'] ?? (user.userMetadata?['status'] ?? 'active');
+    _isGoogleConnected = (data['is_google_connected'] as bool?) ??
+        (user.identities?.any((i) => i.provider == 'google') ?? false);
+    _applySavedBusinessCard(data);
   }
 
   // 讀回名片欄位（2026-10-13 起存在 profiles：LINE ID、登錄字號、頭銜、徽章、配色、QR Code）
@@ -413,6 +432,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         CustomToast.show(context, '🟢 ${context.l10n('profile_save_success')}',
             ToastType.success);
         widget.onProfileUpdated?.call();
+        // 存檔後重讀一次，讓「上次讀到的資料」也是最新的
+        _loadProfileData();
       }
     } catch (e) {
       if (mounted) {
@@ -571,18 +592,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         };
       case 'system_primary':
       default:
-        // Harmonize 100% with App System Theme Primary Color!
+        // 跟著 App 主題（2026-10-19 換皮）：白底細框、主題色重點，明暗自動切換
+        final AppColors colors = context.appColors;
         return {
-          'bgGradient': isDark
-              ? [const Color(0xFF161B22), const Color(0xFF0D1117)]
-              : [Colors.white, const Color(0xFFF8FAFC)],
-          'border': primaryColor.withOpacity(0.5),
-          'accent': primaryColor,
-          'badgeBg': primaryColor.withOpacity(0.12),
-          'badgeText': primaryColor,
-          'textColor': isDark ? Colors.white : const Color(0xFF0F172A),
-          'subTextColor':
-              isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          'bgGradient': [colors.surface, colors.surface],
+          'border': colors.line,
+          'accent': colors.acc,
+          'badgeBg': colors.accSoft,
+          'badgeText': colors.acc,
+          'textColor': colors.ink,
+          'subTextColor': colors.ink3,
         };
     }
   }
@@ -592,15 +611,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isWideScreen = screenWidth >= 900;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
 
     final Color bgColor =
-        isDark ? const Color(0xFF090D16) : const Color(0xFFF1F5F9);
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
+        context.appColors.bg;
+    final Color cardBg = context.appColors.surface;
     final Color borderColor =
-        isDark ? const Color(0xFF30363D) : Colors.grey.shade300;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+        context.appColors.line;
+    final Color textColor = context.appColors.ink;
+    final Color subTextColor = context.appColors.ink3;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -682,7 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: context.appColors.onAcc,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -690,11 +709,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     elevation: 2,
                   ),
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                              strokeWidth: 2, color: context.appColors.onAcc),
                         )
                       : const Icon(Icons.check_circle_outline, size: 18),
                   label: Text(_isLoading ? '儲存中...' : '儲存變更',
@@ -711,7 +730,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF131A26) : Colors.white,
+            color: context.appColors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: primaryColor.withOpacity(0.3)),
           ),
@@ -761,9 +780,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: isDark
-                                            ? const Color(0xFF1E293B)
-                                            : const Color(0xFFF1F5F9),
+                                        color: context.appColors.surface2,
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(jobTitle,
@@ -825,14 +842,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: (isApproved
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B))
+                            ? context.appColors.ok
+                            : context.appColors.warn)
                         .withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                         color: isApproved
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B)),
+                            ? context.appColors.ok
+                            : context.appColors.warn),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -843,8 +860,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             : Icons.pending_actions_rounded,
                         size: 14,
                         color: isApproved
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
+                            ? context.appColors.ok
+                            : context.appColors.warn,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -853,8 +870,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: isApproved
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFF59E0B),
+                              ? context.appColors.ok
+                              : context.appColors.warn,
                         ),
                       ),
                     ],
@@ -877,11 +894,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF131A26) : Colors.white,
+            color: context.appColors.surface,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
                 color:
-                    isDark ? const Color(0xFF222C3C) : const Color(0xFFE2E8F0)),
+                    context.appColors.line),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
@@ -892,12 +909,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           child: Column(
             children: [
-              // Studio Stage Toolbar
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox.shrink(),
-                  Row(
+              // 名片上方的按鈕：放不下時換到下一行，不會溢出（2026-10-19）
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       ElevatedButton.icon(
                         onPressed:
@@ -923,7 +941,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                             style: const TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
-                      const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: () =>
                             setState(() => _isCardFlipped = !_isCardFlipped),
@@ -943,8 +960,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ],
-                  ),
-                ],
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -1000,14 +1016,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF0F172A)
-                      : const Color(0xFFF8FAFC),
+                  color: context.appColors.surface2,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                      color: isDark
-                          ? const Color(0xFF1E293B)
-                          : const Color(0xFFE2E8F0)),
+                      color: context.appColors.line),
                 ),
                 child: Row(
                   children: [
@@ -1027,7 +1039,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: _buildActionHubBtn(
                           Icons.chat_bubble_outline_rounded,
                           '加 LINE',
-                          Colors.greenAccent, () {
+                          context.appColors.ok, () {
                         final l = _lineIdController.text.trim();
                         CustomToast.show(
                             context,
@@ -1038,7 +1050,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: _buildActionHubBtn(Icons.mail_outline_rounded,
-                          '發送 Email', Colors.amberAccent, () {
+                          '發送 Email', context.appColors.warn, () {
                         final e = _userEmail;
                         CustomToast.show(
                             context,
@@ -1093,12 +1105,12 @@ class _ProfileScreenState extends State<ProfileScreen>
           colors: theme['bgGradient'],
         ),
         border: Border.all(color: cardBorderColor, width: 1.5),
+        // 2026-10-19 換皮：拿掉主題色光暈，改成淡淡的中性陰影
         boxShadow: [
           BoxShadow(
-            color: cardAccentColor.withOpacity(0.3),
-            blurRadius: 22,
-            spreadRadius: 1,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -1206,10 +1218,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              InkWell(
+              // 公司名太長時用「…」收尾，不會撞到右邊的頭銜（2026-10-19）
+              Flexible(
+                child: InkWell(
                 onTap: () => _focusInlineField(1, _companyFocus),
                 borderRadius: BorderRadius.circular(8),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(6),
@@ -1223,35 +1238,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: cardAccentColor, size: 16),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      company,
-                      style: TextStyle(
-                        color: cardTextColor,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        letterSpacing: 0.5,
+                    Flexible(
+                      child: Text(
+                        company,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cardTextColor,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+              ),
+              if (_honorTitle.isNotEmpty) const SizedBox(width: 10),
               if (_honorTitle.isNotEmpty)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        cardAccentColor,
-                        cardAccentColor.withOpacity(0.8)
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                          color: cardAccentColor.withOpacity(0.35),
-                          blurRadius: 6),
-                    ],
+                    color: cardAccentColor,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text(
                     _honorTitle,
@@ -1282,11 +1293,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: cardAccentColor, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                              color: cardAccentColor.withOpacity(0.35),
-                              blurRadius: 10),
-                        ],
                       ),
                       child: CircleAvatar(
                         radius: 30,
@@ -1323,6 +1329,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   children: [
                     Text(
                       name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
@@ -1365,66 +1373,40 @@ class _ProfileScreenState extends State<ProfileScreen>
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: cardAccentColor.withOpacity(0.15)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+            // 電話、LINE、信箱放不下時自動換到下一行，信箱完整顯示（2026-10-19）
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final double maxItemWidth = constraints.maxWidth;
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
                   children: [
-                    Icon(Icons.phone_android_rounded,
-                        size: 13, color: cardAccentColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      phone.isNotEmpty ? phone : '未填寫電話',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: cardTextColor,
-                          fontWeight: FontWeight.w600),
-                    ),
+                    _buildCardContactItem(Icons.phone_android_rounded, cardAccentColor,
+                        phone.isNotEmpty ? phone : '未填寫電話', cardTextColor, maxItemWidth,
+                        isBold: true),
+                    if (lineId.isNotEmpty)
+                      _buildCardContactItem(Icons.chat_bubble_outline_rounded, cardAccentColor,
+                          'LINE: $lineId', cardTextColor, maxItemWidth,
+                          isBold: true),
+                    if (email.isNotEmpty)
+                      _buildCardContactItem(Icons.mail_outline_rounded, cardSubColor, email,
+                          cardSubColor, maxItemWidth),
                   ],
-                ),
-                if (lineId.isNotEmpty)
-                  Row(
-                    children: [
-                      Icon(Icons.chat_bubble_outline_rounded,
-                          size: 13, color: Colors.greenAccent),
-                      const SizedBox(width: 4),
-                      Text(
-                        'LINE: $lineId',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: cardTextColor,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                if (email.isNotEmpty)
-                  Row(
-                    children: [
-                      Icon(Icons.mail_outline_rounded,
-                          size: 13, color: cardSubColor),
-                      const SizedBox(width: 4),
-                      Text(
-                        email.length > 18
-                            ? '${email.substring(0, 15)}...'
-                            : email,
-                        style: TextStyle(fontSize: 11, color: cardSubColor),
-                      ),
-                    ],
-                  ),
-              ],
+                );
+              },
             ),
           ),
 
           const SizedBox(height: 10),
 
           // 4. Professional Badges Horizontal Row
+          // 徽章放不下時換行，不再被右邊切掉（2026-10-19）
           if (_selectedBadges.isNotEmpty)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+            Wrap(
+                spacing: 6,
+                runSpacing: 6,
                 children: _selectedBadges.map((badge) {
                   return Container(
-                    margin: const EdgeInsets.only(right: 6),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -1442,8 +1424,33 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                   );
                 }).toList(),
-              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  // 名片上的一項聯絡方式：圖示＋文字，最寬不超過名片，太長才用「…」
+  Widget _buildCardContactItem(IconData icon, Color iconColor, String text, Color textColor,
+      double maxWidth, {bool isBold = false}) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: iconColor),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: textColor,
+                  fontWeight: isBold ? FontWeight.w600 : FontWeight.normal),
+            ),
+          ),
         ],
       ),
     );
@@ -1608,7 +1615,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : const Color(0xFFE2E8F0),
+              color: context.appColors.surface2,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -1629,7 +1636,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+                            ? (context.appColors.surface)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: isSelected
@@ -1873,11 +1880,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            color: context.appColors.bg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color:
-                    isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                    context.appColors.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1927,7 +1934,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         fontSize: 12,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? Colors.white : textColor,
+                        color: isSelected ? context.appColors.onAcc : textColor,
                       ),
                       onSelected: (selected) {
                         if (selected) setState(() => _honorTitle = honor);
@@ -1969,7 +1976,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.appColors.onAcc,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -1991,11 +1998,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            color: context.appColors.bg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color:
-                    isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                    context.appColors.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2036,7 +2043,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       side: BorderSide(
                           color: isSelected
                               ? primaryColor
-                              : Colors.grey.withOpacity(0.3)),
+                              : context.appColors.line),
                     ),
                     labelStyle: TextStyle(
                       fontSize: 12,
@@ -2089,7 +2096,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.appColors.onAcc,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -2111,11 +2118,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            color: context.appColors.bg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color:
-                    isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                    context.appColors.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2137,7 +2144,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 runSpacing: 8,
                 children: [
                   _buildThemePresetChip(
-                      'system_primary', '全站綠松石 (預設)', primaryColor, isDark),
+                      'system_primary', '跟隨主題色 (預設)', primaryColor, isDark),
                   _buildThemePresetChip(
                       'cyan_slate', '極致藍曜', const Color(0xFF0EA5E9), isDark),
                   _buildThemePresetChip(
@@ -2208,8 +2215,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   _qrCodeImageBytes = null;
                   _currentQrCodeUrl = '';
                 }),
-                icon: const Icon(Icons.delete_outline_rounded,
-                    color: Colors.redAccent, size: 20),
+                icon: Icon(Icons.delete_outline_rounded,
+                    color: Theme.of(context).colorScheme.error, size: 20),
                 tooltip: '移除 QR Code',
               ),
             ],
@@ -2306,12 +2313,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onPressed: () {
                     widget.onRoleChanged!(UserRole.dev);
                   },
-                  icon: const Icon(Icons.developer_board_rounded,
-                      size: 16, color: Color(0xFF6366F1)),
-                  label: const Text('🛠️ 返回核心開發者控制台 (Dev Console)',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6366F1))),
+                  icon: Icon(Icons.developer_board_rounded,
+                      size: 16, color: context.appColors.acc),
+                  label: Text('🛠️ 返回核心開發者控制台 (Dev Console)',
+                      style: TextStyle(fontSize: 12, color: context.appColors.acc)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF6366F1)),
+                    side: BorderSide(color: context.appColors.acc),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -2358,7 +2365,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: context.appColors.onAcc,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -2379,23 +2386,23 @@ class _ProfileScreenState extends State<ProfileScreen>
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.redAccent.withOpacity(0.06),
+            color: Theme.of(context).colorScheme.error.withOpacity(0.06),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.error.withOpacity(0.3)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.delete_forever_rounded,
-                  size: 36, color: Colors.redAccent),
+              Icon(Icons.delete_forever_rounded,
+                  size: 36, color: Theme.of(context).colorScheme.error),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('危險區域：帳號註銷申請',
+                    Text('危險區域：帳號註銷申請',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.redAccent,
+                            color: Theme.of(context).colorScheme.error,
                             fontSize: 14)),
                     const SizedBox(height: 2),
                     Text('為避免資料被誤刪，永久清除必須由管理端完成並確認結果。',
@@ -2407,8 +2414,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ElevatedButton.icon(
                 onPressed: _showDeleteAccountDialog,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: context.appColors.onAcc,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -2430,18 +2437,16 @@ class _ProfileScreenState extends State<ProfileScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E293B)
-            : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        backgroundColor: context.appColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        title: Row(
           children: [
             Icon(Icons.warning_amber_rounded,
-                color: Colors.redAccent, size: 28),
+                color: Theme.of(context).colorScheme.error, size: 28),
             SizedBox(width: 8),
             Text('⚠️ 帳號註銷申請',
                 style: TextStyle(
-                    color: Colors.redAccent,
+                    color: Theme.of(context).colorScheme.error,
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),
           ],
@@ -2479,7 +2484,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         fontWeight: FontWeight.w900,
         color: isSelected
             ? activeFontColor
-            : (isDark ? Colors.white70 : Colors.black87),
+            : (context.appColors.ink2),
       ),
       selectedColor: color,
       avatar: CircleAvatar(
@@ -2512,16 +2517,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            color: context.appColors.line),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: primaryColor, width: 2),
       ),
       filled: true,
-      fillColor: isDark
-          ? const Color(0xFF1E293B).withOpacity(0.5)
-          : const Color(0xFFF8FAFC),
+      fillColor: context.appColors.surface2,
     );
   }
 
