@@ -15,6 +15,7 @@
   "theme_light": "明亮模式",
   "theme_dark": "深暗模式",
   "theme_system": "跟隨系統",
+  "theme_system_hint": "「跟隨系統」會依瀏覽器或裝置的明暗設定切換",
   "accent_color": "主題色調",
   "operation_preferences": "操作與檢視偏好",
   "customer_view_mode": "客戶卡片預設檢視模式",
