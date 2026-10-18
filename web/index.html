@@ -21,23 +21,23 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="保險業務員的客戶、行程與拜訪紀錄助手">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="insurance_helper">
+  <meta name="apple-mobile-web-app-title" content="經選助手">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>insurance_helper</title>
+  <title>經選助手</title>
   <link rel="manifest" href="manifest.json">
 
   <!--
     載入畫面：Flutter 第一次打開要先下載程式與內建字型（約 7MB），期間原本是一片白。
-    這裡先顯示「經選助手」與進度條，Flutter 畫出第一個畫面（flutter-first-frame）後就移除。
+    這裡先顯示盾牌 logo、「經選助手」與進度條，Flutter 畫出第一個畫面（flutter-first-frame）後就移除。
     顏色跟著上次的明暗設定（shared_preferences 存在瀏覽器的 flutter.prefs_theme_mode）。
   -->
   <style>
@@ -49,6 +49,7 @@
       transition: opacity 0.3s ease;
     }
     #app-loading.is-light { background: #F6F5F1; color: #161E29; }
+    #app-loading .loading-logo { width: 72px; height: 72px; border-radius: 12px; }
     #app-loading .loading-brand { font-size: 22px; font-weight: 600; letter-spacing: 0.08em; }
     #app-loading .loading-bar { width: 120px; height: 2px; overflow: hidden; background: rgba(128, 128, 128, 0.25); }
     #app-loading .loading-bar::after {
@@ -62,6 +63,7 @@
 </head>
 <body>
   <div id="app-loading" role="status" aria-live="polite">
+    <img class="loading-logo" src="icons/Icon-192.png" alt="" aria-hidden="true">
     <div class="loading-brand">經選助手</div>
     <div class="loading-bar" aria-hidden="true"></div>
   </div>
