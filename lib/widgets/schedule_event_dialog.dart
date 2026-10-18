@@ -137,8 +137,9 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
   Future<void> _loadCustomers() async {
     setState(() => _isLoadingCustomers = true);
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (isOfflineMode || user == null) {
+      // 離線預覽沒有初始化 Supabase，不能直接問登入者，改用服務裡的安全寫法（問題 X18）
+      final String? userId = ScheduleService.instance.currentUserId;
+      if (isOfflineMode || userId == null) {
         _availableCustomers = List<Map<String, dynamic>>.from(OfflineDataStore.customers)
             .where((c) => c['deleted_at'] == null)
             .toList();
@@ -196,8 +197,7 @@ class _ScheduleEventDialogState extends State<ScheduleEventDialog> {
     setState(() => _isSaving = true);
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      final profileId = user?.id ?? 'offline-user';
+      final String profileId = ScheduleService.instance.currentUserId ?? 'offline-user';
 
       // 行程類型判定：關聯客戶時對齊資料庫白名單 'customer_visit'
       String calculatedEventType;
