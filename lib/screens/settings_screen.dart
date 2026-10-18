@@ -9,6 +9,7 @@ import '../main.dart';
 import '../services/spotlight_tour_service.dart';
 import 'tag_manager_screen.dart';
 import 'settings/accent_color_picker.dart';
+import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -112,6 +113,12 @@ class SettingsScreen extends StatelessWidget {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 10),
+                        // 網頁版的「系統」是瀏覽器回報的明暗，不一定等於電腦的設定
+                        Text(
+                          context.l10n('theme_system_hint'),
+                          style: TextStyle(fontSize: 12, color: context.appColors.ink3),
                         ),
                         const SizedBox(height: 24),
                         const Divider(height: 1),

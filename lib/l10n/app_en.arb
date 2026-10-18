@@ -15,6 +15,7 @@
   "theme_light": "Light Mode",
   "theme_dark": "Dark Mode",
   "theme_system": "System Default",
+  "theme_system_hint": "System Default follows your browser or device appearance setting",
   "accent_color": "Accent Color",
   "operation_preferences": "Preferences & View Options",
   "customer_view_mode": "Default View Mode",
