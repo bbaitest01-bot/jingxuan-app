@@ -106,6 +106,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # 經選助手 logo（盾牌），登入頁使用；網頁分頁圖示與 App 圖示在 web/favicon.png、web/icons/
+  assets:
+    - assets/images/logo_mark.png
+
   # .env 不再打包為 asset（Web 版會被公開下載）；金鑰改用 --dart-define 傳入
 
   # 內建字型（lib/theme/app_text_styles.dart）。只收常用字的子集，用 tool/build_font_subset.py 產生；

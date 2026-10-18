@@ -1,11 +1,11 @@
 {
-    "name": "insurance_helper",
-    "short_name": "insurance_helper",
+    "name": "經選助手",
+    "short_name": "經選助手",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FCFBFC",
+    "theme_color": "#1D4877",
+    "description": "保險業務員的客戶、行程與拜訪紀錄助手",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

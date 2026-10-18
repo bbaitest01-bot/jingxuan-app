@@ -102,7 +102,7 @@ class _MyAppState extends State<MyApp> {
 
         return MaterialApp.router(
           routerConfig: _router,
-          title: '保險客戶管理助手',
+          title: '經選助手',
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
           darkTheme: darkTheme,

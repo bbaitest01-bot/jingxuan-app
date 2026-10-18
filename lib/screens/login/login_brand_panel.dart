@@ -85,7 +85,7 @@ class LoginBrandPanel extends StatelessWidget {
   }
 }
 
-/// 品牌：方框裡的「經」字＋「經選助手」與英文小字
+/// 品牌：盾牌 logo＋「經選助手」與英文小字
 class _BrandLockup extends StatelessWidget {
   const _BrandLockup();
 
@@ -95,15 +95,10 @@ class _BrandLockup extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: Border.all(color: colors.acc, width: 1.5),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Text('經', style: AppTextStyles.serif(fontSize: 20, color: colors.acc)),
+        // 盾牌 logo 是白底圖，用圓角方塊收邊，深色模式下也像一個 App 圖示
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          child: Image.asset('assets/images/logo_mark.png', width: 44, height: 44),
         ),
         const SizedBox(width: 12),
         Column(
