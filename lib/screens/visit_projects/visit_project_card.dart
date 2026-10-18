@@ -4,23 +4,29 @@ import '../../services/customer_service.dart';
 import '../customers/customer_status_widgets.dart';
 import '../../theme/app_theme.dart';
 
-/// 專案代表色「鮮明組」（2026-10-18 沛沛選定）：藍、青綠、橘、玫瑰紅、藍紫，依專案在清單裡的順序輪流用。
-/// 不跟主題色變、不用灰色（成效圖表的「總數」線是灰色）；深色模式用亮一點的版本。
-/// 卡片的色點和成效圖表「按專案」的線用同一個顏色，方便對照
+/// 專案代表色（2026-10-18 沛沛選定）：從「鮮明組」擴充成 8 色，依專案在清單裡的順序輪流用。
+/// 原本 5 色不夠（第 6 個專案又變回藍色），而且「藍紫」跟藍太像，所以拿掉藍紫、加草綠與金黃；
+/// 順序讓相鄰的專案色相差最多，紫色與藍灰排在第 7、8 個。不跟主題色變、不用純灰（「總數」線是灰色）
 class VisitProjectPalette {
   static const List<Color> light = [
-    Color(0xFF1E7FD8),
-    Color(0xFF159A7A),
-    Color(0xFFE07B12),
-    Color(0xFFD14B6E),
-    Color(0xFF5A6CC9),
+    Color(0xFF1E7FD8), // 藍
+    Color(0xFFE07B12), // 橘
+    Color(0xFF159A7A), // 青綠
+    Color(0xFFD14B6E), // 玫瑰紅
+    Color(0xFF5A9E2F), // 草綠
+    Color(0xFFC99400), // 金黃
+    Color(0xFF8E5CC9), // 紫
+    Color(0xFF6B7A99), // 藍灰
   ];
   static const List<Color> dark = [
     Color(0xFF6BB0F0),
-    Color(0xFF4FCAA8),
     Color(0xFFF2A65A),
+    Color(0xFF4FCAA8),
     Color(0xFFE8869F),
-    Color(0xFF9AA6EA),
+    Color(0xFF8CCB5E),
+    Color(0xFFE8C04A),
+    Color(0xFFB693E6),
+    Color(0xFF9DABC8),
   ];
 }
 
