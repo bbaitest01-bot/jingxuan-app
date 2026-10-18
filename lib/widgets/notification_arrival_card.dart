@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_notification.dart';
+import 'notification_type_color.dart';
 import 'notification_bell_controller.dart';
 
 /// 新通知卡片（4-E3a，沛沛 2026-10-17 看過模型確認）：
@@ -154,7 +155,7 @@ class _CardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    final Color toneColor = notification.type.color;
+    final Color toneColor = notificationTypeColor(context, notification.type);
     return Material(
       color: colorScheme.surface,
       elevation: 8,

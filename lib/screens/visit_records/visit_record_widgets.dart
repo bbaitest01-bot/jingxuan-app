@@ -4,6 +4,7 @@ import '../../models/visit_record.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import '../../widgets/voice_recorder_widget.dart';
+import '../../theme/app_theme.dart';
 
 /// 寬度小於這個值（手機）時，標題列的按鈕換到下一行
 const double visitRecordNarrowWidth = 640;
@@ -25,16 +26,16 @@ class VisitRecordStatusChip extends StatelessWidget {
 
   Color _statusColor(BuildContext context) {
     // 整理中卡住超過 5 分鐘，跟失敗一樣用紅色
-    if (record.isOrganizeStale(DateTime.now())) return Colors.redAccent;
+    if (record.isOrganizeStale(DateTime.now())) return Theme.of(context).colorScheme.error;
     switch (record.status) {
       case VisitRecord.statusProcessing:
         return Theme.of(context).colorScheme.primary;
       case VisitRecord.statusDone:
-        return Colors.green;
+        return context.appColors.ok;
       case VisitRecord.statusFailed:
-        return Colors.redAccent;
+        return Theme.of(context).colorScheme.error;
       default:
-        return Colors.grey;
+        return context.appColors.ink3;
     }
   }
 
@@ -155,7 +156,7 @@ class _CreateVisitRecordDialogState extends State<_CreateVisitRecordDialog> {
           onPressed: _isSaving ? null : _save,
           style: ElevatedButton.styleFrom(
             backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
+            foregroundColor: context.appColors.onAcc,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: Text(_isSaving ? '建立中…' : '建立'),
@@ -218,9 +219,9 @@ class _RecordVisitRecordDialogState extends State<_RecordVisitRecordDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               '按「錄音」開始說話，說完按「停止」，會自動轉成文字並建立一篇紀錄。最長 10 分鐘。',
-              style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.5),
+              style: TextStyle(fontSize: 13, color: context.appColors.ink3, height: 1.5),
             ),
             const SizedBox(height: 16),
             if (_isCreating)

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/visit_record.dart';
 import '../../services/visit_record_service.dart';
+import '../../theme/app_theme.dart';
 
 /// 打開「選擇客戶」視窗；選了回傳那位客戶，取消回傳 null
 Future<VisitCustomerOption?> showVisitCustomerPicker(BuildContext context) {
@@ -87,16 +88,16 @@ class _VisitCustomerPickerDialogState extends State<_VisitCustomerPickerDialog> 
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     final String? errorMessage = _errorMessage;
     if (errorMessage != null) {
-      return Center(child: Text(errorMessage, style: const TextStyle(color: Colors.redAccent)));
+      return Center(child: Text(errorMessage, style: TextStyle(color: Theme.of(context).colorScheme.error)));
     }
     if (_allOptions.isEmpty) {
-      return const Center(child: Text('還沒有客戶，請先到「客戶管理」新增', style: TextStyle(color: Colors.grey)));
+      return Center(child: Text('還沒有客戶，請先到「客戶管理」新增', style: TextStyle(color: context.appColors.ink3)));
     }
 
     final List<VisitCustomerOption> matched =
         VisitRecordService.filterCustomerOptions(_allOptions, _searchController.text);
     if (matched.isEmpty) {
-      return const Center(child: Text('找不到符合的客戶', style: TextStyle(color: Colors.grey)));
+      return Center(child: Text('找不到符合的客戶', style: TextStyle(color: context.appColors.ink3)));
     }
     return ListView.separated(
       itemCount: matched.length,
@@ -175,13 +176,13 @@ class VisitRecordCustomerSection extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.person_outline, color: hasCustomer ? primaryColor : Colors.grey),
+            Icon(Icons.person_outline, color: hasCustomer ? primaryColor : context.appColors.ink3),
             const SizedBox(width: 8),
             const Text('連結客戶：', style: TextStyle(fontWeight: FontWeight.bold)),
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(color: hasCustomer ? null : Colors.grey),
+                style: TextStyle(color: hasCustomer ? null : context.appColors.ink3),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

@@ -2,18 +2,33 @@ import 'package:flutter/material.dart';
 import '../../models/visit_project.dart';
 import '../../services/customer_service.dart';
 import '../customers/customer_status_widgets.dart';
+import '../../theme/app_theme.dart';
 
-/// 每個專案的代表色（依專案在清單裡的順序；第一個用主題色）。
+/// 專案代表色「鮮明組」（2026-10-18 沛沛選定）：藍、青綠、橘、玫瑰紅、藍紫，依專案在清單裡的順序輪流用。
+/// 不跟主題色變、不用灰色（成效圖表的「總數」線是灰色）；深色模式用亮一點的版本。
 /// 卡片的色點和成效圖表「按專案」的線用同一個顏色，方便對照
-Color visitProjectColor(BuildContext context, int index) {
-  final List<Color> palette = [
-    Theme.of(context).colorScheme.primary,
-    Colors.blue,
-    Colors.purple,
-    Colors.orange,
-    Colors.teal,
-    Colors.pink,
+class VisitProjectPalette {
+  static const List<Color> light = [
+    Color(0xFF1E7FD8),
+    Color(0xFF159A7A),
+    Color(0xFFE07B12),
+    Color(0xFFD14B6E),
+    Color(0xFF5A6CC9),
   ];
+  static const List<Color> dark = [
+    Color(0xFF6BB0F0),
+    Color(0xFF4FCAA8),
+    Color(0xFFF2A65A),
+    Color(0xFFE8869F),
+    Color(0xFF9AA6EA),
+  ];
+}
+
+Color visitProjectColor(BuildContext context, int index) {
+  List<Color> palette = VisitProjectPalette.light;
+  if (Theme.of(context).brightness == Brightness.dark) {
+    palette = VisitProjectPalette.dark;
+  }
   return palette[index % palette.length];
 }
 
@@ -93,8 +108,8 @@ class VisitProjectCard extends StatelessWidget {
                 if (!project.isDefault)
                   TextButton.icon(
                     onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                    label: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
+                    icon: Icon(Icons.delete_outline, size: 18, color: Theme.of(context).colorScheme.error),
+                    label: Text('刪除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ),
               ],
             ),
@@ -217,14 +232,14 @@ class _MemberLine extends StatelessWidget {
     final int memberCount = project.members.length;
     final List<String> unvisited = progress.unvisitedMemberNames;
     if (unvisited.isEmpty) {
-      return Text('名單 $memberCount 人都拜訪過了', style: const TextStyle(fontSize: 13, color: Colors.green));
+      return Text('名單 $memberCount 人都拜訪過了', style: TextStyle(fontSize: 13, color: context.appColors.ok));
     }
     // 名字太多只列前 5 位
     final String names = unvisited.take(5).join('、');
     final String more = unvisited.length > 5 ? ' 等' : '';
     return Text(
       '名單 $memberCount 人，還有 ${unvisited.length} 人沒拜訪：$names$more',
-      style: const TextStyle(fontSize: 13, color: Colors.orange),
+      style: TextStyle(fontSize: 13, color: context.appColors.warn),
     );
   }
 }

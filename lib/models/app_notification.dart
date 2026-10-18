@@ -12,16 +12,16 @@ enum NotificationCategory {
 
 /// 通知類型，對應資料表 notifications.type（4-E3a）
 enum NotificationType {
-  visitRecordReady('visit_record_ready', NotificationCategory.visitRecord, Icons.check_circle_rounded, Colors.green),
-  visitRecordFailed('visit_record_failed', NotificationCategory.visitRecord, Icons.error_rounded, Colors.redAccent),
-  scheduleReminder('schedule_reminder', NotificationCategory.schedule, Icons.alarm_rounded, Colors.orange);
+  visitRecordReady('visit_record_ready', NotificationCategory.visitRecord, Icons.check_circle_rounded),
+  visitRecordFailed('visit_record_failed', NotificationCategory.visitRecord, Icons.error_rounded),
+  scheduleReminder('schedule_reminder', NotificationCategory.schedule, Icons.alarm_rounded);
 
   final String databaseValue;
   final NotificationCategory category;
   final IconData icon;
-  final Color color;
+  // 顏色跟著主題的明亮／深色，放在畫面那邊決定：lib/widgets/notification_type_color.dart
 
-  const NotificationType(this.databaseValue, this.category, this.icon, this.color);
+  const NotificationType(this.databaseValue, this.category, this.icon);
 
   /// 資料庫的文字轉成類型；不認得的回傳 null（由呼叫的地方略過）
   static NotificationType? fromDatabaseValue(String? value) {
