@@ -135,14 +135,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchEventsForSelectedDate({bool silent = false}) async {
     if (!_isViewModeReady) return;
-    if (isOfflineMode) {
-      if (!silent && mounted) {
-        CustomToast.show(context, '目前為離線預覽模式，無法讀取真實行程資料。', ToastType.warning);
-      }
-      setState(() {
-        _events = [];
-      });
-      return;
+    // 離線預覽：提醒讀不到資料庫，但仍顯示這次在瀏覽器裡新增的行程（ScheduleService 會改讀本機暫存，問題 X18）
+    if (isOfflineMode && !silent && mounted) {
+      CustomToast.show(context, '目前為離線預覽模式，只會顯示這次在瀏覽器裡新增的行程。', ToastType.warning);
     }
 
     final int requestId = ++_latestEventRequestId;

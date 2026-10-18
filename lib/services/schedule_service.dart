@@ -56,6 +56,10 @@ class ScheduleService {
     }
   }
 
+  /// 目前登入者的編號；離線預覽或還沒登入時是 null。畫面要知道登入者時用這個，
+  /// 不要直接呼叫 Supabase.instance（離線預覽沒有初始化，會出錯，問題 X18）
+  String? get currentUserId => _currentUser?.id;
+
   /// 依起訖時間查詢行程列表
   Future<List<ScheduleEvent>> fetchEvents({
     DateTime? start,
@@ -146,11 +150,16 @@ class ScheduleService {
       rangeEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59);
     }
 
-    User? user = Supabase.instance.client.auth.currentUser;
+    // 離線預覽：沒有連資料庫，改讀這次瀏覽器裡暫存的行程（問題 X18）
+    if (isOfflineMode) {
+      return _offlineEventsInRange(rangeStart, rangeEnd);
+    }
+
+    User? user = _currentUser;
     if (user == null) {
       // 等待登入狀態初始化完成（解決首頁剛開啟時讀取為空的問題）
       await Future.delayed(const Duration(milliseconds: 500));
-      user = Supabase.instance.client.auth.currentUser;
+      user = _currentUser;
     }
     if (user == null) return null;
 
@@ -167,6 +176,20 @@ class ScheduleService {
     for (final dynamic row in rows) {
       events.add(ScheduleEvent.fromJson(row as Map<String, dynamic>));
     }
+    return events;
+  }
+
+  // 離線預覽用：從 OfflineDataStore 找出和日期範圍重疊、沒有放進垃圾桶的行程，依開始時間排序
+  List<ScheduleEvent> _offlineEventsInRange(DateTime rangeStart, DateTime rangeEnd) {
+    final List<ScheduleEvent> events = [];
+    for (final Map<String, dynamic> json in OfflineDataStore.scheduleEvents) {
+      if (json['deleted_at'] != null) continue;
+      final ScheduleEvent event = ScheduleEvent.fromJson(json);
+      final bool isOutsideRange = event.startAt.isAfter(rangeEnd) || event.endAt.isBefore(rangeStart);
+      if (isOutsideRange) continue;
+      events.add(event);
+    }
+    events.sort((ScheduleEvent a, ScheduleEvent b) => a.startAt.compareTo(b.startAt));
     return events;
   }
 
