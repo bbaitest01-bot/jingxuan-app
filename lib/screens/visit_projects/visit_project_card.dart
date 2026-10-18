@@ -185,18 +185,18 @@ class _ResultCounts extends StatelessWidget {
     return Wrap(
       spacing: 16,
       children: [
-        _countText(CustomerService.statusPositive, progress.positiveCount),
-        _countText(CustomerService.statusConsidering, progress.consideringCount),
-        _countText(CustomerService.statusNegative, progress.negativeCount),
+        _countText(context, CustomerService.statusPositive, progress.positiveCount),
+        _countText(context, CustomerService.statusConsidering, progress.consideringCount),
+        _countText(context, CustomerService.statusNegative, progress.negativeCount),
       ],
     );
   }
 
-  Widget _countText(String status, int count) {
+  Widget _countText(BuildContext context, String status, int count) {
     final String symbol = CustomerService.clientStatusSymbol(status);
     return Text(
       '$symbol $count',
-      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: customerStatusColor(status)),
+      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: customerStatusColor(context, status)),
     );
   }
 }

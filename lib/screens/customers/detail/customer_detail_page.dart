@@ -9,6 +9,7 @@ import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
 import '../customer_form_dialog.dart';
 import '../customer_status_widgets.dart';
+import '../../../theme/app_theme.dart';
 import 'customer_detail_sections.dart';
 
 /// 客戶細節整頁（/customers/:id，問題 C3）：由上到下 基本資料、保單、拜訪紀錄（C7）
@@ -136,7 +137,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
   }
 
   Widget _buildHeader(Map<String, dynamic> customer) {
-    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final Color primaryColor = context.appColors.acc;
     final String name = customer['name']?.toString() ?? '';
     final String nickname = customer['nickname']?.toString() ?? '';
     final String firstLetter = name.isNotEmpty ? name.substring(0, 1) : '?';
@@ -157,7 +158,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: primaryColor.withValues(alpha: 0.12),
+              backgroundColor: context.appColors.accSoft,
               child: Text(firstLetter, style: TextStyle(color: primaryColor, fontSize: 22, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 16),
@@ -165,7 +166,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               child: CustomerNameWithStatus(
                 name: titleText,
                 status: customer['client_status'] as String?,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: AppTextStyles.serif(fontSize: 24, color: context.appColors.ink),
               ),
             ),
             OutlinedButton.icon(

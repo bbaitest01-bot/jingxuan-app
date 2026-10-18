@@ -3,6 +3,7 @@ import '../services/tag_manager_service.dart';
 import '../services/tag_categorizer.dart';
 import '../screens/tag_manager_screen.dart';
 import '../widgets/color_palette_picker.dart';
+import '../theme/app_theme.dart';
 
 class CategorizedTagAccordionSelector extends StatefulWidget {
   final TextEditingController tagsController;
@@ -90,11 +91,11 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
           builder: (modalCtx, setModalState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.local_offer, color: Color(0xFF10B981)),
+                  Icon(Icons.local_offer, color: context.appColors.acc),
                   SizedBox(width: 8),
-                  Text('➕ 新增標籤與自訂顏色', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text('新增標籤與自訂顏色', style: AppTextStyles.serif(fontSize: 18, color: context.appColors.ink)),
                 ],
               ),
               content: SingleChildScrollView(
@@ -139,8 +140,8 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.appColors.acc,
+                    foregroundColor: context.appColors.onAcc,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   onPressed: () async {
@@ -173,8 +174,8 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
 
   @override
   Widget build(BuildContext context) {
-    final cardBg = widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final borderColor = widget.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final cardBg = context.appColors.surface2;
+    final borderColor = context.appColors.line;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -186,11 +187,15 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // 標題列：空間不夠時兩個小按鈕換到下一行，不會擠出畫面（手機寬度原本會溢出）
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.local_fire_department, size: 16, color: widget.primaryColor),
                   const SizedBox(width: 4),
@@ -199,27 +204,27 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: widget.isDark ? Colors.white : Colors.black87,
+                      color: context.appColors.ink,
                     ),
                   ),
                 ],
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   InkWell(
                     onTap: _handleOpenQuickAdd,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF10B981)),
+                        color: context.appColors.accSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.add, size: 12, color: Color(0xFF10B981)),
-                          SizedBox(width: 2),
-                          Text('自訂色', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                          Icon(Icons.add, size: 12, color: context.appColors.acc),
+                          const SizedBox(width: 2),
+                          Text('自訂色', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                         ],
                       ),
                     ),
@@ -230,15 +235,14 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.primaryColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: widget.primaryColor),
+                        color: context.appColors.accSoft,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.settings, size: 12, color: widget.primaryColor),
+                          Icon(Icons.settings, size: 12, color: context.appColors.acc),
                           const SizedBox(width: 2),
-                          Text('管理大分類', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: widget.primaryColor)),
+                          Text('管理大分類', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                         ],
                       ),
                     ),
@@ -270,7 +274,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: widget.isDark ? Colors.white70 : Colors.black87,
+                          color: context.appColors.ink2,
                         ),
                       ),
                     ],
@@ -281,7 +285,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Text(
                             '尚未選取任何標籤 (點擊下方大分類直接加入標籤)',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500], fontStyle: FontStyle.italic),
+                            style: TextStyle(fontSize: 12, color: context.appColors.ink3, fontStyle: FontStyle.italic),
                           ),
                         )
                       : Container(
@@ -340,7 +344,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
               children: _categories.map((cat) {
                 final String catId = cat.id;
                 final String title = cat.name;
-                final Color color = _parseColor(cat.colorHex, const Color(0xFF0369A1));
+                final Color color = _parseColor(cat.colorHex, context.appColors.acc);
                 final subTags = _tags.where((t) => t.categoryId == catId).toList();
                 final bool isExpanded = _expandedCategoryId == catId;
 
@@ -363,21 +367,21 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.folder_outlined, size: 14, color: isExpanded ? Colors.white : color),
+                        Icon(Icons.folder_outlined, size: 14, color: isExpanded ? context.appColors.onAcc : color),
                         const SizedBox(width: 4),
                         Text(
                           '$title (${subTags.length})',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: isExpanded ? Colors.white : (widget.isDark ? Colors.white70 : color),
+                            color: isExpanded ? context.appColors.onAcc : (widget.isDark ? context.appColors.ink2 : color),
                           ),
                         ),
                         const SizedBox(width: 4),
                         Icon(
                           isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                           size: 16,
-                          color: isExpanded ? Colors.white : color,
+                          color: isExpanded ? context.appColors.onAcc : color,
                         ),
                       ],
                     ),
@@ -395,7 +399,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                     (c) => c.id == _expandedCategoryId,
                     orElse: () => TagCategoryModel(id: '', name: '未分類'),
                   );
-                  final color = _parseColor(cat.colorHex, const Color(0xFF0369A1));
+                  final color = _parseColor(cat.colorHex, context.appColors.acc);
                   final subTags = _tags.where((t) => t.categoryId == cat.id).toList();
 
                   return AnimatedContainer(
@@ -428,7 +432,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                             ? Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 4.0),
                                 child: Text('此分類尚未建立子標籤，可點擊「管理大分類」新增子標籤',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                                    style: TextStyle(fontSize: 12, color: context.appColors.ink3)),
                               )
                             : Wrap(
                                 spacing: 8,
@@ -470,7 +474,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                                           Icon(
                                             isSelected ? Icons.check_circle : Icons.add_circle_outline,
                                             size: 14,
-                                            color: isSelected ? Colors.white : tagColor,
+                                            color: isSelected ? context.appColors.onAcc : tagColor,
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
@@ -478,7 +482,7 @@ class _CategorizedTagAccordionSelectorState extends State<CategorizedTagAccordio
                                             style: TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.bold,
-                                              color: isSelected ? Colors.white : tagColor,
+                                              color: isSelected ? context.appColors.onAcc : tagColor,
                                             ),
                                           ),
                                         ],

@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/app_localizations.dart';
-import '../../services/app_settings.dart';
 import '../../services/customer_service.dart';
 import '../../services/tag_manager_service.dart';
 import '../../widgets/categorized_tag_accordion_selector.dart';
@@ -12,6 +11,7 @@ import 'customer_status_widgets.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../tag_manager_screen.dart';
 import 'flipping_customer_card.dart';
+import '../../theme/app_theme.dart';
 
 /// 新增／編輯客戶的表單視窗。[customer] 是 null 代表新增。
 /// 按下儲存時把填好的資料交給 [onSubmit]（外框負責寫入資料庫），再關閉視窗。
@@ -22,10 +22,10 @@ void showCustomerFormDialog(
 }) {
   final isEdit = customer != null;
   final isDark = Theme.of(outerContext).brightness == Brightness.dark;
-  final primaryColor = AppSettings.instance.primaryColor;
-  final Color dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-  final Color textColor = isDark ? Colors.white : Colors.black87;
-  final Color subTextColor = isDark ? Colors.white70 : Colors.black54;
+  final Color primaryColor = outerContext.appColors.acc;
+  final Color dialogBg = outerContext.appColors.surface;
+  final Color textColor = outerContext.appColors.ink;
+  final Color subTextColor = outerContext.appColors.ink2;
 
   final nameController = TextEditingController(text: isEdit ? customer['name'] : '');
   final nicknameController = TextEditingController(text: isEdit ? customer['nickname'] : '');
@@ -37,6 +37,7 @@ void showCustomerFormDialog(
   // 性別：male／female／null（不填）
   String? selectedGender = isEdit ? customer['gender'] as String? : null;
 
+  // 輸入框外觀交給主題（白底、細框、圓角 8，點進去變主題色框）；這裡只放標籤、提示與圖示
   InputDecoration buildInputDecoration(String labelText, IconData iconData, {String? hintText}) {
     return InputDecoration(
       labelText: labelText,
@@ -44,17 +45,6 @@ void showCustomerFormDialog(
       hintText: hintText,
       hintStyle: TextStyle(color: subTextColor, fontSize: 13),
       prefixIcon: Icon(iconData, color: primaryColor, size: 18),
-      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
-        borderSide: BorderSide(color: primaryColor, width: 2),
-      ),
-      filled: true,
-      fillColor: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
     );
   }
   showDialog(
@@ -146,7 +136,7 @@ void showCustomerFormDialog(
                               child: CircleAvatar(
                                 radius: 14,
                                 backgroundColor: primaryColor,
-                                child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                                child: Icon(Icons.camera_alt, size: 14, color: outerContext.appColors.onAcc),
                               ),
                             ),
                           ],
@@ -157,8 +147,8 @@ void showCustomerFormDialog(
                       const SizedBox(height: 8),
                       Center(
                         child: TextButton.icon(
-                          icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
-                          label: Text(context.l10n('customer_clear_photo'), style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                          icon: Icon(Icons.delete_outline, color: Theme.of(outerContext).colorScheme.error, size: 16),
+                          label: Text(context.l10n('customer_clear_photo'), style: TextStyle(color: Theme.of(outerContext).colorScheme.error, fontSize: 12)),
                           onPressed: () {
                             setDialogState(() {
                               selectedImageFile = null;
@@ -258,7 +248,7 @@ void showCustomerFormDialog(
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: outerContext.appColors.onAcc,
                 ),
                 onPressed: submitForm,
                 child: Text(context.l10n('save')),
@@ -292,11 +282,11 @@ Future<void> openQuickAddTagDialog(
         builder: (modalCtx, setModalState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.local_offer, color: Color(0xFF10B981)),
-                SizedBox(width: 8),
-                Text('➕ 新增標籤與自訂顏色', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Icon(Icons.local_offer, color: dialogContext.appColors.acc),
+                const SizedBox(width: 8),
+                Text('新增標籤與自訂顏色', style: AppTextStyles.serif(fontSize: 18, color: dialogContext.appColors.ink)),
               ],
             ),
             content: SingleChildScrollView(
@@ -341,8 +331,8 @@ Future<void> openQuickAddTagDialog(
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
+                  backgroundColor: dialogContext.appColors.acc,
+                  foregroundColor: dialogContext.appColors.onAcc,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () async {

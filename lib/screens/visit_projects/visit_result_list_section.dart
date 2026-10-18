@@ -123,7 +123,7 @@ class _VisitResultRow extends StatelessWidget {
           ),
           SizedBox(
             width: 24,
-            child: Text(symbol, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(result.result))),
+            child: Text(symbol, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, result.result))),
           ),
           Expanded(
             child: Column(

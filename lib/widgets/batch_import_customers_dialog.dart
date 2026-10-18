@@ -7,9 +7,9 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:desktop_drop/desktop_drop.dart';
 import 'custom_toast.dart';
-import '../services/app_settings.dart';
 
 import '../utils/platform_file_helper.dart';
+import '../theme/app_theme.dart';
 
 class BatchImportCustomersDialog extends StatefulWidget {
   final List<Map<String, dynamic>> existingCustomers;
@@ -59,12 +59,12 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
 
-    final dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final dialogBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
+    final Color textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -154,7 +154,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
   // --- Step Progress Bar ---
   Widget _buildStepIndicator(bool isDark, Color primaryColor, Color textColor, Color subTextColor) {
     final steps = ['選擇檔案', '欄位與對策設定', '資料預覽與檢核', '完成匯入'];
-    final stepBg = isDark ? const Color(0xFF0F172A).withOpacity(0.6) : const Color(0xFFF1F5F9);
+    final stepBg = context.appColors.surface2;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
@@ -172,10 +172,10 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isDone
-                        ? const Color(0xFF10B981)
+                        ? context.appColors.ok
                         : isActive
                             ? primaryColor
-                            : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            : (context.appColors.line),
                     boxShadow: isActive
                         ? [
                             BoxShadow(
@@ -187,11 +187,11 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                   ),
                   child: Center(
                     child: isDone
-                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        ? Icon(Icons.check, size: 16, color: context.appColors.onAcc)
                         : Text(
                             '${index + 1}',
                             style: TextStyle(
-                              color: isActive ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                              color: isActive ? context.appColors.onAcc : context.appColors.ink2,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -216,7 +216,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                     child: Container(
                       height: 2,
                       margin: const EdgeInsets.symmetric(horizontal: 12),
-                      color: isDone ? const Color(0xFF10B981) : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      color: isDone ? context.appColors.ok : (context.appColors.line),
                     ),
                   ),
               ],
@@ -258,7 +258,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
 
   // === STEP 1: FILE SELECTION & TEMPLATE DOWNLOAD ===
   Widget _buildStep1FileSelection(bool isDark, Color primaryColor, Color textColor, Color subTextColor, Color borderColor) {
-    final boxBg = isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC);
+    final boxBg = context.appColors.surface2;
     final infoBg = primaryColor.withOpacity(0.08);
 
     return Padding(
@@ -356,7 +356,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                       color: _isDragging
                           ? primaryColor
                           : _fileName != null
-                              ? const Color(0xFF10B981)
+                              ? context.appColors.ok
                               : borderColor,
                       width: _isDragging ? 3 : 2,
                     ),
@@ -383,7 +383,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                         color: _isDragging
                             ? primaryColor
                             : _fileName != null
-                                ? const Color(0xFF10B981)
+                                ? context.appColors.ok
                                 : primaryColor,
                       ),
                       const SizedBox(height: 16),
@@ -402,7 +402,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                         onPressed: _pickFile,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: context.appColors.onAcc,
                           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -452,7 +452,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
 
   // === STEP 2: HEADER MAPPING & STRATEGY SELECTION ===
   Widget _buildStep2HeaderMapping(bool isDark, Color primaryColor, Color textColor, Color subTextColor, Color borderColor) {
-    final boxBg = isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC);
+    final boxBg = context.appColors.surface2;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(28),
@@ -560,8 +560,8 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
     Color borderColor, {
     bool isRequired = false,
   }) {
-    final boxBg = isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF8FAFC);
-    final dropDownBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final boxBg = context.appColors.surface2;
+    final dropDownBg = context.appColors.surface;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -577,7 +577,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
             child: Text(
               label,
               style: TextStyle(
-                color: isRequired ? const Color(0xFFF43F5E) : textColor,
+                color: isRequired ? Theme.of(context).colorScheme.error : textColor,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -632,7 +632,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: isSelected ? primaryColor.withOpacity(0.12) : (isDark ? const Color(0xFF0F172A).withOpacity(0.4) : const Color(0xFFF8FAFC)),
+            color: isSelected ? context.appColors.accSoft : (context.appColors.surface2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: isSelected ? primaryColor : borderColor),
           ),
@@ -674,7 +674,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
     final validCount = _parsedRows.where((r) => r.isValid).length;
     final cleanedCount = _parsedRows.where((r) => r.isCleaned).length;
     final invalidCount = _parsedRows.where((r) => !r.isValid).length;
-    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final cardBg = context.appColors.surface2;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -686,11 +686,11 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
             children: [
               _buildStatChip('總預覽筆數', '${_parsedRows.length} 筆', primaryColor, isDark),
               const SizedBox(width: 12),
-              _buildStatChip('🟢 驗證通過', '$validCount 筆', const Color(0xFF10B981), isDark),
+              _buildStatChip('驗證通過', '$validCount 筆', context.appColors.ok, isDark),
               const SizedBox(width: 12),
-              _buildStatChip('🟡 已識別自訂屬性', '$cleanedCount 筆', const Color(0xFFF59E0B), isDark),
+              _buildStatChip('🟡 已識別自訂屬性', '$cleanedCount 筆', context.appColors.warn, isDark),
               const SizedBox(width: 12),
-              _buildStatChip('🔴 缺姓名無效檔', '$invalidCount 筆', const Color(0xFFF43F5E), isDark),
+              _buildStatChip('缺姓名無效檔', '$invalidCount 筆', Theme.of(context).colorScheme.error, isDark),
             ],
           ),
           const SizedBox(height: 16),
@@ -707,7 +707,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                 borderRadius: BorderRadius.circular(14),
                 child: SingleChildScrollView(
                   child: DataTable(
-                    headingRowColor: MaterialStateProperty.all(isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0)),
+                    headingRowColor: MaterialStateProperty.all(context.appColors.surface2),
                     dataRowHeight: 52,
                     columns: [
                       DataColumn(label: Text('列數', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
@@ -728,10 +728,10 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: !row.isValid
-                                    ? const Color(0xFFF43F5E).withOpacity(0.15)
+                                    ? Theme.of(context).colorScheme.error.withOpacity(0.15)
                                     : row.isCleaned
-                                        ? const Color(0xFFF59E0B).withOpacity(0.15)
-                                        : const Color(0xFF10B981).withOpacity(0.15),
+                                        ? context.appColors.warn.withOpacity(0.15)
+                                        : context.appColors.ok.withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -742,10 +742,10 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                                         : '完美符合',
                                 style: TextStyle(
                                   color: !row.isValid
-                                      ? const Color(0xFFF43F5E)
+                                      ? Theme.of(context).colorScheme.error
                                       : row.isCleaned
-                                          ? const Color(0xFFF59E0B)
-                                          : const Color(0xFF10B981),
+                                          ? context.appColors.warn
+                                          : context.appColors.ok,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -768,12 +768,12 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                                           return Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF0EA5E9).withOpacity(0.15),
+                                              color: context.appColors.acc.withOpacity(0.15),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
                                               '${e.key}: ${e.value}',
-                                              style: const TextStyle(color: Color(0xFF0EA5E9), fontSize: 10, fontWeight: FontWeight.w600),
+                                              style: TextStyle(color: context.appColors.acc, fontSize: 10, fontWeight: FontWeight.w600),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
@@ -834,7 +834,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
       ),
       child: Row(
         children: [
-          Text(label, style: TextStyle(color: isDark ? Colors.white70 : const Color(0xFF475569), fontSize: 12)),
+          Text(label, style: TextStyle(color: context.appColors.ink2, fontSize: 12)),
           const SizedBox(width: 8),
           Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
         ],
@@ -854,9 +854,9 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF10B981).withOpacity(0.15),
+              color: context.appColors.ok.withOpacity(0.15),
             ),
-            child: const Icon(Icons.check_circle_rounded, size: 80, color: Color(0xFF10B981)),
+            child: Icon(Icons.check_circle_rounded, size: 80, color: context.appColors.ok),
           ),
           const SizedBox(height: 24),
           Text(
@@ -945,7 +945,7 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: context.appColors.onAcc,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -956,11 +956,11 @@ class _BatchImportCustomersDialogState extends State<BatchImportCustomersDialog>
                 ElevatedButton.icon(
                   onPressed: _executeFinalImport,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.appColors.acc,
+                    foregroundColor: context.appColors.onAcc,
                     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+                    elevation: 0,
                   ),
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
                   label: const Text('確認執行批次匯入', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),

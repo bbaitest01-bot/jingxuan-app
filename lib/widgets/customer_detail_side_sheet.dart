@@ -11,6 +11,7 @@ import '../widgets/voice_recorder_widget.dart';
 import 'customer_share_export_dialog.dart';
 import '../screens/customers/customer_form_dialog.dart';
 import '../screens/customers/customer_status_widgets.dart';
+import '../theme/app_theme.dart';
 
 class CustomerDetailSideSheet extends StatefulWidget {
   final Map<String, dynamic> customer;
@@ -297,11 +298,11 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final cardBg = context.appColors.surface;
+    final bgColor = context.appColors.bg;
+    final borderColor = context.appColors.line;
+    final Color textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     final String name = _nameController.text.isEmpty ? '客戶檔案' : _nameController.text;
     final String nickname = _nicknameController.text;
@@ -320,7 +321,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              color: context.appColors.surface,
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(24)),
               border: Border(bottom: BorderSide(color: borderColor)),
             ),
@@ -328,10 +329,10 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  backgroundColor: context.appColors.accSoft,
                   child: Text(
                     name.isNotEmpty ? name.substring(0, 1) : '客',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.appColors.acc),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -341,7 +342,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                     children: [
                       Row(
                         children: [
-                          Text(name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                          Text(name, style: AppTextStyles.serif(fontSize: 18, color: textColor)),
                           if (nickname.isNotEmpty) ...[
                             const SizedBox(width: 6),
                             Text('($nickname)', style: TextStyle(fontSize: 12, color: subTextColor)),
@@ -389,17 +390,17 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.08),
-                border: Border(bottom: BorderSide(color: const Color(0xFF6366F1).withValues(alpha: 0.25))),
+                color: context.appColors.acc.withValues(alpha: 0.08),
+                border: Border(bottom: BorderSide(color: context.appColors.acc.withValues(alpha: 0.25))),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.badge_outlined, size: 16, color: Color(0xFF6366F1)),
+                  Icon(Icons.badge_outlined, size: 16, color: context.appColors.acc),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '👤 建檔業務員: ${widget.customer['agent_name']} (${widget.customer['agent_email'] ?? '無信箱'}) • 團隊: ${widget.customer['agent_team'] ?? 'TAIPEI-01'}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF6366F1)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appColors.acc),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -413,9 +414,9 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             decoration: BoxDecoration(color: bgColor, border: Border(bottom: BorderSide(color: borderColor))),
             child: TabBar(
               controller: _tabController,
-              labelColor: const Color(0xFF10B981),
+              labelColor: context.appColors.acc,
               unselectedLabelColor: subTextColor,
-              indicatorColor: const Color(0xFF10B981),
+              indicatorColor: context.appColors.acc,
               indicatorWeight: 3,
               labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               tabs: const [
@@ -491,12 +492,12 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           _buildCustomAttributesSection(isDark, borderColor, textColor, subTextColor),
           const SizedBox(height: 18),
 
-          Text('🏷️ 客戶標籤管理：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
+          Text('客戶標籤管理：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 8),
           CategorizedTagAccordionSelector(
             tagsController: _tagsController,
             isDark: isDark,
-            primaryColor: const Color(0xFF10B981),
+            primaryColor: context.appColors.acc,
           ),
 
           const SizedBox(height: 18),
@@ -515,8 +516,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF59E0B),
-                  foregroundColor: Colors.white,
+                  backgroundColor: context.appColors.warn,
+                  foregroundColor: context.appColors.onAcc,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 2,
                 ),
@@ -542,7 +543,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+              style: ElevatedButton.styleFrom(backgroundColor: context.appColors.acc, foregroundColor: context.appColors.onAcc, padding: EdgeInsets.symmetric(vertical: 12)),
               onPressed: _saveBasicInfo,
               icon: const Icon(Icons.save_rounded, size: 18),
               label: const Text('儲存基本資料', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -554,7 +555,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   }
 
   Widget _buildCustomAttributesSection(bool isDark, Color borderColor, Color textColor, Color subTextColor) {
-    final boxBg = isDark ? const Color(0xFF0F172A).withValues(alpha: 0.5) : const Color(0xFFF8FAFC);
+    final boxBg = context.appColors.bg;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -571,7 +572,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             children: [
               Row(
                 children: [
-                  const Icon(Icons.extension_outlined, size: 16, color: Color(0xFF0EA5E9)),
+                  Icon(Icons.extension_outlined, size: 16, color: context.appColors.acc),
                   const SizedBox(width: 6),
                   Text(
                     '自訂擴充屬性 (${_customAttrKeys.length})',
@@ -581,8 +582,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               ),
               TextButton.icon(
                 onPressed: _showAddCustomAttributeDialog,
-                icon: const Icon(Icons.add, size: 14, color: Color(0xFF0EA5E9)),
-                label: const Text('新增欄位', style: TextStyle(fontSize: 12, color: Color(0xFF0EA5E9), fontWeight: FontWeight.bold)),
+                icon: Icon(Icons.add, size: 14, color: context.appColors.acc),
+                label: Text('新增欄位', style: TextStyle(fontSize: 12, color: context.appColors.acc, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
               ),
             ],
@@ -605,12 +606,12 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                       width: 90,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                        color: context.appColors.acc.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         key,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0EA5E9)),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -630,7 +631,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 16, color: Colors.redAccent),
+                      icon: Icon(Icons.close_rounded, size: 16, color: Theme.of(context).colorScheme.error),
                       tooltip: '刪除此欄位',
                       padding: const EdgeInsets.all(4),
                       constraints: const BoxConstraints(),
@@ -711,9 +712,9 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.08),
+              color: context.appColors.accSoft,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+              border: Border.all(color: context.appColors.acc.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -721,17 +722,17 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.calculate_rounded, color: Color(0xFF10B981), size: 18),
+                        Icon(Icons.calculate_rounded, color: context.appColors.acc, size: 18),
                         SizedBox(width: 8),
                         Text('🧮 5 大理賠桶總額 (0 成本本地精算)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: const Color(0xFF10B981), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('已納入健檢', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                      decoration: BoxDecoration(color: context.appColors.okSoft, borderRadius: BorderRadius.circular(AppRadius.pill)),
+                      child: Text('已納入健檢', style: TextStyle(fontSize: 10, color: context.appColors.ok, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -752,24 +753,24 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withValues(alpha: 0.08),
+                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                border: Border.all(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.4)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
+                      Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error, size: 18),
                       SizedBox(width: 6),
-                      Text('🚨 偵測到重大自費保障缺口：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                      Text('🚨 偵測到重大自費保障缺口：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   ..._benefitSummary!.detectedGaps.map((gap) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('• $gap', style: const TextStyle(fontSize: 11, color: Colors.redAccent)),
+                    child: Text('• $gap', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error)),
                   )),
                 ],
               ),
@@ -793,7 +794,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                 },
                 icon: Icon(_showEnrollSearchBox ? Icons.close_rounded : Icons.add_rounded, size: 16),
                 label: Text(_showEnrollSearchBox ? '收合搜尋' : '+ 搜尋 1.1萬+ 條款加入', style: const TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(foregroundColor: const Color(0xFF0EA5E9), side: const BorderSide(color: Color(0xFF0EA5E9))),
+                style: OutlinedButton.styleFrom(foregroundColor: context.appColors.acc, side: BorderSide(color: context.appColors.acc)),
               ),
             ],
           ),
@@ -805,7 +806,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                color: context.appColors.bg,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: borderColor),
               ),
@@ -879,16 +880,16 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                              color: context.appColors.acc.withValues(alpha: 0.12),
                                               borderRadius: BorderRadius.circular(6),
                                             ),
-                                            child: Text(item.companyName, style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
+                                            child: Text(item.companyName, style: TextStyle(fontSize: 10, color: context.appColors.acc, fontWeight: FontWeight.bold)),
                                           ),
                                           const SizedBox(width: 6),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                              color: context.appColors.line,
                                               borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: Text(item.category, style: TextStyle(fontSize: 10, color: subTextColor)),
@@ -905,7 +906,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                                       const SizedBox(height: 3),
                                       Text(
                                         '病房: ${item.roomLimit} | 手術: ${item.surgeryLimit} | 雜費: ${item.miscLimit}',
-                                        style: TextStyle(fontSize: 10, color: const Color(0xFF10B981)),
+                                        style: TextStyle(fontSize: 10, color: context.appColors.acc),
                                       ),
                                     ],
                                   ),
@@ -913,8 +914,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                                 const SizedBox(width: 8),
                                 ElevatedButton(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: context.appColors.acc,
+                                    foregroundColor: context.appColors.onAcc,
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
@@ -934,7 +935,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                        color: context.appColors.line,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
@@ -1006,8 +1007,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 18),
+                        decoration: BoxDecoration(color: context.appColors.okSoft, borderRadius: BorderRadius.circular(AppRadius.control)),
+                        child: Icon(Icons.verified_rounded, color: context.appColors.ok, size: 18),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -1017,12 +1018,12 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                             Text(p.productName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
                             const SizedBox(height: 2),
                             Text('${p.companyName} • ${p.category}', style: TextStyle(fontSize: 10, color: subTextColor)),
-                            Text('病房: ${p.roomLimit} | 手術: ${p.surgeryLimit} | 雜費: ${p.miscLimit}', style: const TextStyle(fontSize: 10, color: Color(0xFF10B981))),
+                            Text('病房: ${p.roomLimit} | 手術: ${p.surgeryLimit} | 雜費: ${p.miscLimit}', style: TextStyle(fontSize: 10, color: context.appColors.acc)),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                        icon: Icon(Icons.delete_outline_rounded, size: 18, color: Theme.of(context).colorScheme.error),
                         onPressed: () async {
                           await _policyService.removePolicyForCustomer(widget.customer['id'], p.id);
                           _loadCustomerPolicies();
@@ -1046,7 +1047,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
         children: [
           Row(
             children: [
-              const Icon(Icons.mic_none_rounded, color: Color(0xFF6366F1), size: 18),
+              Icon(Icons.mic_none_rounded, color: context.appColors.acc, size: 18),
               const SizedBox(width: 6),
               Text('語音速記與拜訪紀錄：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
             ],
@@ -1054,7 +1055,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           const SizedBox(height: 12),
           // 🎙️ 內嵌隨手語音錄音與轉錄
           VoiceRecorderWidget(
-            primaryColor: const Color(0xFF10B981),
+            primaryColor: context.appColors.acc,
             isDark: isDark,
             onTranscribed: (text) {
               if (text.trim().isNotEmpty) {
@@ -1075,7 +1076,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              color: context.appColors.bg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor),
             ),
@@ -1094,10 +1095,10 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF10B981)),
+          Icon(icon, size: 14, color: context.appColors.acc),
           const SizedBox(width: 6),
           Expanded(child: Text(label, style: const TextStyle(fontSize: 11))),
-          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc)),
         ],
       ),
     );

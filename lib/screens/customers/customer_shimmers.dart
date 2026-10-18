@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/animations.dart';
 
 // Shimmer card widget for list loading states
@@ -7,9 +8,8 @@ class CustomerCardShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
+    final Color cardBg = context.appColors.surface;
+    final Color cardBorder = context.appColors.line;
 
     return Card(
       color: cardBg,
@@ -64,9 +64,8 @@ class CustomerListShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
+    final Color cardBg = context.appColors.surface;
+    final Color cardBorder = context.appColors.line;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

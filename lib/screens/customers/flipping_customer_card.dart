@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
-import '../../services/app_settings.dart';
 import '../../services/tag_categorizer.dart';
 import 'customer_status_widgets.dart';
+import '../../theme/app_theme.dart';
 
 // ==========================================
 // 3D Flipping Customer Card Widget
@@ -115,12 +115,12 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
     String nameInitial,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-    final Color nameColor = isDark ? Colors.white : Colors.black87;
-    final Color infoColor = isDark ? Colors.white54 : Colors.black54;
-    final Color iconColor = isDark ? Colors.white30 : Colors.black38;
+    final Color primaryColor = context.appColors.acc;
+    final Color cardBg = context.appColors.surface;
+    final Color cardBorder = context.appColors.line;
+    final Color nameColor = context.appColors.ink;
+    final Color infoColor = context.appColors.ink3;
+    final Color iconColor = context.appColors.ink3;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -201,12 +201,12 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.badge_outlined, size: 12, color: Color(0xFF6366F1)),
+                              Icon(Icons.badge_outlined, size: 12, color: context.appColors.acc),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   '👤 業務員: ${widget.customer['agent_name']}',
-                                  style: const TextStyle(color: Color(0xFF6366F1), fontSize: 10, fontWeight: FontWeight.w600),
+                                  style: TextStyle(color: context.appColors.acc, fontSize: 10, fontWeight: FontWeight.w600),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -273,10 +273,9 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
   }
 
   Widget _buildBack(String name, String notes) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color subTextColor = isDark ? Colors.white54 : Colors.black54;
+    final Color primaryColor = context.appColors.acc;
+    final Color cardBg = context.appColors.surface;
+    final Color subTextColor = context.appColors.ink3;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -324,7 +323,7 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                        icon: Icon(Icons.delete_outline_rounded, color: Theme.of(context).colorScheme.error, size: 16),
                         onPressed: widget.onDelete,
                         constraints: const BoxConstraints(),
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -339,7 +338,7 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
                   ),
                 ],
               ),
-              Divider(color: isDark ? const Color(0xFF21262D) : Colors.grey.shade300, height: 12),
+              Divider(color: context.appColors.line, height: 12),
               if (widget.onManageRelationships != null) ...[
                 InkWell(
                   onTap: widget.onManageRelationships,
@@ -377,8 +376,8 @@ class _FlippingCustomerCardState extends State<FlippingCustomerCard> with Single
                     notes.isNotEmpty ? notes : context.l10n('customer_card_no_notes'),
                     style: TextStyle(
                       color: notes.isNotEmpty 
-                          ? (isDark ? Colors.white : Colors.black87) 
-                          : (isDark ? Colors.white38 : Colors.black45),
+                          ? (context.appColors.ink) 
+                          : (context.appColors.ink3),
                       fontSize: 11,
                       height: 1.4,
                     ),
