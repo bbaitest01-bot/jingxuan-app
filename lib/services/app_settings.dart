@@ -11,7 +11,8 @@ class AppSettings extends ChangeNotifier {
   AppSettings._internal();
 
   // Settings State
-  ThemeMode _themeMode = ThemeMode.dark;
+  // 預設明亮（2026-10-18 沛沛決定，配合新設計的米白紙感底色）
+  ThemeMode _themeMode = ThemeMode.light;
   AppAccent _accent = AppThemeColors.defaultAccent;
   String _defaultCustomerViewMode = 'card'; // 'card' or 'list'
   bool _isSidebarCollapsedByDefault = false;
@@ -52,13 +53,13 @@ class AppSettings extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       
       // Load Theme Mode
-      final themeStr = prefs.getString('prefs_theme_mode') ?? 'dark';
-      if (themeStr == 'light') {
-        _themeMode = ThemeMode.light;
+      final themeStr = prefs.getString('prefs_theme_mode') ?? 'light';
+      if (themeStr == 'dark') {
+        _themeMode = ThemeMode.dark;
       } else if (themeStr == 'system') {
         _themeMode = ThemeMode.system;
       } else {
-        _themeMode = ThemeMode.dark;
+        _themeMode = ThemeMode.light;
       }
 
       // Load Primary Color
@@ -104,11 +105,11 @@ class AppSettings extends ChangeNotifier {
 
         if (cloudData.containsKey('theme_mode')) {
           final cloudTheme = cloudData['theme_mode'];
-          final newTheme = cloudTheme == 'light'
-              ? ThemeMode.light
+          final newTheme = cloudTheme == 'dark'
+              ? ThemeMode.dark
               : cloudTheme == 'system'
                   ? ThemeMode.system
-                  : ThemeMode.dark;
+                  : ThemeMode.light;
           if (_themeMode != newTheme) {
             _themeMode = newTheme;
             hasChanges = true;
@@ -223,7 +224,7 @@ class AppSettings extends ChangeNotifier {
 
   /// 登出時恢復預設設定（只改這台裝置，不動帳號裡存的設定），避免下一位登入的人沿用上一位的設定
   Future<void> clearForSignOut() async {
-    _themeMode = ThemeMode.dark;
+    _themeMode = ThemeMode.light;
     _accent = AppThemeColors.defaultAccent;
     _defaultCustomerViewMode = 'card';
     _isSidebarCollapsedByDefault = false;
@@ -235,7 +236,7 @@ class AppSettings extends ChangeNotifier {
 
   /// Reset to factory default settings
   Future<void> resetToDefaults() async {
-    _themeMode = ThemeMode.dark;
+    _themeMode = ThemeMode.light;
     _accent = AppThemeColors.defaultAccent;
     _defaultCustomerViewMode = 'card';
     _isSidebarCollapsedByDefault = false;
