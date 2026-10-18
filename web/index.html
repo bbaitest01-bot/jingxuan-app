@@ -75,13 +75,14 @@
       try {
         // shared_preferences 在網頁版把值存成 JSON 字串，例如 "\"light\""
         var savedThemeMode = window.localStorage.getItem("flutter.prefs_theme_mode");
-        var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
-        var isLight = savedThemeMode === "\"light\"" || (savedThemeMode === "\"system\"" && prefersLight);
-        if (isLight) {
+        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var isDark = savedThemeMode === "\"dark\"" || (savedThemeMode === "\"system\"" && prefersDark);
+        if (!isDark) {
           loadingElement.classList.add("is-light");
         }
       } catch (error) {
-        // 瀏覽器不允許讀取時，就用預設的深色
+        // 瀏覽器不允許讀取時，就用預設的明亮
+        loadingElement.classList.add("is-light");
       }
       window.addEventListener("flutter-first-frame", function () {
         loadingElement.classList.add("is-hidden");
