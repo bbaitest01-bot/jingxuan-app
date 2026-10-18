@@ -9,6 +9,7 @@ import '../../services/visit_result_service.dart';
 import '../customers/customer_status_widgets.dart';
 import 'visit_chart_controls.dart';
 import 'visit_project_card.dart';
+import '../../theme/app_theme.dart';
 
 /// 專案拜訪頁最上方的「拜訪成效」折線圖（4-2d／P4）：
 /// 週／月／年＋上一期；按結果（✔△✖＋總數）、按專案、按標籤；滑鼠移上去（手機點一下）看數字
@@ -128,7 +129,7 @@ class _VisitChartCardState extends State<VisitChartCard> {
 
   // 每條線的顏色：結果用客戶狀態的顏色；總數灰色；專案跟卡片色點同色
   Color _colorOf(String seriesId, int index) {
-    if (seriesId == 'total') return Colors.grey;
+    if (seriesId == 'total') return context.appColors.ink3;
     if (VisitChartLegend.isResultId(seriesId)) return customerStatusColor(context, seriesId);
     return visitProjectColor(context, index);
   }

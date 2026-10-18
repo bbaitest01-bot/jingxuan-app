@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../models/app_notification.dart';
 import '../services/notification_service.dart';
+import 'notification_type_color.dart';
+import '../theme/app_theme.dart';
 
 /// 鈴鐺打開的通知清單（4-E3a，問題 M2、M4）：
 /// 分類列只放有內容的分類；點一則 → 標為已讀 → 前往該則的網址（例如那篇拜訪紀錄）
@@ -108,14 +110,14 @@ class _NotificationCenterPopoverState extends State<NotificationCenterPopover> {
 
   Widget _buildList(List<AppNotification> notifications) {
     if (notifications.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(32),
+      return Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 12),
-            Text('目前沒有通知', style: TextStyle(color: Colors.grey)),
+            Icon(Icons.mark_email_read_outlined, size: 48, color: context.appColors.ink3),
+            const SizedBox(height: 12),
+            Text('目前沒有通知', style: TextStyle(color: context.appColors.ink3)),
           ],
         ),
       );
@@ -178,9 +180,9 @@ class NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color typeColor = notification.type.color;
+    final Color typeColor = notificationTypeColor(context, notification.type);
     final bool isUnread = !notification.isRead;
-    Color borderColor = Colors.grey.withValues(alpha: 0.3);
+    Color borderColor = context.appColors.line;
     if (isUnread) borderColor = typeColor.withValues(alpha: 0.6);
 
     return InkWell(
@@ -197,7 +199,7 @@ class NotificationCard extends StatelessWidget {
           children: [
             Icon(notification.type.icon, color: typeColor, size: 22),
             const SizedBox(width: 10),
-            Expanded(child: _buildTexts(isUnread)),
+            Expanded(child: _buildTexts(context, isUnread)),
             if (isUnread)
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 4),
@@ -209,7 +211,7 @@ class NotificationCard extends StatelessWidget {
     );
   }
 
-  Widget _buildTexts(bool isUnread) {
+  Widget _buildTexts(BuildContext context, bool isUnread) {
     FontWeight titleWeight = FontWeight.normal;
     if (isUnread) titleWeight = FontWeight.bold;
     return Column(
@@ -219,7 +221,7 @@ class NotificationCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text(notification.content, style: const TextStyle(fontSize: 13, height: 1.4)),
         const SizedBox(height: 4),
-        Text(formatNotificationTime(notification.createdAt, DateTime.now()), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(formatNotificationTime(notification.createdAt, DateTime.now()), style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
       ],
     );
   }

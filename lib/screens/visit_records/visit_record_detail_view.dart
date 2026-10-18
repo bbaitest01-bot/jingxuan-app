@@ -8,6 +8,7 @@ import '../../widgets/custom_toast.dart';
 import 'visit_record_customer_picker.dart';
 import 'visit_record_organize_banner.dart';
 import 'visit_record_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// 單篇拜訪紀錄（/visit-records/:id）：左邊原始轉錄（不能改，一律保留），右邊整理後內容（可編輯）
 class VisitRecordDetailView extends StatefulWidget {
@@ -194,7 +195,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
             child: const Text('刪除'),
           ),
         ],
@@ -277,14 +278,14 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
         const SizedBox(width: 12),
         Text(
           '建立於 ${formatVisitRecordTime(record.createdAt)}',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: context.appColors.ink3),
         ),
       ],
     );
     final Widget deleteButton = TextButton.icon(
       onPressed: _isSaving ? null : () => _confirmDelete(record),
-      icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-      label: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
+      icon: Icon(Icons.delete_outline, size: 18, color: Theme.of(context).colorScheme.error),
+      label: Text('刪除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
     );
     final Widget saveButton = ElevatedButton.icon(
       onPressed: _isSaving ? null : _save,
@@ -292,7 +293,7 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
       label: Text(_isSaving ? '儲存中…' : '儲存'),
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: context.appColors.onAcc,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
@@ -410,7 +411,7 @@ class _ContentPanel extends StatelessWidget {
                 if (actionWidget != null) actionWidget,
               ],
             ),
-            Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(subtitle, style: TextStyle(fontSize: 12, color: context.appColors.ink3)),
             const SizedBox(height: 12),
             child,
           ],

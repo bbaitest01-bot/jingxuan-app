@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/visit_record.dart';
+import '../../theme/app_theme.dart';
 
 /// 單篇頁上方的 AI 整理狀態（4-E1，R8）：
 /// 整理中 → 轉圈說明；失敗或卡住超過 5 分鐘 → 原因＋「重新整理」；完成 → 一行小字。
@@ -17,9 +18,9 @@ class VisitRecordOrganizeBanner extends StatelessWidget {
     if (record.isOrganizeFailed(now)) return _buildFailed(context, now);
     if (record.isProcessing) return _buildProcessing(context);
     if (record.status == VisitRecord.statusDone) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: 12),
-        child: Text('✓ 已由 AI 整理到「整理後內容」，可以再自己修改', style: TextStyle(fontSize: 13, color: Colors.green)),
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text('✓ 已由 AI 整理到「整理後內容」，可以再自己修改', style: TextStyle(fontSize: 13, color: context.appColors.ok)),
       );
     }
     return const SizedBox.shrink();
@@ -44,9 +45,9 @@ class VisitRecordOrganizeBanner extends StatelessWidget {
     if (record.isOrganizeStale(now)) reason = '超過 5 分鐘沒有完成';
     if (reason.isEmpty) reason = '原因不明';
     return _BannerBox(
-      color: Colors.redAccent,
+      color: Theme.of(context).colorScheme.error,
       children: [
-        const Icon(Icons.error_outline, color: Colors.redAccent),
+        Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
         const SizedBox(width: 12),
         Expanded(child: Text('AI 整理失敗：$reason。原始轉錄都還在，可以重新整理。')),
         const SizedBox(width: 8),

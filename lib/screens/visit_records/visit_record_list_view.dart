@@ -5,6 +5,7 @@ import '../../router/app_routes.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import 'visit_record_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// 拜訪紀錄列表（/visit-records）：新到舊，點一篇打開單篇頁
 class VisitRecordListView extends StatefulWidget {
@@ -109,7 +110,7 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
                 label: const Text('新增紀錄'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: context.appColors.onAcc,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -129,7 +130,7 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     final String? errorMessage = _errorMessage;
     if (errorMessage != null) {
-      return Center(child: Text(errorMessage, style: const TextStyle(color: Colors.redAccent)));
+      return Center(child: Text(errorMessage, style: TextStyle(color: Theme.of(context).colorScheme.error)));
     }
     if (_records.isEmpty) return const _VisitRecordEmptyState();
 
@@ -163,7 +164,7 @@ class _VisitRecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color subTextColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
+    final Color subTextColor = Theme.of(context).textTheme.bodySmall?.color ?? context.appColors.ink3;
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -218,11 +219,11 @@ class _VisitRecordEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.record_voice_over_outlined, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
+          Icon(Icons.record_voice_over_outlined, size: 64, color: context.appColors.ink3.withValues(alpha: 0.6)),
           const SizedBox(height: 12),
           const Text('還沒有拜訪紀錄', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          const Text('按右上角「錄音新增」或「新增紀錄」建立第一篇', style: TextStyle(fontSize: 13, color: Colors.grey)),
+          Text('按右上角「錄音新增」或「新增紀錄」建立第一篇', style: TextStyle(fontSize: 13, color: context.appColors.ink3)),
         ],
       ),
     );

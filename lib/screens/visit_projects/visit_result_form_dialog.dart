@@ -10,6 +10,7 @@ import '../../widgets/custom_toast.dart';
 import '../customers/customer_status_widgets.dart';
 import '../visit_records/visit_record_customer_picker.dart';
 import 'visit_record_link_picker.dart';
+import '../../theme/app_theme.dart';
 
 /// 預先帶進視窗的資料：從行程記錄（4-2c，有行程編號）或從專案名單記錄（沒有行程編號）
 class VisitResultPreset {
@@ -174,7 +175,7 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
           FilledButton(
             onPressed: () => Navigator.pop(confirmContext, true),
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: Theme.of(context).colorScheme.error,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             child: const Text('刪除'),
@@ -284,7 +285,7 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
         if (_isEditing)
           TextButton(
             onPressed: _isSaving ? null : _delete,
-            child: const Text('刪除', style: TextStyle(color: Colors.redAccent)),
+            child: Text('刪除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context, false), child: const Text('取消')),
         FilledButton(
@@ -341,9 +342,9 @@ class _VisitResultFormDialogState extends State<VisitResultFormDialog> {
           ),
         ),
         if (isOutsideMembers)
-          const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Text('這位客戶不在專案名單裡，一樣會算進度', style: TextStyle(fontSize: 12, color: Colors.orange)),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('這位客戶不在專案名單裡，一樣會算進度', style: TextStyle(fontSize: 12, color: context.appColors.warn)),
           ),
       ],
     );
