@@ -412,7 +412,7 @@ class _ResultPicker extends StatelessWidget {
     for (final String option in VisitResult.resultOptions) {
       final String symbol = CustomerService.clientStatusSymbol(option);
       final String label = CustomerService.clientStatusLabel(option);
-      final Color color = customerStatusColor(option);
+      final Color color = customerStatusColor(context, option);
       final bool isSelected = selected == option;
       chips.add(ChoiceChip(
         label: Text('$symbol $label'),

@@ -142,7 +142,7 @@ class _VisitProjectDetailDialogState extends State<_VisitProjectDetailDialog> {
         trailing = Text.rich(TextSpan(children: [
           TextSpan(
             text: CustomerService.clientStatusSymbol(latest.result),
-            style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(latest.result)),
+            style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, latest.result)),
           ),
           TextSpan(
             text: '  ${VisitProject.formatMonthDay(latest.visitedOn)}・${mine.length} 次',
@@ -164,7 +164,7 @@ class _VisitProjectDetailDialogState extends State<_VisitProjectDetailDialog> {
       rows.add(_DetailRow(
         leading: Text.rich(TextSpan(children: [
           TextSpan(text: '${friendlyEventDate(result.visitedOn, today)}  ', style: TextStyle(color: Theme.of(context).hintColor)),
-          TextSpan(text: '$symbol ', style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(result.result))),
+          TextSpan(text: '$symbol ', style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, result.result))),
           TextSpan(text: result.customerName, style: const TextStyle(fontWeight: FontWeight.bold)),
           TextSpan(text: note, style: TextStyle(fontSize: 13, color: Theme.of(context).hintColor)),
         ])),

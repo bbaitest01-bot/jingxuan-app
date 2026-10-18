@@ -107,7 +107,7 @@ class VisitPendingSection extends StatelessWidget {
         final String status = event.result ?? '';
         actions.add(Text(
           '已記錄 ${CustomerService.clientStatusSymbol(status)}',
-          style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(status)),
+          style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, status)),
         ));
         actions.add(TextButton(onPressed: () => onEditResult(event), child: const Text('修改')));
       } else {

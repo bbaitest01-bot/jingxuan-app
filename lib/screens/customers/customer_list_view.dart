@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
-import '../../services/app_settings.dart';
 import '../../services/tag_categorizer.dart';
 import '../../widgets/animations.dart';
 import 'customer_grid_view.dart';
 import 'customer_shimmers.dart';
 import 'flipping_customer_card.dart';
 import 'customer_status_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// 條列模式：每位客戶一列
 class CustomerListView extends StatelessWidget {
@@ -99,12 +99,12 @@ class CustomerListRow extends StatelessWidget {
     final String nameInitial = name.isNotEmpty ? name.substring(0, 1) : '?';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final Color cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color cardBorder = isDark ? const Color(0xFF21262D) : Colors.grey.shade300;
-    final Color nameColor = isDark ? Colors.white : Colors.black87;
-    final Color infoColor = isDark ? Colors.white54 : Colors.black54;
-    final Color iconColor = isDark ? Colors.white30 : Colors.black38;
+    final Color primaryColor = context.appColors.acc;
+    final Color cardBg = context.appColors.surface;
+    final Color cardBorder = context.appColors.line;
+    final Color nameColor = context.appColors.ink;
+    final Color infoColor = context.appColors.ink3;
+    final Color iconColor = context.appColors.ink3;
 
     Widget child;
 
@@ -123,7 +123,7 @@ class CustomerListRow extends StatelessWidget {
               onChanged: (val) {
                 actions.onSelectionChanged(customer['id'].toString(), val == true);
               },
-              activeColor: const Color(0xFF0EA5E9),
+              activeColor: context.appColors.acc,
             ),
             const SizedBox(width: 8),
           ],
@@ -157,8 +157,8 @@ class CustomerListRow extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           '👤 業務員: ${customer['agent_name']}',
-                          style: const TextStyle(
-                            color: Color(0xFF6366F1),
+                          style: TextStyle(
+                            color: context.appColors.acc,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                           ),
@@ -251,7 +251,7 @@ class CustomerListRow extends StatelessWidget {
             child: Text(
               notes.isNotEmpty ? notes : '無備註資料',
               style: TextStyle(
-                color: notes.isNotEmpty ? infoColor : (isDark ? Colors.white24 : Colors.black38),
+                color: notes.isNotEmpty ? infoColor : (context.appColors.ink3),
                 fontSize: 11,
               ),
               maxLines: 2,
@@ -278,7 +278,7 @@ class CustomerListRow extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                icon: Icon(Icons.delete_outline_rounded, color: Theme.of(context).colorScheme.error, size: 18),
                 onPressed: () => actions.onDelete(customer),
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(6),
@@ -341,7 +341,7 @@ class CustomerListRow extends StatelessWidget {
                 padding: const EdgeInsets.all(4),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                icon: Icon(Icons.delete_outline_rounded, color: Theme.of(context).colorScheme.error, size: 16),
                 onPressed: () => actions.onDelete(customer),
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(4),
@@ -378,7 +378,7 @@ class CustomerListRow extends StatelessWidget {
             Text(
               notes,
               style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black45,
+                color: context.appColors.ink3,
                 fontSize: 10,
               ),
               maxLines: 1,

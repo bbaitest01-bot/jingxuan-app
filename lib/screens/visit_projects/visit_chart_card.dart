@@ -130,7 +130,7 @@ class _VisitChartCardState extends State<VisitChartCard> {
   // 每條線的顏色：結果用客戶狀態的顏色；總數灰色；專案跟卡片色點同色
   Color _colorOf(String seriesId, int index) {
     if (seriesId == 'total') return context.appColors.ink3;
-    if (VisitChartLegend.isResultId(seriesId)) return customerStatusColor(seriesId);
+    if (VisitChartLegend.isResultId(seriesId)) return customerStatusColor(context, seriesId);
     return visitProjectColor(context, index);
   }
 
