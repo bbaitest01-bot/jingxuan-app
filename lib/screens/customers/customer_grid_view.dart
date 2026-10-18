@@ -3,6 +3,7 @@ import '../../services/app_localizations.dart';
 import '../../widgets/animations.dart';
 import 'customer_shimmers.dart';
 import 'flipping_customer_card.dart';
+import '../../theme/app_theme.dart';
 
 /// 客戶卡片／清單上的按鈕要做的事，由外框（CustomerManagementTab）提供
 class CustomerCardActions {
@@ -95,7 +96,7 @@ class CustomerGridView extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF0EA5E9) : Colors.transparent,
+                    color: isSelected ? context.appColors.acc : Colors.transparent,
                     width: 3,
                   ),
                 ),
@@ -108,16 +109,17 @@ class CustomerGridView extends StatelessWidget {
                 right: 10,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF0EA5E9) : const Color(0xFF1E293B).withValues(alpha: 0.9),
+                    // 多選勾選圈：選中主題色、沒選白底灰框
+                    color: isSelected ? context.appColors.acc : context.appColors.surface,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
+                    border: Border.all(color: isSelected ? context.appColors.acc : context.appColors.line, width: 1.5),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(4.0),
                     child: Icon(
                       isSelected ? Icons.check : Icons.circle_outlined,
                       size: 16,
-                      color: Colors.white,
+                      color: isSelected ? context.appColors.onAcc : context.appColors.ink3,
                     ),
                   ),
                 ),
@@ -209,7 +211,7 @@ class CustomerEmptyState extends StatelessWidget {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white70 : Colors.black87,
+              color: context.appColors.ink2,
             ),
           ),
           const SizedBox(height: 8),
@@ -218,7 +220,7 @@ class CustomerEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
-              color: isDark ? Colors.white30 : Colors.black54,
+              color: context.appColors.ink3,
             ),
           ),
         ],

@@ -131,7 +131,7 @@ class _ScheduleVisitResultBarState extends State<ScheduleVisitResultBar> {
     if (event.isRecorded) {
       final String status = event.result ?? '';
       final String text = '拜訪結果：${CustomerService.clientStatusSymbol(status)} ${CustomerService.clientStatusLabel(status)}';
-      return Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(status)));
+      return Text(text, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, status)));
     }
     if (event.isSkipped) return const Text('這次標記為「沒拜訪」（不算進度）');
     return Text('這次拜訪 ${event.customerName} 還沒記錄結果', style: const TextStyle(fontWeight: FontWeight.bold));

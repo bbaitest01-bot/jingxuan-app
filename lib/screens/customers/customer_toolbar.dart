@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
-import '../../services/app_settings.dart';
 import 'customer_top_panels.dart';
+import '../../theme/app_theme.dart';
 
 /// 客戶管理頂部的搜尋列與按鈕列：搜尋、切換卡片／條列、匯出、批次匯入、批量管理、新增客戶。
 /// 電腦版（寬度 ≥ 768）排成一列；手機版搜尋列在上、按鈕在下。
@@ -38,12 +38,12 @@ class CustomerToolbar extends StatelessWidget {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isWideScreen = screenWidth >= 768;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
 
-    final Color searchBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final Color searchBorder = isDark ? const Color(0xFF30363D) : Colors.grey.shade300;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color iconColor = isDark ? Colors.white54 : Colors.black45;
+    final Color searchBg = context.appColors.surface;
+    final Color searchBorder = context.appColors.line;
+    final Color textColor = context.appColors.ink;
+    final Color iconColor = context.appColors.ink3;
     final Widget devScopeSwitcher = CustomerDevScopeSwitcher(
       isDark: isDark,
       onlyMine: devOnlyMine,
@@ -148,11 +148,11 @@ class CustomerToolbar extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onToggleSelectionMode,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: isSelectionMode ? const Color(0xFF38BDF8) : primaryColor,
-                  side: BorderSide(color: isSelectionMode ? const Color(0xFF0EA5E9) : primaryColor, width: 1.5),
+                  foregroundColor: isSelectionMode ? context.appColors.acc : primaryColor,
+                  side: BorderSide(color: isSelectionMode ? context.appColors.acc : primaryColor, width: 1.5),
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                  backgroundColor: isSelectionMode ? const Color(0xFF0EA5E9).withValues(alpha: 0.15) : Colors.transparent,
+                  backgroundColor: isSelectionMode ? context.appColors.acc.withValues(alpha: 0.15) : Colors.transparent,
                 ),
                 icon: Icon(isSelectionMode ? Icons.check_box_outlined : Icons.checklist_outlined, size: 20),
                 label: Text(isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -162,7 +162,7 @@ class CustomerToolbar extends StatelessWidget {
                 onPressed: onAddCustomer,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: context.appColors.onAcc,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                   elevation: 2,
@@ -271,11 +271,11 @@ class CustomerToolbar extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onToggleSelectionMode,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: isSelectionMode ? const Color(0xFF38BDF8) : primaryColor,
-                      side: BorderSide(color: isSelectionMode ? const Color(0xFF0EA5E9) : primaryColor, width: 1.5),
+                      foregroundColor: isSelectionMode ? context.appColors.acc : primaryColor,
+                      side: BorderSide(color: isSelectionMode ? context.appColors.acc : primaryColor, width: 1.5),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      backgroundColor: isSelectionMode ? const Color(0xFF0EA5E9).withValues(alpha: 0.15) : Colors.transparent,
+                      backgroundColor: isSelectionMode ? context.appColors.acc.withValues(alpha: 0.15) : Colors.transparent,
                     ),
                     icon: Icon(isSelectionMode ? Icons.check_box_outlined : Icons.checklist_outlined, size: 18),
                     label: Text(isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -284,7 +284,7 @@ class CustomerToolbar extends StatelessWidget {
                     onPressed: onAddCustomer,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.appColors.onAcc,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       elevation: 2,

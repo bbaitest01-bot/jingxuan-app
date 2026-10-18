@@ -5,6 +5,7 @@ import '../../../router/app_routes.dart';
 import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../visit_records/visit_record_widgets.dart';
+import '../../../theme/app_theme.dart';
 import '../customer_status_widgets.dart';
 
 /// 客戶細節頁的一個區塊外框：標題（含筆數）、右上角按鈕、內容
@@ -24,7 +25,7 @@ class CustomerDetailSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final Color primaryColor = context.appColors.acc;
     final Widget? actionWidget = action;
     return Card(
       margin: EdgeInsets.zero,
@@ -63,7 +64,7 @@ class CustomerDetailEmptyText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(text, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      child: Text(text, style: TextStyle(fontSize: 13, color: context.appColors.ink3)),
     );
   }
 }
@@ -100,7 +101,7 @@ class CustomerBasicInfoSection extends StatelessWidget {
         children: [
           ...rows,
           const SizedBox(height: 8),
-          const Text('標籤', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text('標籤', style: TextStyle(fontSize: 12, color: context.appColors.ink3)),
           const SizedBox(height: 6),
           if (tags.isEmpty) const CustomerDetailEmptyText('沒有標籤'),
           if (tags.isNotEmpty)
@@ -110,7 +111,7 @@ class CustomerBasicInfoSection extends StatelessWidget {
               children: tags.map((tag) => Chip(label: Text(tag), visualDensity: VisualDensity.compact)).toList(),
             ),
           const SizedBox(height: 12),
-          const Text('備註', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text('備註', style: TextStyle(fontSize: 12, color: context.appColors.ink3)),
           const SizedBox(height: 6),
           if (notes.trim().isEmpty) const CustomerDetailEmptyText('沒有備註'),
           if (notes.trim().isNotEmpty) SelectableText(notes, style: const TextStyle(fontSize: 14, height: 1.6)),
@@ -134,7 +135,7 @@ class _StatusRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(width: 90, child: Text('客戶狀態', style: TextStyle(fontSize: 13, color: Colors.grey))),
+          SizedBox(width: 90, child: Text('客戶狀態', style: TextStyle(fontSize: 13, color: context.appColors.ink3))),
           Expanded(child: CustomerStatusSourceText(customerId: customerId, status: status)),
         ],
       ),
@@ -156,7 +157,7 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 90, child: Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey))),
+          SizedBox(width: 90, child: Text(label, style: TextStyle(fontSize: 13, color: context.appColors.ink3))),
           Expanded(child: SelectableText(displayValue, style: const TextStyle(fontSize: 14))),
         ],
       ),

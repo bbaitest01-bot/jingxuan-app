@@ -1,14 +1,30 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 import '../../models/visit_result.dart';
 import '../../services/customer_service.dart';
 import '../../services/visit_result_service.dart';
 
-/// 客戶狀態的顏色：✔ 綠、△ 橘、✖ 紅（4-3c）
-Color customerStatusColor(String? status) {
-  if (status == CustomerService.statusPositive) return Colors.green;
-  if (status == CustomerService.statusConsidering) return Colors.orange;
-  if (status == CustomerService.statusNegative) return Colors.redAccent;
-  return Colors.grey;
+/// 「△ 考慮中」專用的亮橘色（2026-10-18 沛沛選定：主題的提醒色偏咖啡，要橘一點）。
+/// 亮橘當純文字在米白底上偏淡，所以小標記膠囊裡改用深一點的橘字＋淡橘底
+class CustomerConsideringColors {
+  static const Color light = Color(0xFFD97706);
+  static const Color lightBadgeText = Color(0xFFB05E00);
+  static const Color lightBadgeBackground = Color(0xFFFDEBD0);
+  static const Color dark = Color(0xFFF0B54A);
+  static const Color darkBadgeBackground = Color(0xFF3A2A12);
+}
+
+/// 客戶狀態的顏色：✔ 綠、△ 亮橘、✖ 紅（4-3c）；綠、紅用主題的成功／危險色，明亮深色各自調過
+Color customerStatusColor(BuildContext context, String? status) {
+  final AppColors colors = context.appColors;
+  final bool isDark = Theme.of(context).brightness == Brightness.dark;
+  if (status == CustomerService.statusPositive) return colors.ok;
+  if (status == CustomerService.statusConsidering) {
+    if (isDark) return CustomerConsideringColors.dark;
+    return CustomerConsideringColors.light;
+  }
+  if (status == CustomerService.statusNegative) return Theme.of(context).colorScheme.error;
+  return colors.ink3;
 }
 
 /// 客戶卡片、整頁標題旁的小標記（例：「✔ 有意願」）；未設定就不顯示
@@ -21,20 +37,33 @@ class CustomerStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final String symbol = CustomerService.clientStatusSymbol(status);
     if (symbol.isEmpty) return const SizedBox.shrink();
-    final Color color = customerStatusColor(status);
+    final Color color = customerStatusColor(context, status);
     // 卡片空間小，只顯示說明的前半段（有意願／考慮中／無意願）
     final String shortLabel = CustomerService.clientStatusLabel(status).split('／').first;
+
+    // 一般狀態：淡同色底＋同色字；考慮中：淡橘底＋深一點的橘字，亮橘字才讀得清楚
+    Color textColor = color;
+    Color backgroundColor = color.withValues(alpha: 0.12);
+    if (status == CustomerService.statusConsidering) {
+      final bool isDark = Theme.of(context).brightness == Brightness.dark;
+      if (isDark) {
+        backgroundColor = CustomerConsideringColors.darkBadgeBackground;
+      } else {
+        textColor = CustomerConsideringColors.lightBadgeText;
+        backgroundColor = CustomerConsideringColors.lightBadgeBackground;
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         '$symbol $shortLabel',
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: textColor),
       ),
     );
   }
@@ -131,7 +160,7 @@ class _CustomerStatusSourceTextState extends State<CustomerStatusSourceText> {
 
     return Text.rich(
       TextSpan(children: [
-        TextSpan(text: statusText, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(status))),
+        TextSpan(text: statusText, style: TextStyle(fontWeight: FontWeight.bold, color: customerStatusColor(context, status))),
         TextSpan(text: sourceText, style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)),
       ]),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/customer_relationship_service.dart';
 import '../../widgets/custom_toast.dart';
+import '../../theme/app_theme.dart';
 
 /// 管理一位客戶的人脈：轉介紹來源（維度 1）與社交角色關係（維度 2）。
 /// 轉介紹來源改變時呼叫 [onReferralSourceChanged]，讓外框同步畫面上的客戶資料。
@@ -36,7 +37,7 @@ Future<void> showCustomerRelationshipsDialog(
           return AlertDialog(
             title: Row(
               children: [
-                const Icon(Icons.hub_rounded, color: Color(0xFF6366F1)),
+                Icon(Icons.hub_rounded, color: outerContext.appColors.acc),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -54,9 +55,9 @@ Future<void> showCustomerRelationshipsDialog(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF6366F1))),
+                    Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: outerContext.appColors.acc)),
                     const SizedBox(height: 4),
-                    const Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: outerContext.appColors.ink3)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String?>(
                       value: otherCustomers.any((c) => c['id'].toString() == currentReferralId) ? currentReferralId : null,
@@ -90,15 +91,15 @@ Future<void> showCustomerRelationshipsDialog(
                     const Divider(),
                     const SizedBox(height: 8),
 
-                    const Text('🕸️ 維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                    Text('維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: outerContext.appColors.acc)),
                     const SizedBox(height: 4),
-                    const Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: outerContext.appColors.ink3)),
                     const SizedBox(height: 10),
 
                     if (myRels.isEmpty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: outerContext.appColors.ink3)),
                       )
                     else
                       ...myRels.map((r) {
@@ -108,18 +109,27 @@ Future<void> showCustomerRelationshipsDialog(
                         final typeStr = r['relationship_type'] ?? 'family';
                         final detailStr = r['relationship_detail'] ?? '';
 
-                        Color tagColor = const Color(0xFF10B981);
+                        // 關係類型用全站共用的分類色：親眷藍、職場青綠、社團橘、其他灰
+                        AppCategoryColor categoryColor = AppCategoryColors.blue;
                         String typeName = '親眷';
-                        if (typeStr == 'workplace') { tagColor = const Color(0xFFF59E0B); typeName = '職場'; }
-                        else if (typeStr == 'social') { tagColor = const Color(0xFF8B5CF6); typeName = '社團'; }
-                        else if (typeStr == 'other') { tagColor = const Color(0xFF6B7280); typeName = '其他'; }
+                        if (typeStr == 'workplace') {
+                          categoryColor = AppCategoryColors.teal;
+                          typeName = '職場';
+                        } else if (typeStr == 'social') {
+                          categoryColor = AppCategoryColors.orange;
+                          typeName = '社團';
+                        } else if (typeStr == 'other') {
+                          categoryColor = AppCategoryColors.gray;
+                          typeName = '其他';
+                        }
+                        final Color tagColor = categoryColor.solid(outerContext);
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
-                            color: tagColor.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
+                            color: categoryColor.soft(outerContext),
+                            borderRadius: BorderRadius.circular(AppRadius.control),
                             border: Border.all(color: tagColor.withValues(alpha: 0.3)),
                           ),
                           child: Row(
@@ -130,7 +140,7 @@ Future<void> showCustomerRelationshipsDialog(
                                   color: tagColor,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(typeName, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                                child: Text(typeName, style: TextStyle(fontSize: 10, color: outerContext.appColors.onAcc, fontWeight: FontWeight.bold)),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -140,7 +150,7 @@ Future<void> showCustomerRelationshipsDialog(
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                                icon: Icon(Icons.delete_outline_rounded, color: Theme.of(outerContext).colorScheme.error, size: 18),
                                 onPressed: () async {
                                   await CustomerRelationshipService.deleteRelationship(r['id'].toString());
                                   rels = await CustomerRelationshipService.fetchAllRelationships();
@@ -157,7 +167,7 @@ Future<void> showCustomerRelationshipsDialog(
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(outerContext).brightness == Brightness.dark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        color: outerContext.appColors.surface2,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
@@ -241,8 +251,8 @@ Future<void> showCustomerRelationshipsDialog(
                               icon: const Icon(Icons.add_rounded, size: 16),
                               label: const Text('新增關聯'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
-                                foregroundColor: Colors.white,
+                                backgroundColor: outerContext.appColors.acc,
+                                foregroundColor: outerContext.appColors.onAcc,
                               ),
                             ),
                           ),

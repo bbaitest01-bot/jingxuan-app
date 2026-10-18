@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/app_settings.dart';
+import '../../theme/app_theme.dart';
 
 /// 客戶管理「批量管理」模式下的多選操作列：全選、匯出、建立專案、移至垃圾桶、退出多選。
 /// 電腦版（寬度 ≥ 768）單行排列；手機版上下兩層、三顆按鈕等寬。
@@ -27,7 +27,7 @@ class CustomerBatchSelectionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final int allFilteredCount = totalCount;
     final bool isAllSelected = selectedCount > 0 && selectedCount == allFilteredCount;
-    final Color primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
     final bool isWideScreen = MediaQuery.of(context).size.width >= 768;
 
     return Container(
@@ -37,14 +37,15 @@ class CustomerBatchSelectionBar extends StatelessWidget {
       ),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        // 浮在清單上方的工具列：白底、細框、淡陰影（原本是深藍底＋發光框）
+        color: context.appColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF0EA5E9), width: 1.5),
+        border: Border.all(color: context.appColors.line),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0EA5E9).withValues(alpha: 0.2),
-            blurRadius: 15,
-            spreadRadius: 1,
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -54,19 +55,20 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                 Checkbox(
                   value: isAllSelected,
                   onChanged: onSelectAllChanged,
-                  activeColor: const Color(0xFF0EA5E9),
+                  activeColor: context.appColors.acc,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   '全選 ($selectedCount / $allFilteredCount)',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: TextStyle(color: context.appColors.ink, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
                 const Spacer(),
                 ElevatedButton.icon(
                   onPressed: selectedCount == 0 ? null : onExport,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.appColors.surface2,
+                    foregroundColor: context.appColors.ink,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
@@ -78,7 +80,7 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                   onPressed: selectedCount == 0 ? null : onCreateProject,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: context.appColors.onAcc,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
@@ -89,8 +91,8 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                 ElevatedButton.icon(
                   onPressed: selectedCount == 0 ? null : onBatchDelete,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
@@ -100,7 +102,7 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 IconButton(
                   onPressed: onExitSelection,
-                  icon: const Icon(Icons.close, color: Colors.white70),
+                  icon: Icon(Icons.close, color: context.appColors.ink3),
                   tooltip: '退出多選',
                 ),
               ],
@@ -114,15 +116,15 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                     Checkbox(
                       value: isAllSelected,
                       onChanged: onSelectAllChanged,
-                      activeColor: const Color(0xFF0EA5E9),
+                      activeColor: context.appColors.acc,
                       visualDensity: VisualDensity.compact,
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         '已選 $selectedCount 位 / 共 $allFilteredCount 位',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.appColors.ink,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),
@@ -132,9 +134,9 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                     InkWell(
                       onTap: onExitSelection,
                       borderRadius: BorderRadius.circular(20),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
-                        child: Icon(Icons.close, color: Colors.white70, size: 20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(Icons.close, color: context.appColors.ink3, size: 20),
                       ),
                     ),
                   ],
@@ -147,8 +149,8 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: selectedCount == 0 ? null : onExport,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
+                          backgroundColor: context.appColors.surface2,
+                          foregroundColor: context.appColors.ink,
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
@@ -177,7 +179,7 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                         onPressed: selectedCount == 0 ? null : onCreateProject,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: context.appColors.onAcc,
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
@@ -205,8 +207,8 @@ class CustomerBatchSelectionBar extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: selectedCount == 0 ? null : onBatchDelete,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
-                          foregroundColor: Colors.white,
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(context).colorScheme.onError,
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,

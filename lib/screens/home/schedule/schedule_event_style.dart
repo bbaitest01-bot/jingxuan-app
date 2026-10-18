@@ -81,76 +81,31 @@ List<TimelineEventLayout> computeTimelineLayouts(
   return layouts;
 }
 
-/// 行程類型的固定配色（「清爽組」，2026-10-18 沛沛選定）。
-/// 四種類型都用固定顏色、不跟主題色變，才能保證彼此分得開；每種有代表色（實心）與淡底色，明亮、深色各一套。
-/// 實心色上的字用 `onAcc`：明亮模式白字，深色模式代表色比較亮，改用深色字。
-class ScheduleEventPalette {
-  // 客戶拜訪：藍
-  static const Color visitLight = Color(0xFF2F6DB5);
-  static const Color visitLightSoft = Color(0xFFE4EDF8);
-  static const Color visitDark = Color(0xFF7FB0E8);
-  static const Color visitDarkSoft = Color(0xFF1A2A3D);
-  // 會議談判：青綠
-  static const Color meetingLight = Color(0xFF1A7A6C);
-  static const Color meetingLightSoft = Color(0xFFE0F0EC);
-  static const Color meetingDark = Color(0xFF6CC3B3);
-  static const Color meetingDarkSoft = Color(0xFF142D29);
-  // 跟進提醒：橘
-  static const Color reminderLight = Color(0xFFA85A12);
-  static const Color reminderLightSoft = Color(0xFFF6E8D8);
-  static const Color reminderDark = Color(0xFFE8A35E);
-  static const Color reminderDarkSoft = Color(0xFF33251A);
-  // 個人行程：灰
-  static const Color personalLight = Color(0xFF6B717C);
-  static const Color personalLightSoft = Color(0xFFECEDEF);
-  static const Color personalDark = Color(0xFFA0A6AF);
-  static const Color personalDarkSoft = Color(0xFF23272D);
-}
-
-// 把資料庫裡的類型代碼歸成四類：visit、meeting、reminder、personal
-String _scheduleEventCategory(String type) {
+// 行程類型用全站共用的分類色（清爽組，lib/theme/app_category_colors.dart）：
+// 客戶拜訪＝藍、會議談判＝青綠、跟進提醒＝橘、個人行程＝灰；不跟主題色變
+AppCategoryColor _scheduleEventCategoryColor(String type) {
   switch (type) {
-    case 'meeting':
-      return 'meeting';
     case 'visit':
     case 'customer_visit':
-      return 'visit';
+      return AppCategoryColors.blue;
+    case 'meeting':
+      return AppCategoryColors.teal;
     case 'reminder':
     case 'follow_up':
-      return 'reminder';
+      return AppCategoryColors.orange;
     default:
-      return 'personal';
+      return AppCategoryColors.gray;
   }
 }
 
 // 行程類型的代表色（月網格實心色條、圓點、卡片框線與標籤字）
 Color scheduleEventTypeColor(BuildContext context, String type) {
-  final bool isDark = Theme.of(context).brightness == Brightness.dark;
-  switch (_scheduleEventCategory(type)) {
-    case 'visit':
-      return isDark ? ScheduleEventPalette.visitDark : ScheduleEventPalette.visitLight;
-    case 'meeting':
-      return isDark ? ScheduleEventPalette.meetingDark : ScheduleEventPalette.meetingLight;
-    case 'reminder':
-      return isDark ? ScheduleEventPalette.reminderDark : ScheduleEventPalette.reminderLight;
-    default:
-      return isDark ? ScheduleEventPalette.personalDark : ScheduleEventPalette.personalLight;
-  }
+  return _scheduleEventCategoryColor(type).solid(context);
 }
 
 // 行程類型的淡底色（日時間軸卡片底色），和代表色成對
 Color scheduleEventTypeSoftColor(BuildContext context, String type) {
-  final bool isDark = Theme.of(context).brightness == Brightness.dark;
-  switch (_scheduleEventCategory(type)) {
-    case 'visit':
-      return isDark ? ScheduleEventPalette.visitDarkSoft : ScheduleEventPalette.visitLightSoft;
-    case 'meeting':
-      return isDark ? ScheduleEventPalette.meetingDarkSoft : ScheduleEventPalette.meetingLightSoft;
-    case 'reminder':
-      return isDark ? ScheduleEventPalette.reminderDarkSoft : ScheduleEventPalette.reminderLightSoft;
-    default:
-      return isDark ? ScheduleEventPalette.personalDarkSoft : ScheduleEventPalette.personalLightSoft;
-  }
+  return _scheduleEventCategoryColor(type).soft(context);
 }
 
 // 行程類型的中文名稱

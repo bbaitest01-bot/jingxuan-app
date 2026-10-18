@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/app_settings.dart';
 import '../services/customer_export_service.dart';
 import 'custom_toast.dart';
+import '../theme/app_theme.dart';
 
 /// 客戶資料分享與匯出微動畫彈窗 (Customer Share & Export Micro-Animation Dialog)
 class CustomerShareExportDialog extends StatefulWidget {
@@ -79,11 +79,11 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final dialogBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final Color primaryColor = context.appColors.acc;
+    final dialogBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
+    final Color textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     final dynamicKeys = CustomerExportService.instance.extractAllCustomAttributeKeys(widget.customers);
 
@@ -156,15 +156,15 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
+                                color: context.appColors.accSoft,
+                                borderRadius: BorderRadius.circular(AppRadius.pill),
                               ),
                               child: Text(
-                                '✨ 包含 ${dynamicKeys.length} 項自訂欄位',
-                                style: const TextStyle(
+                                '包含 ${dynamicKeys.length} 項自訂欄位',
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF10B981),
+                                  color: context.appColors.acc,
                                 ),
                               ),
                             ),
@@ -186,10 +186,10 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
 
             // Format Options Grid
             _buildExportOptionCard(
-              title: '📊 匯出 Excel 試算表 (.xlsx)',
+              title: '匯出 Excel 試算表 (.xlsx)',
               subtitle: '完整多欄結構化試算表，100% 保留所有自訂擴充屬性',
               badge: '微軟 Excel / Google 試算表通用',
-              color: const Color(0xFF10B981),
+              color: AppCategoryColors.teal.solid(context),
               icon: Icons.table_chart_rounded,
               isProcessing: _isExporting && _exportingType == 'excel',
               isDark: isDark,
@@ -202,10 +202,10 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
             const SizedBox(height: 10),
 
             _buildExportOptionCard(
-              title: '📑 匯出 CSV 試算表 (.csv)',
+              title: '匯出 CSV 試算表 (.csv)',
               subtitle: '前置 UTF-8 BOM 繁中防亂碼標準格式，輕量且各工具通用',
               badge: 'UTF-8 BOM 繁中無損',
-              color: const Color(0xFF0EA5E9),
+              color: AppCategoryColors.blue.solid(context),
               icon: Icons.grid_on_rounded,
               isProcessing: _isExporting && _exportingType == 'csv',
               isDark: isDark,
@@ -218,10 +218,10 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
             const SizedBox(height: 10),
 
             _buildExportOptionCard(
-              title: '📇 匯出 vCard 通訊錄 (.vcf)',
+              title: '匯出 vCard 通訊錄 (.vcf)',
               subtitle: '標準 RFC 2426 通訊錄名片，手機 (iOS/Android) 點擊一鍵直接匯入',
               badge: '手機/電腦通訊錄直接導入',
-              color: const Color(0xFF8B5CF6),
+              color: AppCategoryColors.orange.solid(context),
               icon: Icons.contacts_rounded,
               isProcessing: _isExporting && _exportingType == 'vcard',
               isDark: isDark,
@@ -234,10 +234,10 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
             const SizedBox(height: 10),
 
             _buildExportOptionCard(
-              title: '📄 匯出客戶總覽報表 (PDF / 列印)',
+              title: '匯出客戶總覽報表 (PDF / 列印)',
               subtitle: '生成具備排版與統計卡片之網頁報表，支援瀏覽器列印或另存 PDF',
               badge: '會議報告 / 另存 PDF',
-              color: const Color(0xFFEC4899),
+              color: AppCategoryColors.gray.solid(context),
               icon: Icons.picture_as_pdf_rounded,
               isProcessing: _isExporting && _exportingType == 'html',
               isDark: isDark,
@@ -305,7 +305,7 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            color: context.appColors.ink,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -318,7 +318,7 @@ class _CustomerShareExportDialogState extends State<CustomerShareExportDialog> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: context.appColors.ink3,
                     ),
                   ),
                 ],

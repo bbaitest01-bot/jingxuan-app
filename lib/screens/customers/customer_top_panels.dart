@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
 
 /// 開發者專用：切換「僅我建立的」與「全系統客戶」。只有開發者帳號會看到。
 class CustomerDevScopeSwitcher extends StatelessWidget {
@@ -15,15 +16,15 @@ class CustomerDevScopeSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color activeBg = const Color(0xFF6366F1);
-    final Color inactiveText = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final Color activeBg = context.appColors.acc;
+    final Color inactiveText = context.appColors.ink3;
 
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        color: context.appColors.bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.35)),
+        border: Border.all(color: context.appColors.acc.withValues(alpha: 0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -44,14 +45,14 @@ class CustomerDevScopeSwitcher extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_rounded, size: 14, color: onlyMine ? Colors.white : inactiveText),
+                  Icon(Icons.person_rounded, size: 14, color: onlyMine ? context.appColors.onAcc : inactiveText),
                   const SizedBox(width: 4),
                   Text(
                     '👤 僅我建立的',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: onlyMine ? Colors.white : inactiveText,
+                      color: onlyMine ? context.appColors.onAcc : inactiveText,
                     ),
                   ),
                 ],
@@ -74,14 +75,14 @@ class CustomerDevScopeSwitcher extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.public_rounded, size: 14, color: !onlyMine ? Colors.white : inactiveText),
+                  Icon(Icons.public_rounded, size: 14, color: !onlyMine ? context.appColors.onAcc : inactiveText),
                   const SizedBox(width: 4),
                   Text(
                     '🌐 全系統客戶 (Dev)',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: !onlyMine ? Colors.white : inactiveText,
+                      color: !onlyMine ? context.appColors.onAcc : inactiveText,
                     ),
                   ),
                 ],
@@ -115,19 +116,19 @@ class CustomerDraftInbox extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+        color: context.appColors.warn.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+        border: Border.all(color: context.appColors.warn.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+              color: context.appColors.warn.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.contact_mail_rounded, color: Color(0xFFF59E0B), size: 20),
+            child: Icon(Icons.contact_mail_rounded, color: context.appColors.warn, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -136,24 +137,24 @@ class CustomerDraftInbox extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text('🟡 待補齊名片 / 語音草稿收件匣', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
+                    Text('待補齊名片 / 語音草稿收件匣', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: context.appColors.warn)),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(color: const Color(0xFFF59E0B), borderRadius: BorderRadius.circular(10)),
-                      child: Text('${draftCustomers.length} 位待確認', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                      decoration: BoxDecoration(color: context.appColors.warnSoft, borderRadius: BorderRadius.circular(AppRadius.pill)),
+                      child: Text('${draftCustomers.length} 位待確認', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: context.appColors.warn)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text('語音助理在外速記產生之草稿檔案，點擊 1 秒補齊電話與標籤轉為正式客戶。', style: TextStyle(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))),
+                Text('語音助理在外速記產生之草稿檔案，點擊 1 秒補齊電話與標籤轉為正式客戶。', style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
               ],
             ),
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF59E0B),
-              foregroundColor: Colors.white,
+              backgroundColor: context.appColors.warn,
+              foregroundColor: context.appColors.onAcc,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
             onPressed: () {
