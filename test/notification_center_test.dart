@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:insurance_helper/main.dart' show isOfflineMode;
 import 'package:insurance_helper/models/app_notification.dart';
 import 'package:insurance_helper/services/notification_service.dart';
+import 'package:insurance_helper/theme/app_theme.dart';
 import 'package:insurance_helper/widgets/custom_toast.dart';
 import 'package:insurance_helper/widgets/notification_arrival_card.dart';
 import 'package:insurance_helper/widgets/notification_bell_button.dart';
@@ -268,9 +269,9 @@ void main() {
       return color;
     }
 
-    final ThemeData lightTheme = ThemeData(brightness: Brightness.light);
-    final ThemeData darkTheme = ThemeData(brightness: Brightness.dark);
-    expect(await toastColor(lightTheme), lightTheme.colorScheme.surface);
-    expect(await toastColor(darkTheme), darkTheme.colorScheme.surface);
+    // 2026-10-19 換皮後底色用主題的 surface（明亮白、深色深底）
+    const AppAccent accent = AppThemeColors.defaultAccent;
+    expect(await toastColor(AppTheme.light(accent)), AppColors.light(accent).surface);
+    expect(await toastColor(AppTheme.dark(accent)), AppColors.dark(accent).surface);
   });
 }

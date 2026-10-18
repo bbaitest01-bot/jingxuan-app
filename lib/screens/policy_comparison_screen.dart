@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/customer_policy_service.dart';
 import '../services/policy_crawler_service.dart';
 import '../widgets/custom_toast.dart';
+import '../theme/app_theme.dart';
 
 class PolicyComparisonScreen extends StatefulWidget {
   final List<PolicyClauseItem> initialProducts;
@@ -94,16 +95,15 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-          final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+          final cardBg = context.appColors.surface;
+          final textColor = context.appColors.ink;
 
           return AlertDialog(
             backgroundColor: cardBg,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                const Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF6366F1)),
+                Icon(Icons.assignment_turned_in_rounded, color: context.appColors.acc),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('為客戶規劃投保：${policy.productName}',
@@ -121,18 +121,18 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withOpacity(0.08),
+                      color: context.appColors.acc.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.2)),
+                      border: Border.all(color: context.appColors.acc.withOpacity(0.2)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('🏢 ${policy.companyName} • ${policy.category}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF6366F1))),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                         const SizedBox(height: 4),
                         Text('病房：${policy.roomLimit} | 手術：${policy.surgeryLimit} | 雜費：${policy.miscLimit}',
-                            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                            style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
                       ],
                     ),
                   ),
@@ -189,8 +189,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  foregroundColor: Colors.white,
+                  backgroundColor: context.appColors.acc,
+                  foregroundColor: context.appColors.onAcc,
                 ),
                 child: const Text('確認掛載保單'),
               ),
@@ -238,9 +238,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-          final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+          final cardBg = context.appColors.surface;
+          final textColor = context.appColors.ink;
 
           final result = _policyService.calculateCustomItemizedClaim(
             roomDays: currentRoomDays,
@@ -261,7 +260,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                const Icon(Icons.health_and_safety_rounded, color: Color(0xFF10B981)),
+                Icon(Icons.health_and_safety_rounded, color: context.appColors.ok),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('全真醫療單據理賠精算：${policy.productName}',
@@ -278,7 +277,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // ① 快速範本選擇
-                    const Text('① 快速載入臨床情境範本：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text('① 快速載入臨床情境範本：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
                     const SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
@@ -289,8 +288,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                           avatar: Text(sc.iconEmoji),
                           label: Text(sc.title, style: TextStyle(fontSize: 10.5, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
                           selected: isSel,
-                          selectedColor: const Color(0xFF10B981),
-                          labelStyle: TextStyle(color: isSel ? Colors.white : textColor),
+                          selectedColor: context.appColors.ok,
+                          labelStyle: TextStyle(color: isSel ? context.appColors.onAcc : textColor),
                           onSelected: (_) {
                             setDlgState(() {
                               activePresetId = sc.id;
@@ -311,17 +310,17 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        color: context.appColors.bg,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(Icons.edit_note_rounded, size: 16, color: Color(0xFF6366F1)),
-                              SizedBox(width: 4),
-                              Text('② 自由調整醫院收據自費細項：', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                              Icon(Icons.edit_note_rounded, size: 16, color: context.appColors.acc),
+                              const SizedBox(width: 4),
+                              const Text('② 自由調整醫院收據自費細項：', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -393,7 +392,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                                 children: [
                                   Checkbox(
                                     value: currentIs227,
-                                    activeColor: const Color(0xFF10B981),
+                                    activeColor: context.appColors.ok,
                                     onChanged: (val) => setDlgState(() {
                                       activePresetId = 'custom';
                                       currentIs227 = val ?? true;
@@ -416,18 +415,18 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Theme.of(context).colorScheme.error.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red),
+                          border: Border.all(color: Theme.of(context).colorScheme.error),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
-                            SizedBox(width: 6),
+                            Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error, size: 18),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 '🚨 條款地雷預警：此保單限定健保 2-2-7，因該項手術屬於健保處置，條款手術給付為 0 元！',
-                                style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 11, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ],
@@ -438,14 +437,14 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                     const SizedBox(height: 14),
 
                     // ③ 給付精算與自費缺口
-                    const Text('③ 醫療單據總額 vs 保單給付精算：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text('③ 醫療單據總額 vs 保單給付精算：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
                     const SizedBox(height: 8),
                     _buildClaimRow('🛏️ 病房自費差額給付：', '${result.roomExpenses} 元', '給付: ${result.roomClaim} 元'),
                     _buildClaimRow(
                       '🔪 手術費用給付：',
                       '${result.surgeryExpenses} 元',
                       has227Trap ? '給付: 0 元 (2-2-7除外)' : '給付: ${result.surgeryClaim} 元',
-                      claimColor: has227Trap ? Colors.red : const Color(0xFF10B981),
+                      claimColor: has227Trap ? Theme.of(context).colorScheme.error : context.appColors.ok,
                     ),
                     _buildClaimRow('💊 醫療耗材/藥品雜費給付：', '${result.miscExpenses} 元', '給付: ${result.miscClaim} 元'),
                     const Divider(height: 18),
@@ -453,10 +452,10 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: result.outOfPocketGap > 0
-                            ? const Color(0xFFEF4444).withOpacity(0.12)
-                            : const Color(0xFF10B981).withOpacity(0.12),
+                            ? Theme.of(context).colorScheme.error.withOpacity(0.12)
+                            : context.appColors.ok.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: result.outOfPocketGap > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981)),
+                        border: Border.all(color: result.outOfPocketGap > 0 ? Theme.of(context).colorScheme.error : context.appColors.ok),
                       ),
                       child: Column(
                         children: [
@@ -471,16 +470,16 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('保單預估理賠總額：', style: TextStyle(fontSize: 12, color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
-                              Text('${result.totalClaim} 元', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                              Text('保單預估理賠總額：', style: TextStyle(fontSize: 12, color: context.appColors.ok, fontWeight: FontWeight.bold)),
+                              Text('${result.totalClaim} 元', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: context.appColors.ok)),
                             ],
                           ),
                           const Divider(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('🚨 病患最終自費缺口：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
-                              Text('${result.outOfPocketGap} 元', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
+                              Text('🚨 病患最終自費缺口：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
+                              Text('${result.outOfPocketGap} 元', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
                             ],
                           ),
                         ],
@@ -538,9 +537,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-          final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+          final cardBg = context.appColors.surface;
+          final textColor = context.appColors.ink;
 
           final summary = _policyService.calculateMultiPolicyWaterfallClaim(
             roomDays: roomDays,
@@ -556,7 +554,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                const Icon(Icons.waterfall_chart_rounded, color: Color(0xFFE53E3E)),
+                Icon(Icons.waterfall_chart_rounded, color: context.appColors.acc),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('🔥 跨保單組合包雙實支聯合精算 (已選 ${_products.length} 張保單)',
@@ -577,13 +575,13 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.12),
+                              color: context.appColors.warn.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.amber),
+                              border: Border.all(color: context.appColors.warn),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                                Icon(Icons.info_outline_rounded, color: context.appColors.warn, size: 18),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(w, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold))),
                               ],
@@ -596,20 +594,20 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        color: context.appColors.bg,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('🏥 醫院總帳單自費支出：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          Text('${summary.totalHospitalBill} 元', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E))),
+                          Text('${summary.totalHospitalBill} 元', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                         ],
                       ),
                     ),
 
                     const SizedBox(height: 14),
-                    const Text('📊 跨保單收據核銷與理賠流向瀑布：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text('📊 跨保單收據核銷與理賠流向瀑布：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
                     const SizedBox(height: 8),
 
                     // 各保單理賠明細卡片
@@ -622,7 +620,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                         decoration: BoxDecoration(
                           color: cardBg,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3)),
+                          border: Border.all(color: context.appColors.acc.withOpacity(0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,23 +629,23 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text('保單 ${idx + 1}：${claim.companyName} • ${claim.policyName}',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF6366F1))),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                                    color: context.appColors.acc.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(claim.receiptRule, style: const TextStyle(fontSize: 10, color: Color(0xFF6366F1))),
+                                  child: Text(claim.receiptRule, style: TextStyle(fontSize: 10, color: context.appColors.acc)),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 6),
                             Text('🛏️ 病房核銷: ${claim.roomPaid} 元 | 🔪 手術核銷: ${claim.surgeryPaid} 元 | 💊 雜費核銷: ${claim.miscPaid} 元',
-                                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
                             const SizedBox(height: 4),
                             Text('💰 本張保單給付總計: ${claim.totalPaid} 元',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ok)),
                           ],
                         ),
                       );
@@ -660,26 +658,26 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: summary.finalOutOfPocketGap == 0
-                            ? const Color(0xFF10B981).withOpacity(0.12)
-                            : const Color(0xFFEF4444).withOpacity(0.12),
+                            ? context.appColors.ok.withOpacity(0.12)
+                            : Theme.of(context).colorScheme.error.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: summary.finalOutOfPocketGap == 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                        border: Border.all(color: summary.finalOutOfPocketGap == 0 ? context.appColors.ok : Theme.of(context).colorScheme.error),
                       ),
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('💎 組合包理賠總給付額：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
-                              Text('${summary.grandTotalClaimPaid} 元', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                              Text('💎 組合包理賠總給付額：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ok)),
+                              Text('${summary.grandTotalClaimPaid} 元', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: context.appColors.ok)),
                             ],
                           ),
                           const Divider(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('🚨 最終自費缺口：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
-                              Text('${summary.finalOutOfPocketGap} 元', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
+                              Text('🚨 最終自費缺口：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
+                              Text('${summary.finalOutOfPocketGap} 元', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
                             ],
                           ),
                         ],
@@ -707,7 +705,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
+        Text(label, style: TextStyle(fontSize: 10.5, color: context.appColors.ink3)),
         const SizedBox(height: 4),
         TextFormField(
           initialValue: value.toString(),
@@ -741,7 +739,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(expense, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              Text(claim, style: TextStyle(fontSize: 10.5, color: claimColor ?? const Color(0xFF10B981), fontWeight: FontWeight.bold)),
+              Text(claim, style: TextStyle(fontSize: 10.5, color: claimColor ?? context.appColors.ok, fontWeight: FontWeight.bold)),
             ],
           ),
         ],
@@ -752,11 +750,11 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final bgColor = context.appColors.bg;
+    final cardBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -780,10 +778,10 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFFE53E3E).withOpacity(0.12),
+                color: context.appColors.acc.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text('100% 實體資料庫連線', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E))),
+              child: Text('100% 實體資料庫連線', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: context.appColors.acc)),
             ),
           ],
         ),
@@ -794,8 +792,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
               icon: const Icon(Icons.waterfall_chart_rounded, size: 15),
               label: const Text('🔥 組合包聯合精算', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE53E3E),
-                foregroundColor: Colors.white,
+                backgroundColor: context.appColors.acc,
+                foregroundColor: context.appColors.onAcc,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -806,7 +804,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
               Text('只看差異', style: TextStyle(fontSize: 12, color: textColor, fontWeight: FontWeight.bold)),
               Switch(
                 value: _onlyShowDifferences,
-                activeColor: const Color(0xFFE53E3E),
+                activeColor: context.appColors.acc,
                 onChanged: (val) => setState(() => _onlyShowDifferences = val),
               ),
               const SizedBox(width: 12),
@@ -842,7 +840,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                 decoration: BoxDecoration(
                   color: cardBg,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE53E3E).withOpacity(0.3), width: 1.5),
+                  border: Border.all(color: context.appColors.acc.withOpacity(0.3), width: 1.5),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4)),
                   ],
@@ -854,7 +852,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE53E3E).withOpacity(0.08),
+                        color: context.appColors.acc.withOpacity(0.08),
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
                       ),
                       child: Column(
@@ -866,14 +864,14 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE53E3E),
+                                  color: context.appColors.acc,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(p.id.length > 8 ? p.id.substring(0, 8).toUpperCase() : p.id.toUpperCase(),
-                                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
+                                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: context.appColors.onAcc)),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                                icon: Icon(Icons.close_rounded, size: 18, color: context.appColors.ink3),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 onPressed: () => _removeProduct(idx),
@@ -882,7 +880,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(p.companyName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E))),
+                          Text(p.companyName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                           const SizedBox(height: 2),
                           Text(p.productName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor), maxLines: 2, overflow: TextOverflow.ellipsis),
                         ],
@@ -892,7 +890,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                     // Section 1: 基本資訊
                     _buildSectionHeader('📋 基本規格與銷售資訊', isDark),
                     _buildSpecRow('險種分類', p.category, textColor, subTextColor),
-                    _buildSpecRow('銷售狀態', '現售條款 (官方報備)', const Color(0xFF10B981), subTextColor),
+                    _buildSpecRow('銷售狀態', '現售條款 (官方報備)', context.appColors.ok, subTextColor),
                     _buildSpecRow('等待期規範', p.waitingDays, textColor, subTextColor),
 
                     // Section 2: 給付上限
@@ -903,7 +901,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
                     // Section 3: 條款關鍵細節比對
                     _buildSectionHeader('🔍 條款關鍵細節比對', isDark),
-                    _buildSpecRow('健保 2-2-7 限制', pkDetail.is227Restricted ? '限定健保 2-2-7 (嚴)' : '無 2-2-7 限制 (優)', pkDetail.is227Restricted ? Colors.orange : const Color(0xFF10B981), subTextColor),
+                    _buildSpecRow('健保 2-2-7 限制', pkDetail.is227Restricted ? '限定健保 2-2-7 (嚴)' : '無 2-2-7 限制 (優)', pkDetail.is227Restricted ? context.appColors.warn : context.appColors.ok, subTextColor),
                     _buildSpecRow('收據核銷規定', pkDetail.receiptType, textColor, subTextColor),
                     _buildSpecRow('條款形式', pkDetail.clauseType, textColor, subTextColor),
 
@@ -919,8 +917,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                             icon: const Icon(Icons.health_and_safety_rounded, size: 15),
                             label: const Text('全真醫療單據試算', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
+                              backgroundColor: context.appColors.ok,
+                              foregroundColor: context.appColors.onAcc,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
@@ -931,8 +929,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                             icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
                             label: const Text('為名下客戶規劃', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF6366F1),
-                              foregroundColor: Colors.white,
+                              backgroundColor: context.appColors.acc,
+                              foregroundColor: context.appColors.onAcc,
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
@@ -965,16 +963,16 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   Widget _buildSectionHeader(String title, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: isDark ? const Color(0xFF0F172A).withOpacity(0.5) : const Color(0xFFF1F5F9),
-      child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+      color: context.appColors.surface2,
+      child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
     );
   }
 
   Widget _buildSpecRow(String label, String val, Color valColor, Color subTextColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF334155), width: 0.2)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.appColors.line, width: 0.5)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

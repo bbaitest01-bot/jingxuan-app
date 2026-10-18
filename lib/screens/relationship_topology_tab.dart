@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import '../main.dart';
 import '../services/customer_relationship_service.dart';
 import '../widgets/custom_toast.dart';
+import 'topology_colors.dart';
+import '../theme/app_theme.dart';
 
 class RelationshipTopologyTab extends StatefulWidget {
   const RelationshipTopologyTab({super.key});
@@ -153,28 +155,23 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
         activeCustIds.add(from);
         activeCustIds.add(to);
 
-        Color edgeColor = const Color(0xFF6366F1);
         String label = '關聯';
 
         switch (type) {
           case 'referral':
-            edgeColor = const Color(0xFF10B981);
             label = '轉介紹';
             break;
           case 'family':
-            edgeColor = const Color(0xFF0EA5E9);
             label = note.isNotEmpty ? note : '親眷';
             break;
           case 'colleague':
-            edgeColor = const Color(0xFFF59E0B);
+          case 'workplace':
             label = note.isNotEmpty ? note : '同事';
             break;
           case 'social':
-            edgeColor = const Color(0xFF8B5CF6);
             label = note.isNotEmpty ? note : '社友';
             break;
           default:
-            edgeColor = const Color(0xFF94A3B8);
             label = note.isNotEmpty ? note : '朋友';
         }
 
@@ -184,7 +181,6 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
           'to': to,
           'type': type,
           'label': label,
-          'color': edgeColor,
         });
       }
     }
@@ -210,7 +206,6 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
             'to': myId,
             'type': 'referral',
             'label': '轉介紹',
-            'color': const Color(0xFF10B981),
           });
         }
       }
@@ -330,21 +325,12 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
             _nodePositionCache[id] = Offset(x, y);
           }
 
-          Color nodeColor = const Color(0xFF6366F1);
-          if (degree >= 3) {
-            nodeColor = const Color(0xFF10B981);
-          } else if (degree == 2) {
-            nodeColor = const Color(0xFF3B82F6);
-          } else if (degree == 1) {
-            nodeColor = const Color(0xFF8B5CF6);
-          }
-
           nodes.add({
             'id': id,
             'name': name,
             'x': x,
             'y': y,
-            'color': nodeColor,
+            'degree': degree,
             'isCenter': isCenter,
             'customer': cust,
           });
@@ -378,19 +364,12 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
             _nodePositionCache[id] = Offset(x, y);
           }
 
-          Color nodeColor = const Color(0xFF6366F1);
-          if (degree >= 3) {
-            nodeColor = const Color(0xFF10B981);
-          } else if (degree == 2) {
-            nodeColor = const Color(0xFF3B82F6);
-          }
-
           nodes.add({
             'id': id,
             'name': name,
             'x': x,
             'y': y,
-            'color': nodeColor,
+            'degree': degree,
             'isCenter': isCenter,
             'customer': cust,
           });
@@ -423,7 +402,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
           'name': name,
           'x': x,
           'y': y,
-          'color': const Color(0xFF64748B),
+          'degree': 0,
           'isCenter': false,
           'customer': cust,
         });
@@ -503,7 +482,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
             return AlertDialog(
               title: Row(
                 children: [
-                  const Icon(Icons.hub_rounded, color: Color(0xFF6366F1)),
+                  Icon(Icons.hub_rounded, color: context.appColors.acc),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -521,9 +500,9 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF6366F1))),
+                      Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                       const SizedBox(height: 4),
-                      const Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String?>(
                         value: otherCustomers.any((c) => c['id'].toString() == currentReferralId) ? currentReferralId : null,
@@ -560,15 +539,15 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                       const Divider(),
                       const SizedBox(height: 8),
 
-                      const Text('🕸️ 維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                      Text('🕸️ 維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: context.appColors.ok)),
                       const SizedBox(height: 4),
-                      const Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: context.appColors.ink3)),
                       const SizedBox(height: 10),
 
                       if (myRels.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: context.appColors.ink3)),
                         )
                       else
                         ...myRels.map((r) {
@@ -578,11 +557,12 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                           final typeStr = r['relationship_type'] ?? 'family';
                           final detailStr = r['relationship_detail'] ?? '';
 
-                          Color tagColor = const Color(0xFF10B981);
+                          // 和客戶管理的關係類型同色：親眷藍、職場青綠、社團橘、其他灰
+                          Color tagColor = topologyEdgeColor(context, 'family');
                           String typeName = '親眷';
-                          if (typeStr == 'workplace') { tagColor = const Color(0xFFF59E0B); typeName = '職場'; }
-                          else if (typeStr == 'social') { tagColor = const Color(0xFF8B5CF6); typeName = '社團'; }
-                          else if (typeStr == 'other') { tagColor = const Color(0xFF6B7280); typeName = '其他'; }
+                          if (typeStr == 'workplace') { tagColor = topologyEdgeColor(context, 'workplace'); typeName = '職場'; }
+                          else if (typeStr == 'social') { tagColor = topologyEdgeColor(context, 'social'); typeName = '社團'; }
+                          else if (typeStr == 'other') { tagColor = topologyEdgeColor(context, 'other'); typeName = '其他'; }
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
@@ -600,7 +580,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                                     color: tagColor,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: Text(typeName, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                                  child: Text(typeName, style: TextStyle(fontSize: 10, color: context.appColors.onAcc, fontWeight: FontWeight.bold)),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -610,7 +590,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                                  icon: Icon(Icons.delete_outline_rounded, color: Theme.of(context).colorScheme.error, size: 18),
                                   onPressed: () async {
                                     await CustomerRelationshipService.deleteRelationship(r['id'].toString());
                                     rels = await CustomerRelationshipService.fetchAllRelationships();
@@ -628,7 +608,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          color: context.appColors.surface2,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
@@ -713,8 +693,8 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                                 icon: const Icon(Icons.add_rounded, size: 16),
                                 label: const Text('新增關聯'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: context.appColors.ok,
+                                  foregroundColor: context.appColors.onAcc,
                                 ),
                               ),
                             ),
@@ -741,11 +721,11 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final bgColor = context.appColors.bg;
+    final cardBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -763,7 +743,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                            color: context.appColors.surface2,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -835,7 +815,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? (isDark ? const Color(0xFF6366F1) : const Color(0xFF0284C7)) : Colors.transparent,
+          color: isSelected ? (isDark ? context.appColors.acc : context.appColors.acc) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -844,10 +824,22 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+            color: isSelected ? context.appColors.onAcc : context.appColors.ink3,
           ),
         ),
       ),
+    );
+  }
+
+  // 圖例的一項：色條＋文字
+  Widget _buildLegendItem(Color color, String label, Color textColor) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 14, height: 3, color: color),
+        const SizedBox(width: 5),
+        Text(label, style: TextStyle(fontSize: 10, color: textColor)),
+      ],
     );
   }
 
@@ -893,10 +885,10 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  color: context.appColors.warn.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 20),
+                child: Icon(Icons.star_rounded, color: context.appColors.warn, size: 20),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -914,16 +906,16 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                    color: context.appColors.acc.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                    border: Border.all(color: context.appColors.acc.withValues(alpha: 0.3)),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.hub_rounded, size: 12, color: Color(0xFF6366F1)),
-                      SizedBox(width: 4),
-                      Text('在拓撲中聚焦', style: TextStyle(fontSize: 11, color: Color(0xFF6366F1), fontWeight: FontWeight.bold)),
+                      Icon(Icons.hub_rounded, size: 12, color: context.appColors.acc),
+                      const SizedBox(width: 4),
+                      Text('在拓撲中聚焦', style: TextStyle(fontSize: 11, color: context.appColors.acc, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -940,21 +932,21 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
               padding: const EdgeInsets.only(left: 16, bottom: 10),
               child: Row(
                 children: [
-                  const Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: Color(0xFF6366F1)),
+                  Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: context.appColors.acc),
                   const SizedBox(width: 8),
                   Text(m['name'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                      color: context.appColors.surface2,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(m['status'] as String, style: TextStyle(fontSize: 10, color: subTextColor)),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.location_searching_rounded, size: 14, color: Color(0xFF6366F1)),
+                    icon: Icon(Icons.location_searching_rounded, size: 14, color: context.appColors.acc),
                     tooltip: '在拓撲中定位',
                     onPressed: () => _focusOnNode(m['id'].toString()),
                   ),
@@ -968,6 +960,13 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
   }
 
   Widget _buildInteractiveNetworkCanvas(bool isDark, Color cardBg, Color borderColor, Color textColor, Color subTextColor) {
+    // 顏色在畫的時候才依主題決定，切換明暗或主題色時會跟著變
+    for (final Map<String, dynamic> node in _computedNodes) {
+      node['color'] = topologyNodeColor(context, node['degree'] as int);
+    }
+    for (final Map<String, dynamic> edge in _computedEdges) {
+      edge['color'] = topologyEdgeColor(context, (edge['type'] as String?) ?? 'other');
+    }
     // Determine 1st-degree connected node IDs if _selectedNodeId != null
     final Set<String> focusNodeIds = {};
     if (_selectedNodeId != null) {
@@ -987,7 +986,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
       height: 520,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        color: context.appColors.bg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
       ),
@@ -1016,6 +1015,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                             edges: _computedEdges,
                             selectedNodeId: _selectedNodeId,
                             isDark: isDark,
+                            colors: context.appColors,
                           ),
                         ),
                         ..._computedNodes.map((n) {
@@ -1056,12 +1056,12 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: isFocused
-                                    ? Border.all(color: Colors.amberAccent, width: 3.5)
+                                    ? Border.all(color: context.appColors.warn, width: 3.5)
                                     : null,
                                 boxShadow: [
                                   BoxShadow(
                                     color: isFocused
-                                        ? Colors.amberAccent.withOpacity(0.6)
+                                        ? context.appColors.warn.withOpacity(0.6)
                                         : color.withOpacity(0.4),
                                     blurRadius: isFocused ? 18 : (isCenter ? 14 : 8),
                                     spreadRadius: isFocused ? 4 : (isCenter ? 3 : 1),
@@ -1077,13 +1077,13 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                                     Icon(
                                       isCenter ? Icons.star_rounded : Icons.person_rounded,
                                       size: isCenter ? 22 : 18,
-                                      color: Colors.white,
+                                      color: context.appColors.onAcc,
                                     ),
                                     Text(
                                       name.length > 4 ? name.substring(0, 4) : name,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: context.appColors.onAcc,
                                         fontSize: isCenter ? 12 : 11,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1116,8 +1116,8 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                       icon: const Icon(Icons.clear_all_rounded, size: 14),
                       label: const Text('解除聚焦', style: TextStyle(fontSize: 11)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey.shade700,
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.appColors.ink2,
+                        foregroundColor: context.appColors.surface,
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
@@ -1128,8 +1128,8 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                   icon: const Icon(Icons.my_location_rounded, size: 16),
                   label: const Text('🎯 視野置中復位', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.appColors.acc,
+                    foregroundColor: context.appColors.onAcc,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1146,7 +1146,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B).withOpacity(0.92) : Colors.white.withOpacity(0.92),
+                color: context.appColors.surface.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: borderColor),
               ),
@@ -1159,7 +1159,18 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
                       children: [
                         Text('🕸️ 黑曜石 (Obsidian) 動態圖譜：可按住節點自由拖曳 | 點擊節點聚焦一度人脈 | 雙擊管理關係', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: textColor)),
                         const SizedBox(height: 2),
-                        Text('• 🟢 轉介紹帶單向箭頭 ➔ | 🔷 藍線: 親眷 | 🟧 橘線: 職場/同事 | 🟣 紫線: 社團/朋友', style: TextStyle(fontSize: 10, color: subTextColor)),
+                        // 圖例直接用畫線的顏色，換主題色或明暗時不會對不上
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: [
+                            _buildLegendItem(topologyEdgeColor(context, 'referral'), '轉介紹（單向箭頭）', subTextColor),
+                            _buildLegendItem(topologyEdgeColor(context, 'family'), '親眷', subTextColor),
+                            _buildLegendItem(topologyEdgeColor(context, 'workplace'), '職場／同事', subTextColor),
+                            _buildLegendItem(topologyEdgeColor(context, 'social'), '社團', subTextColor),
+                            _buildLegendItem(topologyEdgeColor(context, 'other'), '朋友／其他', subTextColor),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -1181,12 +1192,15 @@ class DynamicTopologyPainter extends CustomPainter {
   final List<Map<String, dynamic>> edges;
   final String? selectedNodeId;
   final bool isDark;
+  // 畫布拿不到 context，主題顏色由外面傳進來
+  final AppColors colors;
 
   DynamicTopologyPainter({
     required this.nodes,
     required this.edges,
     this.selectedNodeId,
     required this.isDark,
+    required this.colors,
   });
 
   @override
@@ -1245,7 +1259,7 @@ class DynamicTopologyPainter extends CustomPainter {
         final e = groupList[groupIdx];
         final String fromId = e['from'].toString();
         final String toId = e['to'].toString();
-        final Color strokeColor = (e['color'] as Color?) ?? const Color(0xFF6366F1);
+        final Color strokeColor = e['color'] as Color;
         final String labelStr = (e['label'] as String?) ?? '關聯';
         final String typeStr = (e['type'] as String?) ?? 'social';
 
@@ -1367,8 +1381,8 @@ class DynamicTopologyPainter extends CustomPainter {
   }
 
   void _drawEdgeLabelPill(Canvas canvas, Offset center, String text, Color color, bool isDark) {
-    const textStyle = TextStyle(
-      color: Colors.white,
+    final textStyle = TextStyle(
+      color: colors.ink2,
       fontSize: 10.0,
       fontWeight: FontWeight.bold,
     );
@@ -1393,9 +1407,9 @@ class DynamicTopologyPainter extends CustomPainter {
       const Radius.circular(8),
     );
 
-    // Pill background fill (Dark container background with high opacity)
+    // 標籤底：白底（深色模式深底）＋關係色細框
     final bgPaint = Paint()
-      ..color = isDark ? const Color(0xFF0F172A).withOpacity(0.95) : const Color(0xFF1E293B).withOpacity(0.95)
+      ..color = colors.surface.withValues(alpha: 0.95)
       ..style = PaintingStyle.fill;
 
     // Pill border line
