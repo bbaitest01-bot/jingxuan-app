@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/app_settings.dart';
 import '../widgets/custom_toast.dart';
+import '../theme/app_theme.dart';
 
 class InsuranceNewsTopic {
   final String id;
@@ -291,10 +291,10 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
     showDialog(
       context: context,
       builder: (ctx) {
-        final bgColor = isDark ? const Color(0xFF161B22) : Colors.white;
-        final textColor = isDark ? Colors.white : Colors.black87;
-        final trendBg = isDark ? const Color(0xFF1F2937) : primaryColor.withOpacity(0.08);
-        final contentBg = isDark ? const Color(0xFF21262D) : const Color(0xFFF9FAFB);
+        final bgColor = context.appColors.surface;
+        final textColor = context.appColors.ink;
+        final trendBg = context.appColors.accSoft;
+        final contentBg = context.appColors.surface2;
 
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -337,14 +337,14 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0),
+                                  color: context.appColors.line,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
                                   '更新時間：$updateTime',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: isDark ? Colors.white70 : Colors.black54,
+                                    color: context.appColors.ink2,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -354,13 +354,13 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                           const SizedBox(height: 2),
                           Text(
                             '由 AI 自動為您綜整全網當日權威新聞與產業脈動',
-                            style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.black54),
+                            style: TextStyle(fontSize: 12, color: context.appColors.ink3),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
+                      icon: Icon(Icons.close, color: context.appColors.ink2),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -391,7 +391,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             height: 1.45,
-                            color: isDark ? Colors.cyanAccent : primaryColor,
+                            color: context.appColors.acc,
                           ),
                         ),
                       ),
@@ -409,7 +409,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       color: contentBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+                        color: context.appColors.line,
                         width: 1,
                       ),
                     ),
@@ -420,7 +420,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                           fontSize: 15,
                           height: 1.65,
                           letterSpacing: 0.2,
-                          color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1F2937),
+                          color: context.appColors.ink,
                         ),
                       ),
                     ),
@@ -435,7 +435,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                     onPressed: () => Navigator.of(ctx).pop(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.appColors.onAcc,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
@@ -455,9 +455,9 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
     showDialog(
       context: context,
       builder: (ctx) {
-        final bgColor = isDark ? const Color(0xFF161B22) : Colors.white;
-        final textColor = isDark ? Colors.white : Colors.black87;
-        final summaryBg = isDark ? const Color(0xFF21262D) : const Color(0xFFF3F4F6);
+        final bgColor = context.appColors.surface;
+        final textColor = context.appColors.ink;
+        final summaryBg = context.appColors.surface2;
 
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -490,7 +490,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.cyanAccent.withOpacity(0.2),
+                          color: context.appColors.accSoft,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -498,14 +498,14 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.cyanAccent : Colors.teal,
+                            color: context.appColors.acc,
                           ),
                         ),
                       ),
                     ],
                     const Spacer(),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
+                      icon: Icon(Icons.close, color: context.appColors.ink2),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -533,7 +533,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       color: summaryBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+                        color: context.appColors.line,
                         width: 1,
                       ),
                     ),
@@ -550,7 +550,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.cyanAccent : primaryColor,
+                                  color: context.appColors.acc,
                                 ),
                               ),
                             ],
@@ -562,7 +562,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                               fontSize: 15,
                               height: 1.65,
                               letterSpacing: 0.2,
-                              color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1F2937),
+                              color: context.appColors.ink,
                             ),
                           ),
                         ],
@@ -601,7 +601,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                         label: const Text('🔗 前往媒體原網址閱讀全文'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: context.appColors.onAcc,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -622,9 +622,9 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
     showDialog(
       context: context,
       builder: (ctx) {
-        final bgColor = isDark ? const Color(0xFF161B22) : Colors.white;
-        final textColor = isDark ? Colors.white : Colors.black87;
-        final cardBg = isDark ? const Color(0xFF21262D) : const Color(0xFFF6F8FA);
+        final bgColor = context.appColors.surface;
+        final textColor = context.appColors.ink;
+        final cardBg = context.appColors.surface2;
 
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -658,7 +658,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
+                      icon: Icon(Icons.close, color: context.appColors.ink2),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -668,7 +668,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                   topic.topicTitle,
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? Colors.white60 : Colors.black54,
+                    color: context.appColors.ink3,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -698,7 +698,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                                   decoration: BoxDecoration(
                                     color: article.isPrimary
                                         ? primaryColor.withOpacity(0.15)
-                                        : Colors.grey.withOpacity(0.2),
+                                        : context.appColors.line,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -708,7 +708,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                                       fontWeight: FontWeight.bold,
                                       color: article.isPrimary
                                           ? primaryColor
-                                          : (isDark ? Colors.white70 : Colors.black87),
+                                          : (context.appColors.ink2),
                                     ),
                                   ),
                                 ),
@@ -748,9 +748,9 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
     showDialog(
       context: context,
       builder: (ctx) {
-        final bgColor = isDark ? const Color(0xFF161B22) : Colors.white;
-        final textColor = isDark ? Colors.white : Colors.black87;
-        final summaryBg = isDark ? const Color(0xFF21262D) : const Color(0xFFF3F4F6);
+        final bgColor = context.appColors.surface;
+        final textColor = context.appColors.ink;
+        final summaryBg = context.appColors.surface2;
 
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -766,10 +766,10 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.15),
+                        color: context.appColors.warn.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.lightbulb_outline, color: Colors.amber, size: 22),
+                      child: Icon(Icons.lightbulb_outline, color: context.appColors.warn, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -783,7 +783,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.white70 : Colors.black54),
+                      icon: Icon(Icons.close, color: context.appColors.ink2),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -794,7 +794,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.cyanAccent : primaryColor,
+                    color: context.appColors.acc,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -806,7 +806,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       color: summaryBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+                        color: context.appColors.line,
                         width: 1,
                       ),
                     ),
@@ -817,7 +817,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                           fontSize: 15,
                           height: 1.65,
                           letterSpacing: 0.2,
-                          color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1F2937),
+                          color: context.appColors.ink,
                         ),
                       ),
                     ),
@@ -830,7 +830,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                     onPressed: () => Navigator.of(ctx).pop(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.appColors.onAcc,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
@@ -848,12 +848,12 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryColor = AppSettings.instance.primaryColor;
-    final bgColor = isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subTextColor = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
+    final Color primaryColor = context.appColors.acc;
+    final bgColor = context.appColors.bg;
+    final cardBg = context.appColors.surface;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink2;
+    final borderColor = context.appColors.line;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -888,10 +888,10 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                 // ✨ 今日產業大勢與總覽 按鈕
                 _SmoothHoverButton(
                   onPressed: () => _showDailyOverviewModal(isDark, primaryColor),
-                  icon: const Icon(Icons.auto_awesome, size: 18, color: Colors.white),
+                  icon: Icon(Icons.auto_awesome, size: 18, color: context.appColors.onAcc),
                   label: const Text('✨ 今日產業大勢與總覽'),
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: context.appColors.onAcc,
                   shadowColor: primaryColor,
                 ),
               ],
@@ -1061,10 +1061,10 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                     Expanded(
                       child: _SmoothHoverButton(
                         onPressed: () => _showAllArticlesModal(topic, isDark, primaryColor),
-                        icon: Icon(Icons.list_alt_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black87),
+                        icon: Icon(Icons.list_alt_rounded, size: 18, color: context.appColors.ink2),
                         label: Text('瀏覽相關媒體報導 (${topic.articles.length})'),
                         backgroundColor: cardBg,
-                        foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                        foregroundColor: context.appColors.ink2,
                         shadowColor: borderColor,
                         borderSide: BorderSide(color: borderColor),
                       ),
@@ -1088,10 +1088,10 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                       width: double.infinity,
                       child: _SmoothHoverButton(
                         onPressed: () => _showAllArticlesModal(topic, isDark, primaryColor),
-                        icon: Icon(Icons.list_alt_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black87),
+                        icon: Icon(Icons.list_alt_rounded, size: 18, color: context.appColors.ink2),
                         label: Text('瀏覽相關媒體報導 (${topic.articles.length})'),
                         backgroundColor: cardBg,
-                        foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                        foregroundColor: context.appColors.ink2,
                         shadowColor: borderColor,
                         borderSide: BorderSide(color: borderColor),
                       ),
@@ -1194,7 +1194,7 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF21262D) : const Color(0xFFEDF2F7),
+                    color: context.appColors.surface2,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(

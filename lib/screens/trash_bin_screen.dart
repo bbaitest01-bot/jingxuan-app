@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/schedule_event.dart';
 import '../models/visit_record.dart';
-import '../services/app_settings.dart';
 import '../services/customer_trash_service.dart';
 import '../services/schedule_service.dart';
 import '../services/visit_record_service.dart';
 import 'trash/trash_item_cards.dart';
 import '../services/app_localizations.dart';
 import '../widgets/custom_toast.dart';
+import '../theme/app_theme.dart';
 
 enum TrashCategory {
   all(label: '全部項目', icon: Icons.all_inbox_rounded),
@@ -144,15 +144,13 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   }
 
   void _showDeleteForeverConfirm(String name, VoidCallback onConfirm) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final textColor = context.appColors.ink;
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          backgroundColor: context.appColors.surface,
           title: Text(
             context.l10n('trash_bin_confirm_delete_forever_title'),
             style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
@@ -166,7 +164,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
                 context.l10n('cancel'),
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(color: context.appColors.ink3),
               ),
             ),
             ElevatedButton(
@@ -174,10 +172,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                 Navigator.of(context).pop();
                 onConfirm();
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF4444),
-                foregroundColor: Colors.white,
-              ),
+              style: AppButtonStyles.danger(context),
               child: Text(context.l10n('trash_bin_delete_forever')),
             ),
           ],
@@ -188,13 +183,13 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subTextColor = isDark ? Colors.white60 : Colors.black54;
-    final cardBg = isDark ? const Color(0xFF161B22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF30363D) : Colors.grey.shade200;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
+    final cardBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
 
     final TrashCardColors cardColors = TrashCardColors(
       cardBg: cardBg,
@@ -271,13 +266,13 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
-                                avatar: Icon(cat.icon, size: 14, color: isSelected ? Colors.white : primaryColor),
+                                avatar: Icon(cat.icon, size: 14, color: isSelected ? context.appColors.onAcc : primaryColor),
                                 label: Text('${cat.label} ($count)', style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                                 selected: isSelected,
                                 onSelected: (_) => setState(() => _activeCategory = cat),
                                 selectedColor: primaryColor,
-                                labelStyle: TextStyle(color: isSelected ? Colors.white : textColor),
-                                checkmarkColor: Colors.white,
+                                labelStyle: TextStyle(color: isSelected ? context.appColors.onAcc : textColor),
+                                checkmarkColor: context.appColors.onAcc,
                                 backgroundColor: cardBg,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
@@ -333,7 +328,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
           Icon(
             Icons.delete_outline_rounded,
             size: 80,
-            color: isDark ? Colors.white12 : Colors.grey.shade300,
+            color: context.appColors.line,
           ),
           const SizedBox(height: 16),
           Text(
@@ -341,7 +336,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white30 : Colors.grey.shade400,
+              color: context.appColors.ink3,
             ),
           ),
           const SizedBox(height: 8),

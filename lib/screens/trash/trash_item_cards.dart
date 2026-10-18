@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/schedule_event.dart';
 import '../../models/visit_record.dart';
+import '../../theme/app_theme.dart';
 
 /// 垃圾桶保留天數
 const int trashKeepDays = 30;
@@ -101,7 +102,7 @@ class TrashItemCard extends StatelessWidget {
               ),
             ),
             const Divider(height: 12),
-            _buildActions(),
+            _buildActions(context),
           ],
         ),
       ),
@@ -134,17 +135,17 @@ class TrashItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildActions() {
+  Widget _buildActions(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         OutlinedButton.icon(
           onPressed: onDeleteForever,
-          icon: const Icon(Icons.delete_forever_rounded, size: 14, color: Colors.redAccent),
-          label: const Text('永久刪除', style: TextStyle(fontSize: 11, color: Colors.redAccent)),
+          icon: Icon(Icons.delete_forever_rounded, size: 14, color: Theme.of(context).colorScheme.error),
+          label: Text('永久刪除', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error)),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            side: const BorderSide(color: Colors.redAccent, width: 0.8),
+            side: BorderSide(color: Theme.of(context).colorScheme.error, width: 0.8),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
@@ -154,8 +155,8 @@ class TrashItemCard extends StatelessWidget {
           icon: const Icon(Icons.restore_from_trash_rounded, size: 14),
           label: Text(restoreLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981),
-            foregroundColor: Colors.white,
+            backgroundColor: context.appColors.acc,
+            foregroundColor: context.appColors.onAcc,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
@@ -173,11 +174,11 @@ class TrashDaysLeftBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color badgeColor = Colors.green;
+    Color badgeColor = context.appColors.ok;
     if (daysLeft <= 7) {
-      badgeColor = Colors.redAccent;
+      badgeColor = Theme.of(context).colorScheme.error;
     } else if (daysLeft <= 15) {
-      badgeColor = Colors.amber;
+      badgeColor = context.appColors.warn;
     }
 
     return Container(
@@ -217,8 +218,9 @@ class DeletedCustomerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDraft = isDraftCustomer(customer);
-    const Color draftColor = Color(0xFFF59E0B);
-    const Color customerColor = Color(0xFF0EA5E9);
+    // 卡片類型色用全站分類色（2026-10-19）：草稿橘、客戶青綠、行程藍、拜訪紀錄灰
+    final Color draftColor = AppCategoryColors.orange.solid(context);
+    final Color customerColor = AppCategoryColors.teal.solid(context);
     final String name = customer['name'] as String? ?? '';
     final DateTime deletedAt = DateTime.tryParse(customer['deleted_at']?.toString() ?? '') ?? DateTime.now();
 
@@ -233,7 +235,7 @@ class DeletedCustomerCard extends StatelessWidget {
     }
 
     return TrashItemCard(
-      leading: _buildAvatar(name, isDraft ? draftColor : colors.primaryColor),
+      leading: _buildAvatar(name, isDraft ? draftColor : customerColor),
       title: name,
       typeLabel: isDraft ? '🟡 語音速記草稿' : '👥 正式客戶',
       typeColor: isDraft ? draftColor : customerColor,
@@ -306,7 +308,7 @@ class DeletedScheduleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color scheduleColor = Color(0xFF8B5CF6);
+    final Color scheduleColor = AppCategoryColors.blue.solid(context);
     final DateTime deletedAt = event.deletedAt ?? DateTime.now();
 
     String detailText = '時間: ${formatEventTime(event)}';
@@ -317,7 +319,7 @@ class DeletedScheduleCard extends StatelessWidget {
       leading: CircleAvatar(
         radius: 22,
         backgroundColor: scheduleColor.withValues(alpha: 0.12),
-        child: const Icon(Icons.event_rounded, color: scheduleColor, size: 20),
+        child: Icon(Icons.event_rounded, color: scheduleColor, size: 20),
       ),
       title: event.title,
       typeLabel: '📅 行程',
@@ -349,7 +351,7 @@ class DeletedVisitRecordCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color recordColor = Color(0xFF0EA5E9);
+    final Color recordColor = AppCategoryColors.gray.solid(context);
     final DateTime deletedAt = record.deletedAt ?? DateTime.now();
 
     // 內容摘要；有連結客戶就放前面
@@ -361,7 +363,7 @@ class DeletedVisitRecordCard extends StatelessWidget {
       leading: CircleAvatar(
         radius: 22,
         backgroundColor: recordColor.withValues(alpha: 0.12),
-        child: const Icon(Icons.record_voice_over_outlined, color: recordColor, size: 20),
+        child: Icon(Icons.record_voice_over_outlined, color: recordColor, size: 20),
       ),
       title: record.title,
       typeLabel: '📝 拜訪紀錄',
