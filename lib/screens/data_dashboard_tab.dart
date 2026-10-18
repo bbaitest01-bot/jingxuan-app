@@ -4,6 +4,7 @@ import '../services/customer_policy_service.dart';
 import '../services/policy_crawler_service.dart';
 import '../widgets/custom_toast.dart';
 import 'policy_comparison_screen.dart';
+import '../theme/app_theme.dart';
 
 class DataDashboardTab extends StatefulWidget {
   final Function(String menu)? onMenuChanged;
@@ -172,11 +173,11 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final bgColor = context.appColors.bg;
+    final cardBg = context.appColors.surface;
+    final borderColor = context.appColors.line;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     final formatter = NumberFormat('#,###');
 
@@ -203,7 +204,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                 mainVal: '${_funnelSummary.totalCustomers} 位',
                                 subtitle: '🌟 保戶 ${_funnelSummary.clientsCount} | 💬 跟進 ${_funnelSummary.prospectsCount} | 🎯 未開發 ${_funnelSummary.leadsCount}',
                                 icon: Icons.people_alt_rounded,
-                                color: const Color(0xFF6366F1),
+                                color: context.appColors.acc,
                                 isDark: isDark,
                                 cardBg: cardBg,
                                 borderColor: borderColor,
@@ -217,7 +218,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                 mainVal: '${_funnelSummary.monthlyVisitsCompleted} / ${_funnelSummary.monthlyVisitsTotal} 次',
                                 subtitle: '達成率 ${(_funnelSummary.monthlyVisitRate * 100).toInt()}% • 實體行程對接',
                                 icon: Icons.event_available_rounded,
-                                color: const Color(0xFF10B981),
+                                color: context.appColors.ok,
                                 isDark: isDark,
                                 cardBg: cardBg,
                                 borderColor: borderColor,
@@ -231,7 +232,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                 mainVal: '${_funnelSummary.activeProjectsCount} 個專案',
                                 subtitle: 'CRM 名單勾選核銷進行中',
                                 icon: Icons.assignment_turned_in_rounded,
-                                color: const Color(0xFFF59E0B),
+                                color: context.appColors.warn,
                                 isDark: isDark,
                                 cardBg: cardBg,
                                 borderColor: borderColor,
@@ -283,8 +284,8 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                     icon: const Icon(Icons.search_rounded, size: 16),
                                     label: const Text('搜尋', style: TextStyle(fontWeight: FontWeight.bold)),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE53E3E), // SafeCheck signature red
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: context.appColors.acc,
+                                      foregroundColor: context.appColors.onAcc,
                                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
@@ -304,17 +305,17 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFE53E3E).withOpacity(0.12),
+                                          color: context.appColors.acc.withOpacity(0.12),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            const Icon(Icons.filter_list_rounded, size: 14, color: Color(0xFFE53E3E)),
+                                            Icon(Icons.filter_list_rounded, size: 14, color: context.appColors.acc),
                                             const SizedBox(width: 4),
                                             Text(
                                               '篩選 找到 ${formatter.format(displayCount)} 款商品 (資料庫全量 ${formatter.format(_totalLiveClausesCount)} 款)',
-                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E)),
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.acc),
                                             ),
                                           ],
                                         ),
@@ -324,15 +325,15 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                   if (_selectedProducts.isNotEmpty)
                                     TextButton.icon(
                                       onPressed: _openComparisonScreen,
-                                      icon: const Icon(Icons.compare_arrows_rounded, size: 16, color: Color(0xFFE53E3E)),
-                                      label: Text('前往並排比較 (${_selectedProducts.length}/8)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E))),
+                                      icon: Icon(Icons.compare_arrows_rounded, size: 16, color: context.appColors.acc),
+                                      label: Text('前往並排比較 (${_selectedProducts.length}/8)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                                     ),
                                 ],
                               ),
                               const SizedBox(height: 12),
 
                               // 險種大分類 ChoiceChips
-                              const Text('險種分類：', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+                              Text('險種分類：', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
                               const SizedBox(height: 6),
                               SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
@@ -344,8 +345,8 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                                       child: ChoiceChip(
                                         label: Text(cat, style: TextStyle(fontSize: 11, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
                                         selected: isSel,
-                                        selectedColor: const Color(0xFFE53E3E),
-                                        labelStyle: TextStyle(color: isSel ? Colors.white : textColor),
+                                        selectedColor: context.appColors.acc,
+                                        labelStyle: TextStyle(color: isSel ? context.appColors.onAcc : textColor),
                                         onSelected: (_) {
                                           setState(() => _activeCategory = cat);
                                           _executeClauseSearch(resetPage: true);
@@ -460,7 +461,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                       key: const ValueKey('safecheck_bar'),
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE53E3E), // SafeCheck signature Orange/Red
+                        color: context.appColors.acc,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6)),
@@ -472,17 +473,17 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                           Expanded(
                             child: Row(
                               children: [
-                                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                Icon(Icons.check_circle_rounded, color: context.appColors.onAcc, size: 20),
                                 const SizedBox(width: 8),
                                 Text(
                                   '已選 ${_selectedProducts.length}/8 款商品',
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  style: TextStyle(color: context.appColors.onAcc, fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _selectedProducts.map((p) => p.id.length > 6 ? p.id.substring(0, 6).toUpperCase() : p.id.toUpperCase()).join('  '),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    style: TextStyle(color: context.appColors.onAcc.withValues(alpha: 0.75), fontSize: 11),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -493,15 +494,15 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                             children: [
                               TextButton(
                                 onPressed: () => setState(() => _selectedProducts.clear()),
-                                child: const Text('清除', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                child: Text('清除', style: TextStyle(color: context.appColors.onAcc.withValues(alpha: 0.75), fontSize: 13)),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 onPressed: _openComparisonScreen,
                                 icon: const Icon(Icons.compare_arrows_rounded, size: 16),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: const Color(0xFFE53E3E),
+                                  backgroundColor: context.appColors.onAcc,
+                                  foregroundColor: context.appColors.acc,
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
@@ -554,14 +555,14 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+                child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: context.appColors.ink3), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(mainVal, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 10.5, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(subtitle, style: TextStyle(fontSize: 10.5, color: context.appColors.ink3), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -588,7 +589,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
           color: cardBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFFE53E3E) : borderColor,
+            color: isSelected ? context.appColors.acc : borderColor,
             width: isSelected ? 2 : 1,
           ),
           boxShadow: [
@@ -609,25 +610,25 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                        color: context.appColors.surface2,
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Text(code, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      child: Text(code, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: context.appColors.ink3)),
                     ),
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFE53E3E) : Colors.transparent,
+                        color: isSelected ? context.appColors.acc : Colors.transparent,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: isSelected ? const Color(0xFFE53E3E) : Colors.grey.withOpacity(0.4),
+                          color: isSelected ? context.appColors.acc : context.appColors.line,
                           width: 1.5,
                         ),
                       ),
                       child: Icon(
                         isSelected ? Icons.check : Icons.add,
                         size: 12,
-                        color: isSelected ? Colors.white : Colors.grey,
+                        color: isSelected ? context.appColors.onAcc : context.appColors.ink3,
                       ),
                     ),
                   ],
@@ -637,15 +638,15 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                 // Company & Category
                 Row(
                   children: [
-                    Text(prod.companyName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFE53E3E))),
+                    Text(prod.companyName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc)),
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6366F1).withOpacity(0.1),
+                        color: context.appColors.acc.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Text(prod.category, style: const TextStyle(fontSize: 9.5, color: Color(0xFF6366F1), fontWeight: FontWeight.w500)),
+                      child: Text(prod.category, style: TextStyle(fontSize: 9.5, color: context.appColors.acc, fontWeight: FontWeight.w500)),
                     ),
                   ],
                 ),
@@ -672,7 +673,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
                     Expanded(
                       child: Text('• ${prod.waitingDays}', style: TextStyle(fontSize: 10.5, color: subTextColor), overflow: TextOverflow.ellipsis),
                     ),
-                    Text('雜費 ${prod.miscLimit}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
+                    Text('雜費 ${prod.miscLimit}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: context.appColors.ok)),
                   ],
                 ),
               ],
