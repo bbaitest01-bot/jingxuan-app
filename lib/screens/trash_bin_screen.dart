@@ -29,15 +29,35 @@ class TrashBinScreen extends StatefulWidget {
 }
 
 class _TrashBinScreenState extends State<TrashBinScreen> {
+  // 上次讀到的垃圾桶內容（2026-10-19）：切頁回來時先顯示這份，不會每次都轉圈圈、閃一下；
+  // 背景照樣重讀。記住是哪個帳號的，換人登入時不會看到上一位的資料
+  static String? _cacheOwnerId;
+  static List<Map<String, dynamic>>? _cachedCustomers;
+  static List<ScheduleEvent>? _cachedEvents;
+  static List<VisitRecord>? _cachedVisitRecords;
+
   List<Map<String, dynamic>> _deletedCustomers = [];
   List<ScheduleEvent> _deletedEvents = [];
   List<VisitRecord> _deletedVisitRecords = [];
   bool _isLoading = false;
   TrashCategory _activeCategory = TrashCategory.all;
 
+  // 目前帳號（離線預覽沒有帳號，用固定字串）
+  String get _ownerId => ScheduleService.instance.currentUserId ?? 'offline';
+
   @override
   void initState() {
     super.initState();
+    if (_cacheOwnerId == _ownerId) {
+      _deletedCustomers = _cachedCustomers ?? [];
+      _deletedEvents = _cachedEvents ?? [];
+      _deletedVisitRecords = _cachedVisitRecords ?? [];
+    } else {
+      _cacheOwnerId = _ownerId;
+      _cachedCustomers = null;
+      _cachedEvents = null;
+      _cachedVisitRecords = null;
+    }
     _fetchDeletedCustomers();
     _fetchDeletedEvents();
     _fetchDeletedVisitRecords();
@@ -50,6 +70,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     try {
       final List<VisitRecord> records = await VisitRecordService.instance.fetchDeletedRecords();
       if (!mounted) return;
+      _cachedVisitRecords = records;
       setState(() => _deletedVisitRecords = records);
     } catch (e) {
       if (mounted) CustomToast.show(context, '載入垃圾桶拜訪紀錄失敗: $e', ToastType.error);
@@ -81,6 +102,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
     try {
       final List<ScheduleEvent> deletedEvents = await ScheduleService.instance.fetchDeletedEvents();
       if (!mounted) return;
+      _cachedEvents = deletedEvents;
       setState(() => _deletedEvents = deletedEvents);
     } catch (e) {
       if (mounted) CustomToast.show(context, '載入垃圾桶行程失敗: $e', ToastType.error);
@@ -108,10 +130,12 @@ class _TrashBinScreenState extends State<TrashBinScreen> {
   }
 
   Future<void> _fetchDeletedCustomers() async {
-    setState(() => _isLoading = true);
+    // 已經有上次的資料就不轉圈圈，背景更新
+    if (_cachedCustomers == null) setState(() => _isLoading = true);
     try {
       final List<Map<String, dynamic>> customers = await CustomerTrashService.instance.fetchDeletedCustomers();
       if (!mounted) return;
+      _cachedCustomers = customers;
       setState(() {
         _deletedCustomers = customers;
         _isLoading = false;
