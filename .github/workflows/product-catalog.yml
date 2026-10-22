@@ -1,0 +1,38 @@
+name: 🏷️ Weekly Insurance Product Catalog
+
+# 抓取國泰、富邦、南山官網「資訊公開 → 保險商品」，送到 import-product-catalog 寫進資料庫（5-2a，見全景地圖 4-H）
+# 先只開手動觸發；確認幾次都正常後，再把下面 schedule 的註解拿掉，改成每週自動跑
+on:
+  workflow_dispatch:
+  # schedule:
+  #   # 台灣時間每週一 03:00（UTC 週日 19:00），避開官網上班時間
+  #   - cron: '0 19 * * 0'
+
+jobs:
+  crawl-products:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 📦 Install dependencies
+        run: pip install -r tool/product_catalog/requirements.txt
+
+      - name: 🏷️ Crawl and import product catalog
+        working-directory: tool/product_catalog
+        env:
+          PRODUCT_CATALOG_FUNCTION_URL: https://algufuoxkeizxwkofmmp.supabase.co/functions/v1/import-product-catalog
+          PRODUCT_CATALOG_SECRET: ${{ secrets.PRODUCT_CATALOG_SECRET }}
+        run: |
+          # 沒設定 Secret 就直接失敗，避免不帶密碼呼叫、問題被藏起來
+          if [ -z "$PRODUCT_CATALOG_SECRET" ]; then
+            echo "❌ Error: GitHub Secret PRODUCT_CATALOG_SECRET 尚未設定"
+            exit 1
+          fi
+          python crawl_products.py
