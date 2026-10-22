@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/tag_manager_service.dart';
 import '../widgets/color_palette_picker.dart';
+import '../theme/app_theme.dart';
 
 class TagManagerScreen extends StatefulWidget {
   final bool isDialogMode;
@@ -76,7 +77,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
       (c) => c.id == categoryId,
       orElse: () => TagCategoryModel(id: '', name: '', colorHex: '#0369A1'),
     );
-    return _parseColor(cat.colorHex, const Color(0xFF0369A1));
+    return _parseColor(cat.colorHex, context.appColors.acc);
   }
 
   void _showToast(String message, {String type = 'green'}) {
@@ -133,8 +134,8 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
+                backgroundColor: context.appColors.ok,
+                foregroundColor: context.appColors.onAcc,
               ),
               onPressed: () async {
                 final name = nameController.text.trim();
@@ -201,7 +202,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
           actions: [
             TextButton(
               onPressed: () => _confirmDeleteCategory(cat),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               child: const Text('刪除此資料夾'),
             ),
             Row(
@@ -247,18 +248,18 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
       builder: (ctx) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red),
-              SizedBox(width: 8),
-              Text('確認刪除大分類？'),
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('確認刪除大分類？'),
             ],
           ),
           content: Text('您確定要刪除大分類「${cat.name}」嗎？該分類下的所有子標籤亦將一併移除。'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: context.appColors.onAcc),
               onPressed: () async {
                 Navigator.pop(ctx); // Close confirmation
                 Navigator.pop(context); // Close edit dialog
@@ -313,7 +314,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: _getCategoryThemeColor(_selectedCategoryId),
-                foregroundColor: Colors.white,
+                foregroundColor: context.appColors.onAcc,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () async {
@@ -432,17 +433,17 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
-            children: const [
-              Icon(Icons.warning_amber_rounded, color: Colors.red),
-              SizedBox(width: 8),
-              Text('確認刪除標籤？'),
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('確認刪除標籤？'),
             ],
           ),
           content: Text('您確定要刪除「${tag.name}」標籤嗎？所有已套用此標籤的客戶卡片將一併移除此標籤。'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error, foregroundColor: context.appColors.onAcc),
               onPressed: () async {
                 Navigator.pop(ctx);
                 await TagManagerService.deleteTag(tag.id);
@@ -501,7 +502,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: context.appColors.ok, foregroundColor: context.appColors.onAcc),
                   onPressed: () async {
                     final sourceNames = selectedTags.where((t) => t.name != targetTagName).map((t) => t.name).toList();
                     Navigator.pop(ctx);
@@ -554,7 +555,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
         actions: [
           IconButton(
             tooltip: _isMergeMode ? '退出合併模式' : '開啟多標籤合併模式',
-            icon: Icon(_isMergeMode ? Icons.close : Icons.merge_type, color: _isMergeMode ? Colors.orange : null),
+            icon: Icon(_isMergeMode ? Icons.close : Icons.merge_type, color: _isMergeMode ? context.appColors.warn : null),
             onPressed: () {
               setState(() {
                 _isMergeMode = !_isMergeMode;
@@ -577,8 +578,8 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.grey[900] : Colors.grey[100],
-                    border: Border(bottom: BorderSide(color: isDark ? Colors.grey[800]! : Colors.grey[300]!)),
+                    color: context.appColors.surface2,
+                    border: Border(bottom: BorderSide(color: context.appColors.line)),
                   ),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -586,7 +587,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                       children: [
                         ..._categories.map((cat) {
                           final isSelected = cat.id == _selectedCategoryId;
-                          final color = _parseColor(cat.colorHex, const Color(0xFF0369A1));
+                          final color = _parseColor(cat.colorHex, context.appColors.acc);
 
                           return Container(
                             margin: const EdgeInsets.only(right: 8),
@@ -606,8 +607,8 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                               ),
                               selected: isSelected,
                               selectedColor: color,
-                              backgroundColor: isDark ? Colors.grey[800] : Colors.white,
-                              labelStyle: TextStyle(color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87)),
+                              backgroundColor: context.appColors.surface,
+                              labelStyle: TextStyle(color: isSelected ? Colors.white : (context.appColors.ink2)),
                               onSelected: (selected) {
                                 if (isSelected) {
                                   _openEditCategoryDialog(cat);
@@ -621,10 +622,10 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                           );
                         }),
                         ActionChip(
-                          avatar: const Icon(Icons.add, size: 16, color: Color(0xFF10B981)),
-                          label: const Text('新增大分類', style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
-                          backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
-                          side: const BorderSide(color: Color(0xFF10B981)),
+                          avatar: Icon(Icons.add, size: 16, color: context.appColors.ok),
+                          label: Text('新增大分類', style: TextStyle(color: context.appColors.ok, fontWeight: FontWeight.bold)),
+                          backgroundColor: context.appColors.ok.withOpacity(0.1),
+                          side: BorderSide(color: context.appColors.ok),
                           onPressed: _openAddCategoryDialog,
                         ),
                       ],
@@ -658,7 +659,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                       const Spacer(),
                       if (_isMergeMode)
                         ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                          style: ElevatedButton.styleFrom(backgroundColor: context.appColors.warn, foregroundColor: context.appColors.onAcc),
                           onPressed: _openMergeDialog,
                           icon: const Icon(Icons.call_merge, size: 18),
                           label: Text('一鍵合併 (${_selectedTagIdsForMerge.length})'),
@@ -674,9 +675,9 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.style_outlined, size: 48, color: Colors.grey[400]),
+                              Icon(Icons.style_outlined, size: 48, color: context.appColors.ink3),
                               const SizedBox(height: 12),
-                              Text('該資料夾下尚無標籤，點擊下方「+」按鈕即可新增！', style: TextStyle(color: Colors.grey[500])),
+                              Text('該資料夾下尚無標籤，點擊下方「+」按鈕即可新增！', style: TextStyle(color: context.appColors.ink3)),
                             ],
                           ),
                         )
@@ -710,10 +711,10 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
                                     color: isChecked
-                                        ? Colors.orange.withOpacity(0.2)
+                                        ? context.appColors.warn.withOpacity(0.2)
                                         : (isDark ? tagColor.withOpacity(0.25) : tagColor.withOpacity(0.12)),
                                     border: Border.all(
-                                      color: isChecked ? Colors.orange : tagColor,
+                                      color: isChecked ? context.appColors.warn : tagColor,
                                       width: isChecked ? 2 : 1,
                                     ),
                                     borderRadius: BorderRadius.circular(20),
@@ -723,7 +724,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                                     children: [
                                       if (_isMergeMode) ...[
                                         Icon(isChecked ? Icons.check_circle : Icons.radio_button_unchecked,
-                                            size: 16, color: isChecked ? Colors.orange : tagColor),
+                                            size: 16, color: isChecked ? context.appColors.warn : tagColor),
                                         const SizedBox(width: 6),
                                       ],
                                       Text(
@@ -737,7 +738,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                                       const SizedBox(width: 8),
                                       InkWell(
                                         onTap: () => _confirmDeleteTag(tag),
-                                        child: Icon(Icons.close, size: 14, color: isDark ? Colors.white54 : Colors.black45),
+                                        child: Icon(Icons.close, size: 14, color: context.appColors.ink3),
                                       ),
                                     ],
                                   ),
@@ -754,8 +755,8 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: _bannerType == 'yellow'
-                          ? const Color(0xFFF59E0B)
-                          : (_bannerType == 'red' ? const Color(0xFFEF4444) : const Color(0xFF10B981)),
+                          ? context.appColors.warn
+                          : (_bannerType == 'red' ? Theme.of(context).colorScheme.error : context.appColors.ok),
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2))
@@ -767,7 +768,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                           _bannerType == 'yellow'
                               ? Icons.warning_amber_rounded
                               : (_bannerType == 'red' ? Icons.error_outline_rounded : Icons.check_circle_outline),
-                          color: _bannerType == 'yellow' ? Colors.black87 : Colors.white,
+                          color: context.appColors.onAcc,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
@@ -775,7 +776,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
                           child: Text(
                             _bannerMessage!,
                             style: TextStyle(
-                              color: _bannerType == 'yellow' ? Colors.black87 : Colors.white,
+                              color: context.appColors.onAcc,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -790,6 +791,7 @@ class _TagManagerScreenState extends State<TagManagerScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openAddTagDialog,
         backgroundColor: themeColor,
+        // 底色是資料夾自己的顏色（使用者選的），文字維持白色
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('新增子標籤', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),

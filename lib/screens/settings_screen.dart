@@ -51,7 +51,7 @@ class SettingsScreen extends StatelessWidget {
                     context.l10n('system_settings_subtitle'),
                     style: TextStyle(
                       fontSize: 13,
-                      color: isDark ? Colors.white54 : Colors.black54,
+                      color: context.appColors.ink3,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -274,7 +274,7 @@ class SettingsScreen extends StatelessWidget {
                       trailing: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
+                          foregroundColor: context.appColors.onAcc,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: () {
@@ -344,7 +344,8 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Builder(
                     builder: (context) {
-                      final currentUser = Supabase.instance.client.auth.currentUser;
+                      // 離線預覽沒有 Supabase，不能讀（原本會整區變紅色錯誤畫面，2026-10-22）
+                      final currentUser = isOfflineMode ? null : Supabase.instance.client.auth.currentUser;
                       final bool isGoogleConnected = (currentUser?.identities?.any((i) => i.provider == 'google') ?? false) ||
                           (currentUser?.appMetadata['provider'] == 'google') ||
                           ((currentUser?.appMetadata['providers'] as List?)?.contains('google') ?? false);
@@ -372,15 +373,15 @@ class SettingsScreen extends StatelessWidget {
                                     : '尚未連結 Google 帳號，點擊以啟用日曆雙向同步與雲端備份',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: isGoogleConnected ? const Color(0xFF10B981) : (isDark ? Colors.white70 : Colors.black54),
+                                  color: isGoogleConnected ? context.appColors.ok : context.appColors.ink3,
                                 ),
                               ),
                               trailing: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: isOfflineMode
-                                      ? Colors.grey
-                                      : (isGoogleConnected ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
-                                  foregroundColor: Colors.white,
+                                      ? context.appColors.ink3
+                                      : (isGoogleConnected ? context.appColors.ok : context.appColors.warn),
+                                  foregroundColor: context.appColors.onAcc,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                                 onPressed: isOfflineMode
@@ -407,7 +408,7 @@ class SettingsScreen extends StatelessWidget {
                                         } catch (e) {
                                           if (context.mounted) {
                                             ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('連線發起失敗: $e'), backgroundColor: Colors.redAccent),
+                                              SnackBar(content: Text('連線發起失敗: $e'), backgroundColor: Theme.of(context).colorScheme.error),
                                             );
                                           }
                                         }
@@ -431,7 +432,7 @@ class SettingsScreen extends StatelessWidget {
                                         : '點擊開啟，將 App 拜訪行程自動寫入 Google 日曆並防重疊衝突',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isSyncEnabled ? const Color(0xFF10B981) : (isDark ? Colors.white70 : Colors.black54),
+                                      color: isSyncEnabled ? context.appColors.ok : context.appColors.ink3,
                                     ),
                                   ),
                                   value: isSyncEnabled,
@@ -442,7 +443,7 @@ class SettingsScreen extends StatelessWidget {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
                                           content: Text(val ? '已開啟 Google 日曆雙向自動同步' : '已關閉 Google 日曆同步'),
-                                          backgroundColor: val ? const Color(0xFF10B981) : Colors.orangeAccent,
+                                          backgroundColor: val ? context.appColors.ok : context.appColors.warn,
                                         ),
                                       );
                                     }
@@ -475,7 +476,7 @@ class SettingsScreen extends StatelessWidget {
                           '隨時可播放完整系統導覽，或按章節獨立選看複習各項功能示範。',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? Colors.white70 : Colors.black54,
+                            color: context.appColors.ink2,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -484,7 +485,7 @@ class SettingsScreen extends StatelessWidget {
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryColor,
-                            foregroundColor: Colors.white,
+                            foregroundColor: context.appColors.onAcc,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -512,7 +513,7 @@ class SettingsScreen extends StatelessWidget {
                               return ActionChip(
                                 avatar: Icon(chapter.icon, size: 16, color: primaryColor),
                                 label: Text(chapter.title),
-                                backgroundColor: isDark ? const Color(0xFF21262D) : Colors.grey.shade100,
+                                backgroundColor: context.appColors.surface2,
                                 onPressed: () => SpotlightTourService.instance.startTour(chapterIndex: index),
                               );
                             },
@@ -524,7 +525,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // Section 5: Delete Account
-                  _buildSectionHeader(context, Icons.person_remove_outlined, '刪除帳號', Colors.redAccent),
+                  _buildSectionHeader(context, Icons.person_remove_outlined, '刪除帳號', Theme.of(context).colorScheme.error),
                   const SizedBox(height: 12),
                   _buildCardContainer(
                     context,
@@ -541,19 +542,19 @@ class SettingsScreen extends StatelessWidget {
                           '提出刪除申請後，您的帳號將會被自動登出，並交由管理員進行實體資料清理。',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? Colors.white70 : Colors.black54,
+                            color: context.appColors.ink2,
                           ),
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.redAccent.withOpacity(0.1),
-                            foregroundColor: Colors.redAccent,
+                            backgroundColor: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                            foregroundColor: Theme.of(context).colorScheme.error,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: Colors.redAccent),
+                              side: BorderSide(color: Theme.of(context).colorScheme.error),
                             ),
                           ),
                           onPressed: () => _confirmDeleteAccountDialog(context, primaryColor),
@@ -569,10 +570,10 @@ class SettingsScreen extends StatelessWidget {
                   Center(
                     child: OutlinedButton.icon(
                       onPressed: () => _confirmResetDialog(context, settings, primaryColor),
-                      icon: const Icon(Icons.restart_alt_outlined, color: Colors.redAccent, size: 18),
-                      label: Text(context.l10n('reset_defaults'), style: const TextStyle(color: Colors.redAccent)),
+                      icon: Icon(Icons.restart_alt_outlined, color: Theme.of(context).colorScheme.error, size: 18),
+                      label: Text(context.l10n('reset_defaults'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.redAccent),
+                        side: BorderSide(color: Theme.of(context).colorScheme.error),
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                     ),
@@ -595,11 +596,11 @@ class SettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isOffline
-            ? Colors.amber.shade900.withOpacity(0.15)
+            ? context.appColors.warnSoft
             : primaryColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isOffline ? Colors.amber.shade700 : primaryColor.withOpacity(0.4),
+          color: isOffline ? context.appColors.warn : primaryColor.withOpacity(0.4),
           width: 1,
         ),
       ),
@@ -607,7 +608,7 @@ class SettingsScreen extends StatelessWidget {
         children: [
           Icon(
             isOffline ? Icons.offline_pin_outlined : Icons.cloud_done_outlined,
-            color: isOffline ? Colors.amber : primaryColor,
+            color: isOffline ? context.appColors.warn : primaryColor,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -620,7 +621,7 @@ class SettingsScreen extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: isOffline ? Colors.amber : primaryColor,
+                    color: isOffline ? context.appColors.warn : primaryColor,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -630,7 +631,7 @@ class SettingsScreen extends StatelessWidget {
                       : context.l10n('cloud_sync_synced_desc'),
                   style: TextStyle(
                     fontSize: 12,
-                    color: isDark ? Colors.white70 : Colors.black54,
+                    color: context.appColors.ink2,
                   ),
                 ),
               ],
@@ -663,10 +664,10 @@ class SettingsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: context.appColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(
-          color: isDark ? const Color(0xFF21262D) : Colors.grey.shade200,
+          color: context.appColors.line,
           width: 1,
         ),
         boxShadow: [
@@ -677,7 +678,8 @@ class SettingsScreen extends StatelessWidget {
           )
         ],
       ),
-      child: child,
+      // 卡片裡的 ListTile（開關、選項）要有自己的 Material，否則開發模式會跳出紅色錯誤畫面（2026-10-22）
+      child: Material(type: MaterialType.transparency, child: child),
     );
   }
 
@@ -700,7 +702,7 @@ class SettingsScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? primaryColor.withOpacity(0.12)
-              : (isDark ? const Color(0xFF21262D) : Colors.grey.shade100),
+              : (context.appColors.surface2),
           border: Border.all(
             color: isSelected ? primaryColor : Colors.transparent,
             width: 2,
@@ -711,7 +713,7 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? primaryColor : (isDark ? Colors.white54 : Colors.black54),
+              color: isSelected ? primaryColor : context.appColors.ink3,
               size: 24,
             ),
             const SizedBox(height: 8),
@@ -720,7 +722,7 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? primaryColor : (isDark ? Colors.white : Colors.black),
+                color: isSelected ? primaryColor : context.appColors.ink,
               ),
             ),
           ],
@@ -737,7 +739,7 @@ class SettingsScreen extends StatelessWidget {
         return AlertDialog(
           title: Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+              Icon(Icons.warning_amber_rounded, color: context.appColors.warn),
               const SizedBox(width: 8),
               Text(context.l10n('reset_dialog_title')),
             ],
@@ -751,7 +753,7 @@ class SettingsScreen extends StatelessWidget {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
+                foregroundColor: context.appColors.onAcc,
               ),
               onPressed: () async {
                 Navigator.of(context).pop();
@@ -776,11 +778,11 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
-              SizedBox(width: 8),
-              Text('刪除帳號'),
+              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
+              const SizedBox(width: 8),
+              const Text('刪除帳號'),
             ],
           ),
           content: const Text('確定要刪除您的帳號嗎？您的帳號將會被標記為刪除並登出系統，等待管理員進行實體清除。此操作無法復原！'),
@@ -790,10 +792,7 @@ class SettingsScreen extends StatelessWidget {
               child: Text(context.l10n('cancel')),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-              ),
+              style: AppButtonStyles.danger(context),
               onPressed: () async {
                 Navigator.of(context).pop();
                 try {

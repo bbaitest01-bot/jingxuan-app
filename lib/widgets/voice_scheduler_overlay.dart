@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/app_settings.dart';
 import '../services/app_localizations.dart';
 import '../services/voice_transcription_service.dart';
-import '../theme/app_text_styles.dart';
+import '../theme/app_theme.dart';
 
 enum RecordingState {
   preparing, // 麥克風啟動中（還沒開始收音），避免一打開就講話被漏掉
@@ -170,23 +170,23 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = AppSettings.instance.primaryColor;
+    final Color primaryColor = context.appColors.acc;
     final themeMode = AppSettings.instance.themeMode;
     final bool isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
             MediaQuery.of(context).platformBrightness == Brightness.dark);
 
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subTextColor = isDark ? Colors.white60 : Colors.black54;
+    final textColor = context.appColors.ink;
+    final subTextColor = context.appColors.ink3;
 
     // 自適應遮罩顏色 (根據紅黃綠狀態渲染不同光暈)
     Color glowColor = Colors.transparent;
     if (_state == RecordingState.success) {
-      glowColor = Colors.green.withOpacity(0.06);
+      glowColor = context.appColors.ok.withOpacity(0.06);
     } else if (_state == RecordingState.warning) {
-      glowColor = Colors.orange.withOpacity(0.06);
+      glowColor = context.appColors.warn.withOpacity(0.06);
     } else if (_state == RecordingState.error) {
-      glowColor = Colors.red.withOpacity(0.06);
+      glowColor = Theme.of(context).colorScheme.error.withOpacity(0.06);
     }
 
     return Scaffold(
@@ -271,9 +271,9 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.mic,
-                    color: Colors.white,
+                    color: context.appColors.onAcc,
                     size: 48,
                   ),
                 ),
@@ -356,24 +356,24 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
             Stack(
               alignment: Alignment.center,
               children: [
-                const PulseCircle(delay: 0.0, color: Colors.green),
+                PulseCircle(delay: 0.0, color: context.appColors.ok),
                 Container(
                   width: 120,
                   height: 120,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.green,
+                    color: context.appColors.ok,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.greenAccent,
+                        color: context.appColors.ok,
                         blurRadius: 20,
                         spreadRadius: 2,
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check,
-                    color: Colors.white,
+                    color: context.appColors.onAcc,
                     size: 64,
                   ),
                 ),
@@ -411,12 +411,12 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.orange.withOpacity(0.1),
-                border: Border.all(color: Colors.orange, width: 2),
+                color: context.appColors.warn.withOpacity(0.1),
+                border: Border.all(color: context.appColors.warn, width: 2),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.info_outline,
-                color: Colors.orange,
+                color: context.appColors.warn,
                 size: 54,
               ),
             ),
@@ -434,9 +434,9 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.08),
+                color: context.appColors.warn.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                border: Border.all(color: context.appColors.warn.withOpacity(0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,11 +475,11 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.red.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.error.withOpacity(0.1),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.error_outline,
-                color: Colors.redAccent,
+                color: Theme.of(context).colorScheme.error,
                 size: 64,
               ),
             ),
@@ -498,9 +498,9 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
               child: Text(
                 _errorMessage ?? '未知的錯誤，請再試一次。',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
-                  color: Colors.redAccent,
+                  color: Theme.of(context).colorScheme.error,
                   height: 1.4,
                 ),
               ),
@@ -528,13 +528,13 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
           onPressed: _state == RecordingState.processing ? null : (isWarning ? _discardEvent : _cancel),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
-            foregroundColor: isWarning ? Colors.redAccent : textColor,
+            foregroundColor: isWarning ? Theme.of(context).colorScheme.error : textColor,
             elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
               side: BorderSide(
-                color: isWarning ? Colors.redAccent.withOpacity(0.4) : textColor.withOpacity(0.3),
+                color: isWarning ? Theme.of(context).colorScheme.error.withOpacity(0.4) : textColor.withOpacity(0.3),
                 width: 1.5,
               ),
             ),
@@ -552,10 +552,10 @@ class _VoiceSchedulerOverlayState extends State<VoiceSchedulerOverlay> {
         ElevatedButton(
           onPressed: isProcessing ? null : (isError ? _retry : (isWarning ? () => Navigator.of(context).pop(_eventResult) : _finish)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: isError ? Colors.redAccent : (isWarning ? Colors.orange : primaryColor),
-            foregroundColor: Colors.white,
+            backgroundColor: isError ? Theme.of(context).colorScheme.error : (isWarning ? context.appColors.warn : primaryColor),
+            foregroundColor: context.appColors.onAcc,
             elevation: 4,
-            shadowColor: (isError ? Colors.redAccent : (isWarning ? Colors.orange : primaryColor)).withOpacity(0.4),
+            shadowColor: (isError ? Theme.of(context).colorScheme.error : (isWarning ? context.appColors.warn : primaryColor)).withOpacity(0.4),
             padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(30),
