@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'insurance_product_service.dart';
 
 /// 5 大理賠桶保障總計模型
 class CustomerBenefitSummary {
@@ -19,6 +20,10 @@ class CustomerBenefitSummary {
 
   final List<String> detectedGaps;
 
+  // 有理賠限額資料、算進總額的保單數；真實商品還沒有第二層比價資料，不會算進來
+  final int countedPolicyCount;
+  final int policiesWithoutLimitCount;
+
   CustomerBenefitSummary({
     required this.totalRoomDaily,
     required this.totalSurgeryMax,
@@ -31,10 +36,12 @@ class CustomerBenefitSummary {
     required this.cancerGap,
     required this.liabilityGap,
     required this.detectedGaps,
+    this.countedPolicyCount = 0,
+    this.policiesWithoutLimitCount = 0,
   });
 
-  /// 是否有嚴重缺口
-  bool get hasCriticalGap => detectedGaps.isNotEmpty;
+  /// 是否有嚴重缺口（沒有任何保單有限額資料時不判斷，避免把「不知道」說成「有缺口」）
+  bool get hasCriticalGap => countedPolicyCount > 0 && detectedGaps.isNotEmpty;
 }
 
 /// 客戶已投保保單項目
@@ -45,12 +52,13 @@ class CustomerEnrolledPolicy {
   final String productName;
   final String companyName;
   final String category;
+  // 限額文字；空字串＝沒有資料（真實商品目前都沒有，第二層比價資料做好才會有）
   final String roomLimit;
   final String surgeryLimit;
   final String miscLimit;
-  final int roomDailyValue;
-  final int surgeryMaxValue;
-  final int miscMaxValue;
+  final int? roomDailyValue;
+  final int? surgeryMaxValue;
+  final int? miscMaxValue;
   final String rawPdfUrl;
   final DateTime enrolledAt;
 
@@ -71,6 +79,11 @@ class CustomerEnrolledPolicy {
     required this.enrolledAt,
   });
 
+  /// 三種限額數字都有，才能算進保障總額
+  bool get hasLimitData {
+    return roomDailyValue != null && surgeryMaxValue != null && miscMaxValue != null;
+  }
+
   factory CustomerEnrolledPolicy.fromJson(Map<String, dynamic> json) {
     final benefits = json['benefits_json'] as Map<String, dynamic>?;
     return CustomerEnrolledPolicy(
@@ -80,12 +93,13 @@ class CustomerEnrolledPolicy {
       productName: json['product_name'] ?? '保險商品',
       companyName: json['company_name'] ?? '保險公司',
       category: json['category'] ?? '醫療保險',
-      roomLimit: json['room_limit'] ?? '2,000 元/日',
-      surgeryLimit: json['surgery_limit'] ?? '150,000 元',
-      miscLimit: json['misc_limit'] ?? '120,000 元',
-      roomDailyValue: (benefits?['room_daily'] as num?)?.toInt() ?? 2000,
-      surgeryMaxValue: (benefits?['surgery_max'] as num?)?.toInt() ?? 150000,
-      miscMaxValue: (benefits?['misc_max'] as num?)?.toInt() ?? 120000,
+      // 沒有資料就留空，不再自動補上假的限額
+      roomLimit: json['room_limit'] ?? '',
+      surgeryLimit: json['surgery_limit'] ?? '',
+      miscLimit: json['misc_limit'] ?? '',
+      roomDailyValue: (benefits?['room_daily'] as num?)?.toInt(),
+      surgeryMaxValue: (benefits?['surgery_max'] as num?)?.toInt(),
+      miscMaxValue: (benefits?['misc_max'] as num?)?.toInt(),
       rawPdfUrl: json['raw_pdf_url'] ?? '',
       enrolledAt: json['enrolled_at'] != null ? DateTime.parse(json['enrolled_at']) : DateTime.now(),
     );
@@ -663,59 +677,56 @@ class CustomerPolicyService {
     }
   }
 
-  /// 為客戶添加一張已購保單
-  Future<bool> enrollPolicyForCustomer({
+  /// 把一款真實商品加入客戶的已投保保單
+  ///
+  /// 限額欄位留空（真實商品還沒有第二層比價資料）；policy_clause_id 存 insurance_products 的 id。
+  /// 寫入成功才放進快取，失敗回傳 false 讓畫面提示。
+  Future<bool> enrollProductForCustomer({
     required String customerId,
-    required String policyClauseId,
-    required String productName,
-    required String companyName,
-    required String category,
-    required String roomLimit,
-    required String surgeryLimit,
-    required String miscLimit,
-    required String rawPdfUrl,
-    Map<String, dynamic>? benefitsJson,
+    required InsuranceProduct product,
   }) async {
-    final newPolicy = CustomerEnrolledPolicy(
-      id: 'CP-${DateTime.now().millisecondsSinceEpoch}',
-      customerId: customerId,
-      policyClauseId: policyClauseId,
-      productName: productName,
-      companyName: companyName,
-      category: category,
-      roomLimit: roomLimit,
-      surgeryLimit: surgeryLimit,
-      miscLimit: miscLimit,
-      roomDailyValue: (benefitsJson?['room_daily'] as num?)?.toInt() ?? 2000,
-      surgeryMaxValue: (benefitsJson?['surgery_max'] as num?)?.toInt() ?? 150000,
-      miscMaxValue: (benefitsJson?['misc_max'] as num?)?.toInt() ?? 120000,
-      rawPdfUrl: rawPdfUrl,
-      enrolledAt: DateTime.now(),
-    );
-
-    if (!_clientPoliciesCache.containsKey(customerId)) {
-      _clientPoliciesCache[customerId] = [];
-    }
-    _clientPoliciesCache[customerId]!.insert(0, newPolicy);
-
     try {
-      await _supabase.from('customer_policies').insert({
-        'customer_id': customerId,
-        'policy_clause_id': policyClauseId,
-        'product_name': productName,
-        'company_name': companyName,
-        'category': category,
-        'room_limit': roomLimit,
-        'surgery_limit': surgeryLimit,
-        'misc_limit': miscLimit,
-        'benefits_json': benefitsJson,
-        'raw_pdf_url': rawPdfUrl,
-      });
+      final Map<String, dynamic> savedRow = await _supabase
+          .from('customer_policies')
+          .insert({
+            'customer_id': customerId,
+            'policy_clause_id': product.id,
+            'product_name': product.productName,
+            'company_name': product.companyName,
+            'category': product.insuranceTypeLabel,
+            // 明確寫入空值，不讓資料表的預設值（2,000 元/日 等假數字）補上
+            'room_limit': null,
+            'surgery_limit': null,
+            'misc_limit': null,
+            'benefits_json': <String, dynamic>{},
+            'raw_pdf_url': product.clauseUrl,
+          })
+          .select()
+          .single();
+
+      final CustomerEnrolledPolicy newPolicy = CustomerEnrolledPolicy.fromJson(savedRow);
+      _clientPoliciesCache.putIfAbsent(customerId, () => []);
+      _clientPoliciesCache[customerId]!.insert(0, newPolicy);
       return true;
-    } catch (e) {
-      if (kDebugMode) print('Remote save policy fallback: $e');
-      return true;
+    } catch (error) {
+      if (kDebugMode) print('加入客戶保單失敗: $error');
+      return false;
     }
+  }
+
+  /// 「為名下客戶規劃」視窗用：自己名下、不在垃圾桶的客戶（依姓名排序）
+  Future<List<Map<String, dynamic>>> fetchMyCustomersForEnroll() async {
+    final User? user = _supabase.auth.currentUser;
+    if (user == null) {
+      return [];
+    }
+    final response = await _supabase
+        .from('customers')
+        .select('id, name, phone')
+        .eq('profile_id', user.id)
+        .isFilter('deleted_at', null)
+        .order('name');
+    return List<Map<String, dynamic>>.from(response as List);
   }
 
   /// 移除客戶的已購保單
@@ -739,14 +750,23 @@ class CustomerPolicyService {
     int totalMisc = 0;
     int totalCancer = 0;
     int totalLiability = 0;
+    int countedPolicyCount = 0;
+    int policiesWithoutLimitCount = 0;
 
     for (var p in policies) {
-      totalRoom += p.roomDailyValue;
-      totalSurgery += p.surgeryMaxValue;
-      totalMisc += p.miscMaxValue;
+      // 沒有限額資料的保單（真實商品）不算進總額，也不拿來判斷缺口
+      if (!p.hasLimitData) {
+        policiesWithoutLimitCount++;
+        continue;
+      }
+      countedPolicyCount++;
+      final int surgeryMax = p.surgeryMaxValue ?? 0;
+      totalRoom += p.roomDailyValue ?? 0;
+      totalSurgery += surgeryMax;
+      totalMisc += p.miscMaxValue ?? 0;
 
       if (p.category.contains('癌') || p.category.contains('重疾') || p.category.contains('重大')) {
-        totalCancer += (p.surgeryMaxValue > 500000 ? p.surgeryMaxValue : 1000000);
+        totalCancer += (surgeryMax > 500000 ? surgeryMax : 1000000);
       }
       if (p.category.contains('車險') || p.category.contains('超額') || p.category.contains('責任')) {
         totalLiability += 10000000;
@@ -785,6 +805,8 @@ class CustomerPolicyService {
       cancerGap: cancerGap,
       liabilityGap: liabilityGap,
       detectedGaps: detectedGaps,
+      countedPolicyCount: countedPolicyCount,
+      policiesWithoutLimitCount: policiesWithoutLimitCount,
     );
   }
 
