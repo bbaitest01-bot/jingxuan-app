@@ -85,8 +85,8 @@ class SpotlightTourService extends ChangeNotifier {
         ),
         TourStep(
           stepId: 'safecheck_healthcheck',
-          title: '🛡️ SafeCheck 白話條款健診',
-          content: '內嵌 1.1 萬+ 保險商品庫，自動解析保證續保、等待期天數與除外責任白話摘要！',
+          title: '🛡️ 真實保險商品目錄',
+          content: '收錄國泰、富邦、南山官網公開的真實保險商品，可搜尋、並排比較，並直接打開官方條款。',
         ),
         TourStep(
           stepId: 'policy_pk',

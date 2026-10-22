@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../main.dart';
 import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
 import '../services/customer_service.dart';
-import '../services/policy_crawler_service.dart';
+import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
+import 'customer_policy_widgets.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
 import '../widgets/voice_recorder_widget.dart';
 import 'customer_share_export_dialog.dart';
@@ -93,7 +95,7 @@ class CustomerDetailSideSheet extends StatefulWidget {
 class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final CustomerPolicyService _policyService = CustomerPolicyService();
-  final PolicyCrawlerService _crawlerService = PolicyCrawlerService();
+  final InsuranceProductService _productService = InsuranceProductService();
 
   late TextEditingController _nameController;
   late TextEditingController _nicknameController;
@@ -113,12 +115,14 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
 
   // Search catalog to enroll new policy
   final TextEditingController _searchCatalogController = TextEditingController();
-  List<PolicyClauseItem> _catalogSearchResults = [];
+  List<InsuranceProduct> _catalogSearchResults = [];
   bool _isSearchingCatalog = false;
   bool _showEnrollSearchBox = false;
   int _catalogCurrentPage = 1;
   int _catalogTotalPages = 1;
   int _catalogTotalCount = 0;
+  // 資料庫裡的真實商品總數（按鈕與提示文字用，數量變了會自動跟著變）
+  int _catalogProductCount = 0;
 
   @override
   void initState() {
@@ -183,17 +187,34 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     };
   }
 
+  /// 商品總數文字：還沒讀到（0）時不顯示數字，例如「從 784 款真實商品中」
+  String _catalogCountText(String prefix, String suffix) {
+    if (_catalogProductCount <= 0) {
+      return '';
+    }
+    return '$prefix${NumberFormat('#,###').format(_catalogProductCount)}$suffix';
+  }
+
+  String _enrollButtonLabel() {
+    if (_catalogProductCount <= 0) {
+      return '+ 搜尋商品加入';
+    }
+    return '+ 搜尋 ${NumberFormat('#,###').format(_catalogProductCount)} 款商品加入';
+  }
+
   Future<void> _loadCustomerPolicies() async {
     final custId = widget.customer['id']?.toString() ?? '';
     if (custId.isEmpty) return;
 
     final list = await _policyService.getCustomerPolicies(custId);
     final summary = _policyService.calculateCustomerBenefitSummary(list);
+    final ProductCatalogSummary catalogSummary = await _productService.fetchCatalogSummary();
 
     if (mounted) {
       setState(() {
         _enrolledPolicies = list;
         _benefitSummary = summary;
+        _catalogProductCount = catalogSummary.totalCount;
         _isLoadingPolicies = false;
       });
     }
@@ -205,7 +226,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       _catalogCurrentPage = page;
     });
 
-    final result = await _crawlerService.searchPolicyClausesPaged(
+    final InsuranceProductSearchResult result = await _productService.searchProducts(
       query: query,
       page: page,
       pageSize: 8,
@@ -213,7 +234,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
 
     if (mounted) {
       setState(() {
-        _catalogSearchResults = result.items;
+        _catalogSearchResults = result.products;
         _catalogTotalCount = result.totalCount;
         _catalogTotalPages = result.totalPages;
         _isSearchingCatalog = false;
@@ -221,22 +242,16 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     }
   }
 
-  Future<void> _enrollPolicy(PolicyClauseItem item) async {
-    final custId = widget.customer['id']?.toString() ?? '';
-    await _policyService.enrollPolicyForCustomer(
-      customerId: custId,
-      policyClauseId: item.id,
-      productName: item.productName,
-      companyName: item.companyName,
-      category: item.category,
-      roomLimit: item.roomLimit,
-      surgeryLimit: item.surgeryLimit,
-      miscLimit: item.miscLimit,
-      rawPdfUrl: item.rawPdfUrl,
-      benefitsJson: item.benefitsJson,
-    );
+  Future<void> _enrollPolicy(InsuranceProduct product) async {
+    final String customerId = widget.customer['id']?.toString() ?? '';
+    final bool success = await _policyService.enrollProductForCustomer(customerId: customerId, product: product);
+    if (!mounted) return;
+    if (!success) {
+      CustomToast.show(context, '加入失敗，請檢查網路後再試', ToastType.error);
+      return;
+    }
 
-    CustomToast.show(context, '✅ 已加入已投保保單: ${item.productName}', ToastType.success);
+    CustomToast.show(context, '已加入已投保保單：${product.productName}', ToastType.success);
     setState(() {
       _showEnrollSearchBox = false;
       _searchCatalogController.clear();
@@ -543,7 +558,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: context.appColors.acc, foregroundColor: context.appColors.onAcc, padding: EdgeInsets.symmetric(vertical: 12)),
+              style: ElevatedButton.styleFrom(backgroundColor: context.appColors.acc, foregroundColor: context.appColors.onAcc, padding: const EdgeInsets.symmetric(vertical: 12)),
               onPressed: _saveBasicInfo,
               icon: const Icon(Icons.save_rounded, size: 18),
               label: const Text('儲存基本資料', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -646,7 +661,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ],
       ),
@@ -708,43 +723,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 0-Cost Actuarial Summary Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: context.appColors.accSoft,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.appColors.acc.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.calculate_rounded, color: context.appColors.acc, size: 18),
-                        SizedBox(width: 8),
-                        Text('🧮 5 大理賠桶總額 (0 成本本地精算)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: context.appColors.okSoft, borderRadius: BorderRadius.circular(AppRadius.pill)),
-                      child: Text('已納入健檢', style: TextStyle(fontSize: 10, color: context.appColors.ok, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildSummaryRow('病房給付總額', '${_benefitSummary?.totalRoomDaily ?? 0} 元/日', Icons.hotel_rounded),
-                _buildSummaryRow('手術給付上限', '${_benefitSummary?.totalSurgeryMax ?? 0} 元', Icons.medical_services_rounded),
-                _buildSummaryRow('自費雜費總額', '${_benefitSummary?.totalMiscMax ?? 0} 元', Icons.receipt_rounded),
-                _buildSummaryRow('癌症重疾一次金', '${(_benefitSummary?.totalCancerCriticalMax ?? 0) ~/ 10000} 萬元', Icons.coronavirus_rounded),
-                _buildSummaryRow('車險/超額責任險', '${(_benefitSummary?.totalLiabilityMax ?? 0) ~/ 10000} 萬元', Icons.car_crash_rounded),
-              ],
-            ),
-          ),
+          // 理賠總額（只算有限額資料的保單）
+          BenefitSummaryCard(summary: _benefitSummary),
 
           const SizedBox(height: 16),
 
@@ -763,7 +743,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                   Row(
                     children: [
                       Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error, size: 18),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Text('🚨 偵測到重大自費保障缺口：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
                     ],
                   ),
@@ -793,7 +773,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                   });
                 },
                 icon: Icon(_showEnrollSearchBox ? Icons.close_rounded : Icons.add_rounded, size: 16),
-                label: Text(_showEnrollSearchBox ? '收合搜尋' : '+ 搜尋 1.1萬+ 條款加入', style: const TextStyle(fontSize: 11)),
+                label: Text(_showEnrollSearchBox ? '收合搜尋' : _enrollButtonLabel(), style: const TextStyle(fontSize: 11)),
                 style: OutlinedButton.styleFrom(foregroundColor: context.appColors.acc, side: BorderSide(color: context.appColors.acc)),
               ),
             ],
@@ -847,7 +827,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text('查無符合「${_searchCatalogController.text}」的條款，請嘗試更換關鍵字。', style: TextStyle(fontSize: 11, color: subTextColor)),
+                        child: Text('查無符合「${_searchCatalogController.text}」的商品，請換個關鍵字。', style: TextStyle(fontSize: 11, color: subTextColor)),
                       ),
                     )
                   else ...[
@@ -861,70 +841,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                         itemCount: _catalogSearchResults.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (ctx, i) {
-                          final item = _catalogSearchResults[i];
-                          return Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: context.appColors.acc.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(item.companyName, style: TextStyle(fontSize: 10, color: context.appColors.acc, fontWeight: FontWeight.bold)),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: context.appColors.line,
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(item.category, style: TextStyle(fontSize: 10, color: subTextColor)),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        item.productName,
-                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '病房: ${item.roomLimit} | 手術: ${item.surgeryLimit} | 雜費: ${item.miscLimit}',
-                                        style: TextStyle(fontSize: 10, color: context.appColors.acc),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: context.appColors.acc,
-                                    foregroundColor: context.appColors.onAcc,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  onPressed: () => _enrollPolicy(item),
-                                  child: const Text('+ 加入', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ),
-                          );
+                          final InsuranceProduct product = _catalogSearchResults[i];
+                          return CatalogProductResultTile(product: product, onEnroll: () => _enrollPolicy(product));
                         },
                       ),
                     ),
@@ -985,7 +903,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('目前尚未加入任何已購保單，點擊上方按鈕搜尋 11,722 筆庫存加入。', style: TextStyle(fontSize: 12, color: subTextColor), textAlign: TextAlign.center),
+                child: Text('目前尚未加入任何已購保單，點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。', style: TextStyle(fontSize: 12, color: subTextColor), textAlign: TextAlign.center),
               ),
             )
           else
@@ -1018,7 +936,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
                             Text(p.productName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
                             const SizedBox(height: 2),
                             Text('${p.companyName} • ${p.category}', style: TextStyle(fontSize: 10, color: subTextColor)),
-                            Text('病房: ${p.roomLimit} | 手術: ${p.surgeryLimit} | 雜費: ${p.miscLimit}', style: TextStyle(fontSize: 10, color: context.appColors.acc)),
+                            Text('病房：${limitTextOrNotReady(p.roomLimit)}｜手術：${limitTextOrNotReady(p.surgeryLimit)}｜雜費：${limitTextOrNotReady(p.miscLimit)}', style: TextStyle(fontSize: 10, color: context.appColors.acc)),
                           ],
                         ),
                       ),
@@ -1085,20 +1003,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               style: TextStyle(fontSize: 12, color: textColor, height: 1.5),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: context.appColors.acc),
-          const SizedBox(width: 6),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 11))),
-          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: context.appColors.acc)),
         ],
       ),
     );
