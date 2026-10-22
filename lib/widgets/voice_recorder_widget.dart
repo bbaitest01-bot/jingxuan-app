@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/voice_transcription_service.dart';
 import '../services/app_localizations.dart';
 import '../main.dart';
+import '../theme/app_theme.dart';
 
 /// 語音錄音 UI 元件
 ///
@@ -17,7 +18,7 @@ import '../main.dart';
 /// 使用範例：
 /// ```dart
 /// VoiceRecorderWidget(
-///   primaryColor: Colors.teal,
+///   primaryColor: context.appColors.acc,
 ///   isDark: true,
 ///   onTranscribed: (text) {
 ///     notesController.text += '\n$text';
@@ -191,16 +192,16 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     final Color borderColor;
     switch (_state) {
       case _RecorderState.recording:
-        bgColor = Colors.red.withValues(alpha: isDark ? 0.12 : 0.07);
-        borderColor = Colors.red.withValues(alpha: 0.45);
+        bgColor = Theme.of(context).colorScheme.error.withValues(alpha: isDark ? 0.12 : 0.07);
+        borderColor = Theme.of(context).colorScheme.error.withValues(alpha: 0.45);
         break;
       case _RecorderState.transcribing:
         bgColor = primaryColor.withValues(alpha: isDark ? 0.12 : 0.06);
         borderColor = primaryColor.withValues(alpha: 0.35);
         break;
       case _RecorderState.error:
-        bgColor = Colors.orange.withValues(alpha: isDark ? 0.12 : 0.06);
-        borderColor = Colors.orange.withValues(alpha: 0.45);
+        bgColor = context.appColors.warn.withValues(alpha: isDark ? 0.12 : 0.06);
+        borderColor = context.appColors.warn.withValues(alpha: 0.45);
         break;
       case _RecorderState.idle:
         bgColor = primaryColor.withValues(alpha: isDark ? 0.10 : 0.05);
@@ -245,7 +246,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             context.l10n('voice_note_idle_hint'),
             style: TextStyle(
               fontSize: 12.5,
-              color: isDark ? Colors.white54 : Colors.black45,
+              color: context.appColors.ink3,
             ),
           ),
         ),
@@ -273,11 +274,11 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
               width: 13,
               height: 13,
               decoration: BoxDecoration(
-                color: Colors.red.shade600,
+                color: Theme.of(context).colorScheme.error,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.red.withValues(alpha: 0.5),
+                    color: Theme.of(context).colorScheme.error.withValues(alpha: 0.5),
                     blurRadius: 6,
                     spreadRadius: 1,
                   ),
@@ -293,7 +294,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Colors.red.shade700,
+            color: Theme.of(context).colorScheme.error,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -304,14 +305,14 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.09),
+              color: (context.appColors.ink).withValues(alpha: 0.09),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
               context.l10n('cancel'),
               style: TextStyle(
                 fontSize: 12,
-                color: isDark ? Colors.white54 : Colors.black38,
+                color: context.appColors.ink3,
               ),
             ),
           ),
@@ -319,7 +320,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
         const SizedBox(width: 8),
         // 完成按鈕
         _RecordButton(
-          color: Colors.red.shade600,
+          color: Theme.of(context).colorScheme.error,
           label: context.l10n('done'),
           icon: Icons.stop_rounded,
           onTap: _stopAndTranscribe,
@@ -345,7 +346,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
           'AI 轉錄中，請稍候...',
           style: TextStyle(
             fontSize: 13,
-            color: isDark ? Colors.white60 : Colors.black45,
+            color: context.appColors.ink3,
           ),
         ),
       ],
@@ -356,14 +357,14 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
   Widget _buildErrorUI(bool isDark) {
     return Row(
       children: [
-        const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 19),
+        Icon(Icons.warning_amber_rounded, color: context.appColors.warn, size: 19),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             _errorMessage,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12.5,
-              color: Colors.orange,
+              color: context.appColors.warn,
               height: 1.4,
             ),
             maxLines: 2,
@@ -376,7 +377,7 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
             child: const Text('放棄', style: TextStyle(fontSize: 12)),
           ),
           _RecordButton(
-            color: Colors.orange,
+            color: context.appColors.warn,
             label: '重試轉文字',
             icon: Icons.refresh,
             onTap: _retryTranscription,
@@ -423,12 +424,12 @@ class _RecordButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 12),
+            Icon(icon, color: context.appColors.onAcc, size: 12),
             const SizedBox(width: 5),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: context.appColors.onAcc,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

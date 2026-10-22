@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class ColorPalettePicker extends StatefulWidget {
   final String? initialColorHex;
@@ -10,24 +11,25 @@ class ColorPalettePicker extends StatefulWidget {
     required this.onColorSelected,
   });
 
-  // 16 Preset Curated Color Codes
+  // 16 個建議色（2026-10-22 沛沛同意重排）：前 8 個和新風格同一家族，後 8 個保留鮮豔色。
+  // 標籤存的是色碼本身，拿掉的舊建議色已經用在標籤上的照樣顯示；任何顏色也都能用 HEX 輸入
   static const List<String> presetColors = [
-    '#0369A1', // Sky Blue / 客戶身分
-    '#15803D', // Emerald Green / 已購險種
-    '#B45309', // Amber Gold / 生活興趣
-    '#BE123C', // Rose Red / 健康體況
-    '#6B21A8', // Purple / 跟進狀態
-    '#4338CA', // Indigo
-    '#0D9488', // Teal
-    '#DB2777', // Pink
-    '#0891B2', // Cyan
-    '#EA580C', // Dark Orange
-    '#166534', // Forest Green
-    '#1E40AF', // Royal Blue
-    '#854D0E', // Dark Yellow
-    '#9F1239', // Dark Crimson
-    '#5B21B6', // Deep Violet
-    '#475569', // Slate Gray
+    '#1D4877', // 深海藍（預設主題色）
+    '#2F6DB5', // 藍（清爽組）
+    '#1A7A6C', // 青綠（清爽組）
+    '#2B6E4B', // 成功綠
+    '#A85A12', // 橘（清爽組）
+    '#A8322D', // 危險紅
+    '#7A2B3A', // 酒紅
+    '#6B717C', // 灰（清爽組）
+    '#0369A1', // 天藍
+    '#15803D', // 翠綠
+    '#B45309', // 琥珀
+    '#BE123C', // 玫瑰紅
+    '#6B21A8', // 紫
+    '#0D9488', // 湖水綠
+    '#EA580C', // 亮橘
+    '#DB2777', // 粉紅
   ];
 
   @override
@@ -67,7 +69,7 @@ class _ColorPalettePickerState extends State<ColorPalettePicker> {
         return Color(int.parse('FF$clean', radix: 16));
       }
     } catch (_) {}
-    return const Color(0xFF0369A1);
+    return context.appColors.acc;
   }
 
   void _onSelectHex(String hex) {
@@ -80,7 +82,6 @@ class _ColorPalettePickerState extends State<ColorPalettePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final selectedColor = _parseColor(_selectedHex);
 
     return Column(
@@ -95,7 +96,7 @@ class _ColorPalettePickerState extends State<ColorPalettePicker> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : Colors.black87,
+                color: context.appColors.ink2,
               ),
             ),
             // Selected Color Preview Box
@@ -132,52 +133,42 @@ class _ColorPalettePickerState extends State<ColorPalettePicker> {
         ),
         const SizedBox(height: 10),
 
-        // Color Block Tiles Grid (一格一格的色塊選擇器)
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 8,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 1,
-          ),
-          itemCount: ColorPalettePicker.presetColors.length,
-          itemBuilder: (context, index) {
-            final hex = ColorPalettePicker.presetColors[index];
-            final color = _parseColor(hex);
-            final isSelected = hex.toLowerCase() == _selectedHex.toLowerCase();
+        // 一格一格的色塊（2026-10-22 改用 Wrap）：原本的 GridView 放在對話框裡，
+        // 對話框量不出大小，「新增子標籤」等視窗只剩灰色遮罩、整個卡住
+        // 寬度剛好一排 8 格：第一排新風格色、第二排鮮豔色
+        SizedBox(
+          width: 8 * 30 + 7 * 8,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ColorPalettePicker.presetColors.map((String hex) {
+              final color = _parseColor(hex);
+              final isSelected = hex.toLowerCase() == _selectedHex.toLowerCase();
 
-            return InkWell(
-              onTap: () => _onSelectHex(hex),
-              borderRadius: BorderRadius.circular(8),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected ? (isDark ? Colors.white : Colors.black) : Colors.transparent,
-                    width: isSelected ? 3.0 : 0.0,
+              return InkWell(
+                onTap: () => _onSelectHex(hex),
+                borderRadius: BorderRadius.circular(8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected ? context.appColors.ink : Colors.transparent,
+                      width: isSelected ? 3.0 : 0.0,
+                    ),
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: color.withOpacity(0.6),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          )
-                        ]
+                  child: isSelected
+                      ? const Center(
+                          child: Icon(Icons.check, size: 16, color: Colors.white),
+                        )
                       : null,
                 ),
-                child: isSelected
-                    ? const Center(
-                        child: Icon(Icons.check, size: 16, color: Colors.white),
-                      )
-                    : null,
-              ),
-            );
-          },
+              );
+            }).toList(),
+          ),
         ),
         const SizedBox(height: 12),
 
