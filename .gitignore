@@ -62,3 +62,8 @@ ios/Runner/GoogleService-Info.plist
 
 # Claude Code 個人設定（不共用）
 .claude/settings.local.json
+
+# 商品目錄抓取（tool/product_catalog）：試跑結果與 Python 暫存
+tool/product_catalog/output/
+tool/product_catalog/.venv/
+__pycache__/
