@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
 import '../services/insurance_product_service.dart';
 import '../theme/app_theme.dart';
 import 'custom_toast.dart';
+import 'customer_policy_widgets.dart';
 
-/// 「為名下客戶規劃」：選一位自己的客戶，把這款商品加入他的已投保保單
+/// 視窗選好的結果：哪位客戶、有效還是已失效
+class _EnrollChoice {
+  final String customerId;
+  final String status;
+
+  const _EnrollChoice({required this.customerId, required this.status});
+}
+
+/// 「＋加到客戶」（D8）：選一位自己的客戶與保單狀態，把這款商品加入他的保單
 Future<void> showEnrollProductDialog(BuildContext context, InsuranceProduct product) async {
   final CustomerPolicyService policyService = CustomerPolicyService();
 
@@ -24,22 +35,39 @@ Future<void> showEnrollProductDialog(BuildContext context, InsuranceProduct prod
     return;
   }
 
-  final String? selectedCustomerId = await showDialog<String>(
+  final _EnrollChoice? choice = await showDialog<_EnrollChoice>(
     context: context,
     builder: (dialogContext) => _EnrollProductDialog(product: product, customers: customers),
   );
-  if (selectedCustomerId == null || !context.mounted) return;
+  if (choice == null || !context.mounted) return;
 
   final bool success = await policyService.enrollProductForCustomer(
-    customerId: selectedCustomerId,
+    customerId: choice.customerId,
     product: product,
+    status: choice.status,
   );
   if (!context.mounted) return;
-  if (success) {
-    CustomToast.show(context, '已把「${product.productName}」加入客戶保單', ToastType.success);
-  } else {
+  if (!success) {
     CustomToast.show(context, '加入失敗，請檢查網路後再試', ToastType.error);
+    return;
   }
+
+  final String statusLabel = PolicyStatus.label(choice.status);
+  CustomToast.show(
+    context,
+    '已把「${product.productName}」加到客戶的$statusLabel保單',
+    ToastType.success,
+    actionLabel: '前往客戶頁',
+    onActionPressed: () => _openCustomerPage(context, choice.customerId),
+  );
+}
+
+/// 比較頁是疊在主畫面上的一頁：先回到主畫面，再前往 /customers/:id
+void _openCustomerPage(BuildContext context, String customerId) {
+  if (!context.mounted) return;
+  final GoRouter router = GoRouter.of(context);
+  Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+  router.go(AppRoutes.customerPath(customerId));
 }
 
 class _EnrollProductDialog extends StatefulWidget {
@@ -54,6 +82,7 @@ class _EnrollProductDialog extends StatefulWidget {
 
 class _EnrollProductDialogState extends State<_EnrollProductDialog> {
   late String _selectedCustomerId;
+  String _selectedStatus = PolicyStatus.active;
 
   @override
   void initState() {
@@ -77,7 +106,7 @@ class _EnrollProductDialogState extends State<_EnrollProductDialog> {
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
       title: Text(
-        '加入客戶保單',
+        '加到客戶',
         style: AppTextStyles.serif(fontSize: 16, color: colors.ink),
       ),
       content: SizedBox(
@@ -124,19 +153,29 @@ class _EnrollProductDialogState extends State<_EnrollProductDialog> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
             ),
+            const SizedBox(height: 16),
+            Text('保單狀態：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.ink)),
+            const SizedBox(height: 8),
+            PolicyStatusSelector(
+              status: _selectedStatus,
+              onChanged: (String status) => setState(() => _selectedStatus = status),
+            ),
           ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
         ElevatedButton(
-          onPressed: () => Navigator.pop(context, _selectedCustomerId),
+          onPressed: () => Navigator.pop(
+            context,
+            _EnrollChoice(customerId: _selectedCustomerId, status: _selectedStatus),
+          ),
           style: ElevatedButton.styleFrom(
             backgroundColor: colors.acc,
             foregroundColor: colors.onAcc,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
-          child: const Text('加入保單'),
+          child: const Text('加到客戶'),
         ),
       ],
     );

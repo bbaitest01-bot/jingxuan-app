@@ -24,7 +24,7 @@ class _ComparisonSection {
 /// 第二層比價資料還沒做好時，限額欄位一律顯示這段文字（2026-10-23 沛沛選 B）
 const String _notReadyText = '比價欄位建置中';
 
-/// 保單比較：2～8 款真實商品並排比較
+/// 保單比較：2～8 款真實商品並排比較；只有 1 款時當作「商品資料」頁
 ///
 /// 理賠限額（病房、手術、雜費、2-2-7、收據）是第二層比價資料，目前顯示「建置中」；
 /// 「全真醫療單據試算」「組合包聯合精算」按鈕保留但先停用，不用假數字計算（全景地圖 4-H ⑪）。
@@ -81,7 +81,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
   /// 「只看差異」打開時，所有商品值都一樣的列就不顯示
   bool _isRowVisible(_ComparisonRow row) {
-    if (!_onlyShowDifferences) {
+    // 只有一款商品時沒有差異可比，全部顯示
+    if (!_onlyShowDifferences || _products.length < 2) {
       return true;
     }
     final Set<String> distinctValues = {};
@@ -120,7 +121,15 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
         sections: sections,
         onRemove: () => _removeProduct(index),
         onCalculatorPressed: _showCalculatorNotReady,
+        canRemove: _products.length > 1,
       ));
+    }
+
+    // 一款商品＝商品資料頁；兩款以上才是並排比較
+    final bool isComparing = _products.length >= 2;
+    String title = '商品資料';
+    if (isComparing) {
+      title = '商品並排比較（${_products.length} 款）';
     }
 
     return Scaffold(
@@ -129,11 +138,11 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
         backgroundColor: colors.surface,
         elevation: 0,
         title: Text(
-          '商品並排比較（${_products.length} 款）',
+          title,
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.ink),
         ),
         actions: [
-          if (_products.length >= 2)
+          if (isComparing)
             OutlinedButton.icon(
               onPressed: _showCalculatorNotReady,
               icon: const Icon(Icons.waterfall_chart_rounded, size: 15),
@@ -144,13 +153,15 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
               ),
             ),
-          const SizedBox(width: 8),
-          Text('只看差異', style: TextStyle(fontSize: 12, color: colors.ink, fontWeight: FontWeight.bold)),
-          Switch(
-            value: _onlyShowDifferences,
-            activeThumbColor: colors.acc,
-            onChanged: (bool value) => setState(() => _onlyShowDifferences = value),
-          ),
+          if (isComparing) ...[
+            const SizedBox(width: 8),
+            Text('只看差異', style: TextStyle(fontSize: 12, color: colors.ink, fontWeight: FontWeight.bold)),
+            Switch(
+              value: _onlyShowDifferences,
+              activeThumbColor: colors.acc,
+              onChanged: (bool value) => setState(() => _onlyShowDifferences = value),
+            ),
+          ],
           const SizedBox(width: 12),
         ],
       ),
@@ -174,12 +185,14 @@ class _ProductComparisonColumn extends StatelessWidget {
   final List<_ComparisonSection> sections;
   final VoidCallback onRemove;
   final VoidCallback onCalculatorPressed;
+  final bool canRemove;
 
   const _ProductComparisonColumn({
     required this.product,
     required this.sections,
     required this.onRemove,
     required this.onCalculatorPressed,
+    required this.canRemove,
   });
 
   @override
@@ -205,7 +218,7 @@ class _ProductComparisonColumn extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ColumnHeader(product: product, onRemove: onRemove),
+          _ColumnHeader(product: product, onRemove: onRemove, canRemove: canRemove),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
           _ColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
@@ -218,8 +231,9 @@ class _ProductComparisonColumn extends StatelessWidget {
 class _ColumnHeader extends StatelessWidget {
   final InsuranceProduct product;
   final VoidCallback onRemove;
+  final bool canRemove;
 
-  const _ColumnHeader({required this.product, required this.onRemove});
+  const _ColumnHeader({required this.product, required this.onRemove, required this.canRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -234,13 +248,14 @@ class _ColumnHeader extends StatelessWidget {
             children: [
               ProductInfoChip(text: product.displayCode, isMono: true),
               const Spacer(),
-              IconButton(
-                icon: Icon(Icons.close_rounded, size: 18, color: colors.ink3),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: onRemove,
-                tooltip: '移除此商品',
-              ),
+              if (canRemove)
+                IconButton(
+                  icon: Icon(Icons.close_rounded, size: 18, color: colors.ink3),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: onRemove,
+                  tooltip: '移除此商品',
+                ),
             ],
           ),
           const SizedBox(height: 6),
@@ -258,7 +273,7 @@ class _ColumnHeader extends StatelessWidget {
   }
 }
 
-/// 下方三個按鈕：單據試算（建置中）、為名下客戶規劃、官方條款
+/// 下方三個按鈕：單據試算（建置中）、＋加到客戶、官方條款
 class _ColumnActions extends StatelessWidget {
   final InsuranceProduct product;
   final VoidCallback onCalculatorPressed;
@@ -291,8 +306,9 @@ class _ColumnActions extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () => showEnrollProductDialog(context, product),
-            icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
-            label: const Text('為名下客戶規劃', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            // 圖示是「＋」，按鈕整體讀起來就是「＋ 加到客戶」（D8）
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text('加到客戶', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.acc,
               foregroundColor: colors.onAcc,

@@ -34,7 +34,8 @@ class BenefitSummaryCard extends StatelessWidget {
       ));
     } else {
       rows.add(_SummaryRow(label: '病房給付總額', value: '${summary!.totalRoomDaily} 元/日', icon: Icons.hotel_rounded));
-      rows.add(_SummaryRow(label: '手術給付上限', value: '${summary!.totalSurgeryMax} 元', icon: Icons.medical_services_rounded));
+      rows.add(
+          _SummaryRow(label: '手術給付上限', value: '${summary!.totalSurgeryMax} 元', icon: Icons.medical_services_rounded));
       rows.add(_SummaryRow(label: '自費雜費總額', value: '${summary!.totalMiscMax} 元', icon: Icons.receipt_rounded));
       rows.add(_SummaryRow(
         label: '癌症重疾一次金',
@@ -151,6 +152,138 @@ class CatalogProductResultTile extends StatelessWidget {
             ),
             onPressed: onEnroll,
             child: const Text('+ 加入', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「有效／已失效」二選一（加保單時用；預設有效）
+class PolicyStatusSelector extends StatelessWidget {
+  final String status;
+  final ValueChanged<String> onChanged;
+
+  const PolicyStatusSelector({super.key, required this.status, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<String>(
+      segments: const [
+        ButtonSegment<String>(value: PolicyStatus.active, label: Text('有效')),
+        ButtonSegment<String>(value: PolicyStatus.lapsed, label: Text('已失效')),
+      ],
+      selected: {status},
+      showSelectedIcon: false,
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      onSelectionChanged: (Set<String> selected) => onChanged(selected.first),
+    );
+  }
+}
+
+/// 保單狀態小標籤：有效用成功綠、已失效用灰
+class PolicyStatusChip extends StatelessWidget {
+  final String status;
+
+  const PolicyStatusChip({super.key, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    Color backgroundColor = colors.okSoft;
+    Color textColor = colors.ok;
+    if (status == PolicyStatus.lapsed) {
+      backgroundColor = colors.surface2;
+      textColor = colors.ink3;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      child: Text(PolicyStatus.label(status),
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: textColor)),
+    );
+  }
+}
+
+/// 側邊抽屜「已投保保單」的一列：狀態、商品、限額，右邊切換狀態與刪除
+class EnrolledPolicyTile extends StatelessWidget {
+  final CustomerEnrolledPolicy policy;
+  final VoidCallback onToggleStatus;
+  final VoidCallback onDelete;
+  final VoidCallback onOpenProduct;
+
+  const EnrolledPolicyTile({
+    super.key,
+    required this.policy,
+    required this.onToggleStatus,
+    required this.onDelete,
+    required this.onOpenProduct,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    // 已失效的保單整列變淡，一眼就和有效保單分開
+    Color nameColor = colors.ink;
+    String toggleLabel = '標為已失效';
+    if (!policy.isActive) {
+      nameColor = colors.ink3;
+      toggleLabel = '改回有效';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: colors.line),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            // 點左邊的商品資訊，跳到數據戰情並帶出那款商品
+            child: InkWell(
+              onTap: onOpenProduct,
+              borderRadius: BorderRadius.circular(AppRadius.control),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      PolicyStatusChip(status: policy.status),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          policy.productName,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: nameColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text('${policy.companyName}・${policy.category}', style: TextStyle(fontSize: 10, color: colors.ink3)),
+                  Text(
+                    '病房：${limitTextOrNotReady(policy.roomLimit)}｜手術：${limitTextOrNotReady(policy.surgeryLimit)}｜雜費：${limitTextOrNotReady(policy.miscLimit)}',
+                    style: TextStyle(fontSize: 10, color: colors.ink3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onToggleStatus,
+            style: TextButton.styleFrom(
+              foregroundColor: colors.acc,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: const Size(0, 28),
+            ),
+            child: Text(toggleLabel, style: const TextStyle(fontSize: 11)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            color: Theme.of(context).colorScheme.error,
+            tooltip: '刪除這張保單',
+            onPressed: onDelete,
           ),
         ],
       ),

@@ -40,8 +40,15 @@ class HomeScreen extends StatefulWidget {
   final String activeMenu;
   final String? visitRecordId; // 單篇拜訪紀錄網址的編號（/visit-records/:id）
   final String? customerId; // 客戶細節整頁網址的編號（/customers/:id）
+  final String? focusProductId; // 數據戰情要帶出的商品編號（/insights?product=…）
 
-  const HomeScreen({super.key, required this.activeMenu, this.visitRecordId, this.customerId});
+  const HomeScreen({
+    super.key,
+    required this.activeMenu,
+    this.visitRecordId,
+    this.customerId,
+    this.focusProductId,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -443,7 +450,11 @@ class _HomeScreenState extends State<HomeScreen> {
       case '人脈拓撲':
         return const RelationshipTopologyTab();
       case '數據戰情':
-        return const DataDashboardTab();
+        // 換一款要帶出的商品時用新的 key，讓數據戰情重新載入並帶出那款
+        return DataDashboardTab(
+          key: ValueKey<String>('insights-${widget.focusProductId ?? ''}'),
+          focusProductId: widget.focusProductId,
+        );
       case '個人帳號':
         return ProfileScreen(
           onProfileUpdated: _loadUserProfile,

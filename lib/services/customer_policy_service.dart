@@ -61,6 +61,8 @@ class CustomerEnrolledPolicy {
   final int? miscMaxValue;
   final String rawPdfUrl;
   final DateTime enrolledAt;
+  // 保單狀態：active 有效／lapsed 已失效（4-I）
+  final String status;
 
   CustomerEnrolledPolicy({
     required this.id,
@@ -77,7 +79,10 @@ class CustomerEnrolledPolicy {
     required this.miscMaxValue,
     required this.rawPdfUrl,
     required this.enrolledAt,
+    this.status = PolicyStatus.active,
   });
+
+  bool get isActive => status != PolicyStatus.lapsed;
 
   /// 三種限額數字都有，才能算進保障總額
   bool get hasLimitData {
@@ -102,7 +107,42 @@ class CustomerEnrolledPolicy {
       miscMaxValue: (benefits?['misc_max'] as num?)?.toInt(),
       rawPdfUrl: json['raw_pdf_url'] ?? '',
       enrolledAt: json['enrolled_at'] != null ? DateTime.parse(json['enrolled_at']) : DateTime.now(),
+      status: json['status']?.toString() ?? PolicyStatus.active,
     );
+  }
+
+  /// 只改狀態、其他欄位不變（切換有效／已失效後更新快取用）
+  CustomerEnrolledPolicy copyWithStatus(String newStatus) {
+    return CustomerEnrolledPolicy(
+      id: id,
+      customerId: customerId,
+      policyClauseId: policyClauseId,
+      productName: productName,
+      companyName: companyName,
+      category: category,
+      roomLimit: roomLimit,
+      surgeryLimit: surgeryLimit,
+      miscLimit: miscLimit,
+      roomDailyValue: roomDailyValue,
+      surgeryMaxValue: surgeryMaxValue,
+      miscMaxValue: miscMaxValue,
+      rawPdfUrl: rawPdfUrl,
+      enrolledAt: enrolledAt,
+      status: newStatus,
+    );
+  }
+}
+
+/// 客戶保單狀態的代號與畫面名稱（2026-10-23 沛沛選「有效保單／已失效保單」）
+class PolicyStatus {
+  static const String active = 'active';
+  static const String lapsed = 'lapsed';
+
+  static String label(String status) {
+    if (status == lapsed) {
+      return '已失效';
+    }
+    return '有效';
   }
 }
 
@@ -684,6 +724,7 @@ class CustomerPolicyService {
   Future<bool> enrollProductForCustomer({
     required String customerId,
     required InsuranceProduct product,
+    String status = PolicyStatus.active,
   }) async {
     try {
       final Map<String, dynamic> savedRow = await _supabase
@@ -700,6 +741,7 @@ class CustomerPolicyService {
             'misc_limit': null,
             'benefits_json': <String, dynamic>{},
             'raw_pdf_url': product.clauseUrl,
+            'status': status,
           })
           .select()
           .single();
@@ -714,7 +756,44 @@ class CustomerPolicyService {
     }
   }
 
-  /// 「為名下客戶規劃」視窗用：自己名下、不在垃圾桶的客戶（依姓名排序）
+  /// 依險種分組（客戶完整頁用，C-18）；保留原本的順序（新加的在前面）
+  static Map<String, List<CustomerEnrolledPolicy>> groupPoliciesByCategory(List<CustomerEnrolledPolicy> policies) {
+    final Map<String, List<CustomerEnrolledPolicy>> groups = {};
+    for (final CustomerEnrolledPolicy policy in policies) {
+      String category = policy.category.trim();
+      if (category.isEmpty) {
+        category = '其他';
+      }
+      groups.putIfAbsent(category, () => []).add(policy);
+    }
+    return groups;
+  }
+
+  /// 切換保單狀態（有效 ↔ 已失效）；成功才更新快取，失敗回傳 false 讓畫面提示
+  Future<bool> updatePolicyStatus({
+    required String customerId,
+    required String policyId,
+    required String status,
+  }) async {
+    try {
+      await _supabase.from('customer_policies').update({'status': status}).eq('id', policyId);
+    } catch (error) {
+      if (kDebugMode) print('切換保單狀態失敗: $error');
+      return false;
+    }
+
+    final List<CustomerEnrolledPolicy>? cachedPolicies = _clientPoliciesCache[customerId];
+    if (cachedPolicies != null) {
+      for (int index = 0; index < cachedPolicies.length; index++) {
+        if (cachedPolicies[index].id == policyId) {
+          cachedPolicies[index] = cachedPolicies[index].copyWithStatus(status);
+        }
+      }
+    }
+    return true;
+  }
+
+  /// 「＋加到客戶」視窗用：自己名下、不在垃圾桶的客戶（依姓名排序）
   Future<List<Map<String, dynamic>>> fetchMyCustomersForEnroll() async {
     final User? user = _supabase.auth.currentUser;
     if (user == null) {
@@ -754,6 +833,10 @@ class CustomerPolicyService {
     int policiesWithoutLimitCount = 0;
 
     for (var p in policies) {
+      // 已失效的保單沒有保障，不算進總額
+      if (!p.isActive) {
+        continue;
+      }
       // 沒有限額資料的保單（真實商品）不算進總額，也不拿來判斷缺口
       if (!p.hasLimitData) {
         policiesWithoutLimitCount++;

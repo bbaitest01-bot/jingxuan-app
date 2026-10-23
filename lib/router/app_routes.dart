@@ -26,6 +26,11 @@ class AppRoutes {
   /// 客戶細節整頁的網址，例：/customers/1234-…
   static String customerPath(String id) => '$customers/$id';
 
+  /// 數據戰情並帶出某一款商品的網址，例：/insights?product=1234-…（客戶保單點進來用）
+  static String insightsProductPath(String productId) {
+    return Uri(path: insights, queryParameters: {'product': productId}).toString();
+  }
+
   /// 單篇拜訪紀錄的網址，例：/visit-records/1234-…
   static String visitRecordPath(String id) => '$visitRecords/$id';
 
