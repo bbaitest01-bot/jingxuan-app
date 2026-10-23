@@ -123,6 +123,8 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   int _catalogTotalCount = 0;
   // 資料庫裡的真實商品總數（按鈕與提示文字用，數量變了會自動跟著變）
   int _catalogProductCount = 0;
+  // 這次「＋加入」要存成有效還是已失效（4-I，預設有效）
+  String _enrollStatus = PolicyStatus.active;
 
   @override
   void initState() {
@@ -244,19 +246,50 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
 
   Future<void> _enrollPolicy(InsuranceProduct product) async {
     final String customerId = widget.customer['id']?.toString() ?? '';
-    final bool success = await _policyService.enrollProductForCustomer(customerId: customerId, product: product);
+    final bool success = await _policyService.enrollProductForCustomer(
+      customerId: customerId,
+      product: product,
+      status: _enrollStatus,
+    );
     if (!mounted) return;
     if (!success) {
       CustomToast.show(context, '加入失敗，請檢查網路後再試', ToastType.error);
       return;
     }
 
-    CustomToast.show(context, '已加入已投保保單：${product.productName}', ToastType.success);
+    CustomToast.show(context, '已加入${PolicyStatus.label(_enrollStatus)}保單：${product.productName}', ToastType.success);
     setState(() {
       _showEnrollSearchBox = false;
       _searchCatalogController.clear();
       _catalogSearchResults.clear();
     });
+    _loadCustomerPolicies();
+  }
+
+  /// 先關掉抽屜，再跳到數據戰情並帶出這款商品（和「開啟完整頁面」同樣的做法）
+  void _openProductInInsights(CustomerEnrolledPolicy policy) {
+    final GoRouter router = GoRouter.of(context);
+    widget.onClose();
+    router.go(AppRoutes.insightsProductPath(policy.policyClauseId));
+  }
+
+  /// 有效 ↔ 已失效切換；成功後重新讀保單，理賠總額會跟著更新
+  Future<void> _togglePolicyStatus(CustomerEnrolledPolicy policy) async {
+    String newStatus = PolicyStatus.lapsed;
+    if (!policy.isActive) {
+      newStatus = PolicyStatus.active;
+    }
+    final bool success = await _policyService.updatePolicyStatus(
+      customerId: widget.customer['id'].toString(),
+      policyId: policy.id,
+      status: newStatus,
+    );
+    if (!mounted) return;
+    if (!success) {
+      CustomToast.show(context, '切換失敗，請檢查網路後再試', ToastType.error);
+      return;
+    }
+    CustomToast.show(context, '已改為${PolicyStatus.label(newStatus)}：${policy.productName}', ToastType.success);
     _loadCustomerPolicies();
   }
 
@@ -793,6 +826,16 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      Text('加入為：', style: TextStyle(fontSize: 12, color: subTextColor)),
+                      PolicyStatusSelector(
+                        status: _enrollStatus,
+                        onChanged: (String status) => setState(() => _enrollStatus = status),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _searchCatalogController,
                     onChanged: (val) => _searchCatalog(val, page: 1),
@@ -913,42 +956,15 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
               itemCount: _enrolledPolicies.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
-                final p = _enrolledPolicies[i];
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: context.appColors.okSoft, borderRadius: BorderRadius.circular(AppRadius.control)),
-                        child: Icon(Icons.verified_rounded, color: context.appColors.ok, size: 18),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(p.productName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
-                            const SizedBox(height: 2),
-                            Text('${p.companyName} • ${p.category}', style: TextStyle(fontSize: 10, color: subTextColor)),
-                            Text('病房：${limitTextOrNotReady(p.roomLimit)}｜手術：${limitTextOrNotReady(p.surgeryLimit)}｜雜費：${limitTextOrNotReady(p.miscLimit)}', style: TextStyle(fontSize: 10, color: context.appColors.acc)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline_rounded, size: 18, color: Theme.of(context).colorScheme.error),
-                        onPressed: () async {
-                          await _policyService.removePolicyForCustomer(widget.customer['id'], p.id);
-                          _loadCustomerPolicies();
-                        },
-                      ),
-                    ],
-                  ),
+                final CustomerEnrolledPolicy policy = _enrolledPolicies[i];
+                return EnrolledPolicyTile(
+                  policy: policy,
+                  onToggleStatus: () => _togglePolicyStatus(policy),
+                  onOpenProduct: () => _openProductInInsights(policy),
+                  onDelete: () async {
+                    await _policyService.removePolicyForCustomer(widget.customer['id'], policy.id);
+                    _loadCustomerPolicies();
+                  },
                 );
               },
             ),

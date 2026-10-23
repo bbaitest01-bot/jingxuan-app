@@ -106,7 +106,11 @@ GoRouter createAppRouter() {
         pageBuilder: (BuildContext context, GoRouterState state) {
           return NoTransitionPage<void>(
             key: _homeShellPageKey,
-            child: HomeScreen(activeMenu: AppRoutes.menuForPath(state.uri.path)),
+            child: HomeScreen(
+              activeMenu: AppRoutes.menuForPath(state.uri.path),
+              // 數據戰情網址可帶 ?product=商品編號，打開時直接帶出那款商品
+              focusProductId: state.uri.queryParameters['product'],
+            ),
           );
         },
       ),

@@ -165,7 +165,7 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// 保單：目前先照原本的資料顯示；「現有／舊保單」分組在 4-3d（C6）
+/// 保單（C6、C-18）：分「有效保單」「已失效保單」兩區，各自依險種分組；點一筆跳到數據戰情並帶出那款商品；狀態在快速預覽切換
 class CustomerPoliciesSection extends StatelessWidget {
   final List<CustomerEnrolledPolicy> policies;
 
@@ -173,22 +173,90 @@ class CustomerPoliciesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> items = [];
+    final List<CustomerEnrolledPolicy> activePolicies = [];
+    final List<CustomerEnrolledPolicy> lapsedPolicies = [];
     for (final CustomerEnrolledPolicy policy in policies) {
-      items.add(ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.description_outlined),
-        title: Text(policy.productName),
-        subtitle: Text('${policy.companyName} · ${policy.category} · 加入於 ${formatVisitRecordTime(policy.enrolledAt)}'),
-      ));
+      if (policy.isActive) {
+        activePolicies.add(policy);
+      } else {
+        lapsedPolicies.add(policy);
+      }
+    }
+
+    Widget content = const CustomerDetailEmptyText('還沒有保單，可在數據戰情「＋加到客戶」或「快速預覽」的「保單健檢與缺口」加入');
+    if (policies.isNotEmpty) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PolicyStatusGroup(title: '有效保單', policies: activePolicies),
+          const SizedBox(height: 12),
+          _PolicyStatusGroup(title: '已失效保單', policies: lapsedPolicies),
+        ],
+      );
     }
 
     return CustomerDetailSection(
       icon: Icons.health_and_safety_outlined,
       title: '保單（${policies.length}）',
-      child: policies.isEmpty
-          ? const CustomerDetailEmptyText('還沒有保單，可在「快速預覽」的「保單健檢與缺口」加入')
-          : Column(children: items),
+      child: content,
+    );
+  }
+}
+
+/// 一個狀態區（例如「有效保單（2）」），底下依險種分組
+class _PolicyStatusGroup extends StatelessWidget {
+  final String title;
+  final List<CustomerEnrolledPolicy> policies;
+
+  const _PolicyStatusGroup({required this.title, required this.policies});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final List<Widget> children = [
+      Text('$title（${policies.length}）', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
+    ];
+    if (policies.isEmpty) {
+      children.add(const CustomerDetailEmptyText('沒有'));
+    }
+
+    final Map<String, List<CustomerEnrolledPolicy>> groups = CustomerPolicyService.groupPoliciesByCategory(policies);
+    groups.forEach((String category, List<CustomerEnrolledPolicy> categoryPolicies) {
+      children.add(Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 2),
+        child: Text(category, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.acc)),
+      ));
+      for (final CustomerEnrolledPolicy policy in categoryPolicies) {
+        children.add(_PolicyRow(policy: policy));
+      }
+    });
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
+  }
+}
+
+class _PolicyRow extends StatelessWidget {
+  final CustomerEnrolledPolicy policy;
+
+  const _PolicyRow({required this.policy});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    Color nameColor = colors.ink;
+    if (!policy.isActive) {
+      nameColor = colors.ink3;
+    }
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: const Icon(Icons.description_outlined),
+      title: Text(policy.productName, style: TextStyle(color: nameColor)),
+      subtitle: Text('${policy.companyName} · 加入於 ${formatVisitRecordTime(policy.enrolledAt)}'),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+      // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
+      onTap: () => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
     );
   }
 }

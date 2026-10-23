@@ -125,6 +125,17 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
 
+    testWidgets('只有一款時是「商品資料」頁：沒有只看差異、組合精算、移除按鈕', (WidgetTester tester) async {
+      await pumpScreen(tester, PolicyComparisonScreen(initialProducts: [buildProduct()]));
+
+      expect(find.text('商品資料'), findsOneWidget);
+      expect(find.byType(Switch), findsNothing);
+      expect(find.textContaining('組合包聯合精算'), findsNothing);
+      expect(find.byTooltip('移除此商品'), findsNothing);
+      expect(find.text('官方條款 PDF'), findsOneWidget);
+      expect(find.text('加到客戶'), findsOneWidget);
+    });
+
     testWidgets('「只看差異」只留下兩款不同的列', (WidgetTester tester) async {
       await pumpScreen(
         tester,

@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/customer_policy_service.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/dashboard_funnel_card.dart';
 import '../widgets/insurance_product_card.dart';
 import '../widgets/product_compare_bar.dart';
+import '../widgets/product_search_widgets.dart';
 import 'policy_comparison_screen.dart';
 import '../theme/app_theme.dart';
 
 /// 數據戰情：上方是業務漏斗指標，下方是真實保險商品目錄（5-2b 起改讀 insurance_products）
 class DataDashboardTab extends StatefulWidget {
   final Function(String menu)? onMenuChanged;
+  // 從客戶保單點進來時帶的商品編號：打開後直接搜出這款並勾選
+  final String? focusProductId;
 
-  const DataDashboardTab({super.key, this.onMenuChanged});
+  const DataDashboardTab({super.key, this.onMenuChanged, this.focusProductId});
 
   @override
   State<DataDashboardTab> createState() => _DataDashboardTabState();
@@ -75,6 +77,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
           _catalogSummary = catalogSummary;
         });
       }
+      await _applyFocusProduct();
       await _searchProducts(resetPage: true);
     } catch (error) {
       if (mounted) {
@@ -85,6 +88,30 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  /// 網址帶了商品編號：把搜尋框設成那款商品的名稱、清掉險種篩選，並先勾選起來（之後可直接比較）
+  Future<void> _applyFocusProduct() async {
+    final String productId = widget.focusProductId ?? '';
+    if (productId.isEmpty) {
+      return;
+    }
+    final InsuranceProduct? product = await _productService.fetchProductById(productId);
+    if (!mounted) return;
+    if (product == null) {
+      CustomToast.show(context, '找不到這款商品的資料', ToastType.warning);
+      return;
+    }
+
+    _searchController.text = product.productName;
+    setState(() {
+      _activeInsuranceType = null;
+      // 批註條款預設不顯示，要帶出的剛好是批註條款時把開關打開
+      _includeEndorsements = product.productKind == 'endorsement';
+      if (!_selectedProducts.any((selected) => selected.id == product.id)) {
+        _selectedProducts.add(product);
+      }
+    });
   }
 
   Future<void> _searchProducts({bool resetPage = false}) async {
@@ -243,14 +270,14 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
             onSearch: () => _searchProducts(resetPage: true),
           ),
           const SizedBox(height: 12),
-          _CatalogCountLine(
+          CatalogCountLine(
             filteredCount: _filteredCount,
             catalogSummary: _catalogSummary,
           ),
           const SizedBox(height: 12),
           Text('險種：', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
           const SizedBox(height: 6),
-          _InsuranceTypeFilter(
+          InsuranceTypeFilter(
             activeInsuranceType: _activeInsuranceType,
             includeEndorsements: _includeEndorsements,
             onTypeSelected: (String? insuranceType) {
@@ -384,95 +411,6 @@ class _ProductSearchField extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 「找到 N 款」與資料來源、更新日期
-class _CatalogCountLine extends StatelessWidget {
-  final int filteredCount;
-  final ProductCatalogSummary catalogSummary;
-
-  const _CatalogCountLine({required this.filteredCount, required this.catalogSummary});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final NumberFormat numberFormat = NumberFormat('#,###');
-    String updatedText = '尚未抓取';
-    if (catalogSummary.lastUpdatedAt != null) {
-      updatedText = DateFormat('yyyy/MM/dd').format(catalogSummary.lastUpdatedAt!);
-    }
-
-    return Wrap(
-      spacing: 12,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          '找到 ${numberFormat.format(filteredCount)} 款（全部 ${numberFormat.format(catalogSummary.totalCount)} 款）',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.acc),
-        ),
-        Text(
-          '資料來源：國泰、富邦、南山官網資訊公開｜更新 $updatedText',
-          style: TextStyle(fontSize: 11, color: colors.ink3),
-        ),
-      ],
-    );
-  }
-}
-
-/// 險種篩選（全部＋各險種）與「含批註條款」開關
-class _InsuranceTypeFilter extends StatelessWidget {
-  final String? activeInsuranceType;
-  final bool includeEndorsements;
-  final ValueChanged<String?> onTypeSelected;
-  final ValueChanged<bool> onEndorsementsChanged;
-
-  const _InsuranceTypeFilter({
-    required this.activeInsuranceType,
-    required this.includeEndorsements,
-    required this.onTypeSelected,
-    required this.onEndorsementsChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final List<Widget> chips = [_buildTypeChip(colors, null, '全部')];
-    InsuranceProductService.insuranceTypeLabels.forEach((String insuranceType, String label) {
-      chips.add(_buildTypeChip(colors, insuranceType, label));
-    });
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        ...chips,
-        const SizedBox(width: 8),
-        FilterChip(
-          label: const Text('含批註條款', style: TextStyle(fontSize: 11)),
-          tooltip: '批註條款是附加在商品上的修改說明，不能單獨購買',
-          selected: includeEndorsements,
-          onSelected: onEndorsementsChanged,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTypeChip(AppColors colors, String? insuranceType, String label) {
-    final bool isSelected = activeInsuranceType == insuranceType;
-    Color labelColor = colors.ink;
-    if (isSelected) {
-      labelColor = colors.onAcc;
-    }
-    return ChoiceChip(
-      label: Text(label, style: TextStyle(fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      selected: isSelected,
-      selectedColor: colors.acc,
-      labelStyle: TextStyle(color: labelColor),
-      onSelected: (_) => onTypeSelected(insuranceType),
     );
   }
 }

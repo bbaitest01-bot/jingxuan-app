@@ -207,6 +207,28 @@ class InsuranceProductService {
     }
   }
 
+  /// 用商品編號查回一款商品（客戶保單的 policy_clause_id 存的就是這個編號）；找不到回傳 null
+  Future<InsuranceProduct?> fetchProductById(String productId) async {
+    if (productId.isEmpty) {
+      return null;
+    }
+    try {
+      final Map<String, dynamic>? row = await _supabase
+          .from('insurance_products')
+          .select(_selectedColumns)
+          .eq('id', productId)
+          .maybeSingle();
+      if (row == null) {
+        return null;
+      }
+      return InsuranceProduct.fromJson(row);
+    } catch (error) {
+      // 舊資料的編號不是 uuid 格式時查詢會出錯，一樣當作找不到
+      if (kDebugMode) print('查詢單一商品失敗: $error');
+      return null;
+    }
+  }
+
   /// 商品總數與最後一次成功抓取的時間（畫面顯示「資料更新：…」）
   Future<ProductCatalogSummary> fetchCatalogSummary() async {
     try {
