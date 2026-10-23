@@ -80,7 +80,7 @@ void main() {
   });
 
   group('畫面', () {
-    testWidgets('客戶概況（電腦寬度）：標題、三張階段卡＋掃描卡，掃描卡可按', (WidgetTester tester) async {
+    testWidgets('客戶概況（電腦寬度）：標題、三張階段卡＋掃描卡，掃描卡可按（已是正式入口）', (WidgetTester tester) async {
       bool scanPressed = false;
       await pumpInWidth(
         tester,
@@ -96,7 +96,7 @@ void main() {
       expect(find.text('未開發'), findsOneWidget);
       expect(find.text('有拜訪、未成交'), findsOneWidget);
       expect(find.text('掃描保單'), findsOneWidget);
-      expect(find.text('即將推出'), findsOneWidget);
+      expect(find.text('開始掃描 ›'), findsOneWidget);
       expect(find.text('拍照辨識，加到客戶'), findsOneWidget);
       // 三張階段卡右上角都有箭頭，掃描卡沒有
       expect(find.byIcon(Icons.chevron_right_rounded), findsNWidgets(3));
@@ -133,7 +133,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.text('跟進中'), findsOneWidget);
-      expect(find.text('即將推出'), findsOneWidget);
+      expect(find.text('開始掃描 ›'), findsOneWidget);
       expect(find.text('有效保單'), findsNothing);
       expect(find.text('拍照辨識，加到客戶'), findsNothing);
     });

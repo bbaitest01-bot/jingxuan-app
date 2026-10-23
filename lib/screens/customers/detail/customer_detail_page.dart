@@ -7,6 +7,7 @@ import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
+import '../../../widgets/scan_policy/scan_policy_flow.dart';
 import '../customer_form_dialog.dart';
 import '../customer_status_widgets.dart';
 import '../../../theme/app_theme.dart';
@@ -106,6 +107,18 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
 
   void _backToCustomers() => context.go(AppRoutes.customers);
 
+  /// 掃描保單（第 5 階段 E）：已經在這位客戶的頁面，不用再選客戶；存入後重新讀保單
+  Future<void> _scanPolicy(Map<String, dynamic> customer) async {
+    final bool saved = await startPolicyScan(
+      context,
+      customerId: widget.customerId,
+      customerName: customer['name']?.toString(),
+    );
+    if (saved && mounted) {
+      await _loadAll();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -126,7 +139,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               const SizedBox(height: 16),
               CustomerBasicInfoSection(customer: customer),
               const SizedBox(height: 16),
-              CustomerPoliciesSection(policies: _policies),
+              CustomerPoliciesSection(policies: _policies, onScanPressed: () => _scanPolicy(customer)),
               const SizedBox(height: 16),
               CustomerVisitRecordsSection(records: _visitRecords),
             ],

@@ -306,6 +306,23 @@ class CustomerService {
     });
   }
 
+  /// 掃描保單時當場新增客戶：只填姓名，其他資料之後到客戶頁補；回傳新客戶的 id
+  Future<String> createCustomerWithName(String name) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('使用者未登入');
+
+    final Map<String, dynamic> savedRow = await _supabase
+        .from('customers')
+        .insert({
+          'profile_id': user.id,
+          'name': name,
+          'custom_attributes': const <String, dynamic>{},
+        })
+        .select('id')
+        .single();
+    return savedRow['id'].toString();
+  }
+
   /// 修改一位客戶。表單沒有自訂欄位，所以不送 custom_attributes，
   /// 資料庫裡原本的自訂欄位（例如批次匯入帶進來的）會保留（問題 C14）。
   /// 客戶狀態不送：4-2b 起由專案拜訪結果經資料庫自動帶入

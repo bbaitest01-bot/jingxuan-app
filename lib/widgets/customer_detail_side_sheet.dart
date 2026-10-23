@@ -8,6 +8,7 @@ import '../services/customer_service.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
 import 'customer_policy_widgets.dart';
+import 'scan_policy/scan_policy_flow.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
 import '../widgets/voice_recorder_widget.dart';
 import 'customer_share_export_dialog.dart';
@@ -266,8 +267,35 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     _loadCustomerPolicies();
   }
 
+  /// 打開／收合「搜尋商品加入」；第一次打開時順便搜尋
+  void _toggleEnrollSearch() {
+    setState(() {
+      _showEnrollSearchBox = !_showEnrollSearchBox;
+      if (_showEnrollSearchBox && _catalogSearchResults.isEmpty) {
+        _searchCatalog(_searchCatalogController.text);
+      }
+    });
+  }
+
+  /// 掃描保單（第 5 階段 E）：這位客戶已確定，直接進入拍照／上傳；存入後重新讀保單
+  Future<void> _scanPolicy() async {
+    final bool saved = await startPolicyScan(
+      context,
+      customerId: widget.customer['id']?.toString(),
+      customerName: widget.customer['name']?.toString(),
+    );
+    if (saved && mounted) {
+      _loadCustomerPolicies();
+    }
+  }
+
   /// 先關掉抽屜，再跳到數據戰情並帶出這款商品（和「開啟完整頁面」同樣的做法）
+  /// 目錄找不到的商品（掃描時照樣存的）沒有對應商品，不跳轉
   void _openProductInInsights(CustomerEnrolledPolicy policy) {
+    if (!policy.isInCatalog) {
+      CustomToast.show(context, '這個商品不在商品目錄中，沒有詳細資料可以看', ToastType.warning);
+      return;
+    }
     final GoRouter router = GoRouter.of(context);
     widget.onClose();
     router.go(AppRoutes.insightsProductPath(policy.policyClauseId));
@@ -791,25 +819,12 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             const SizedBox(height: 16),
           ],
 
-          // Enrolled Policies Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('已投保保單清單 (${_enrolledPolicies.length} 張)：', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textColor)),
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _showEnrollSearchBox = !_showEnrollSearchBox;
-                    if (_showEnrollSearchBox && _catalogSearchResults.isEmpty) {
-                      _searchCatalog(_searchCatalogController.text);
-                    }
-                  });
-                },
-                icon: Icon(_showEnrollSearchBox ? Icons.close_rounded : Icons.add_rounded, size: 16),
-                label: Text(_showEnrollSearchBox ? '收合搜尋' : _enrollButtonLabel(), style: const TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(foregroundColor: context.appColors.acc, side: BorderSide(color: context.appColors.acc)),
-              ),
-            ],
+          EnrolledPoliciesHeader(
+            policyCount: _enrolledPolicies.length,
+            isSearchOpen: _showEnrollSearchBox,
+            enrollButtonLabel: _enrollButtonLabel(),
+            onScanPressed: _scanPolicy,
+            onToggleSearch: _toggleEnrollSearch,
           ),
 
           const SizedBox(height: 10),
@@ -941,33 +956,16 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             const SizedBox(height: 14),
           ],
 
-          // Policy list cards
-          if (_enrolledPolicies.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('目前尚未加入任何已購保單，點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。', style: TextStyle(fontSize: 12, color: subTextColor), textAlign: TextAlign.center),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _enrolledPolicies.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (ctx, i) {
-                final CustomerEnrolledPolicy policy = _enrolledPolicies[i];
-                return EnrolledPolicyTile(
-                  policy: policy,
-                  onToggleStatus: () => _togglePolicyStatus(policy),
-                  onOpenProduct: () => _openProductInInsights(policy),
-                  onDelete: () async {
-                    await _policyService.removePolicyForCustomer(widget.customer['id'], policy.id);
-                    _loadCustomerPolicies();
-                  },
-                );
-              },
-            ),
+          EnrolledPolicyList(
+            policies: _enrolledPolicies,
+            emptyText: '目前尚未加入任何已購保單，可以按「掃描保單」，或點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。',
+            onToggleStatus: _togglePolicyStatus,
+            onOpenProduct: _openProductInInsights,
+            onDelete: (CustomerEnrolledPolicy policy) async {
+              await _policyService.removePolicyForCustomer(widget.customer['id'], policy.id);
+              _loadCustomerPolicies();
+            },
+          ),
         ],
       ),
     );

@@ -220,6 +220,19 @@ class EnrolledPolicyTile extends StatelessWidget {
     required this.onOpenProduct,
   });
 
+  /// 公司・險種・主約・計畫三（掃描保單才有主附約與計畫）
+  String _companyLineText() {
+    final List<String> parts = [policy.companyName, policy.category];
+    if (policy.coverageRoleLabel.isNotEmpty) {
+      parts.add(policy.coverageRoleLabel);
+    }
+    final String planOrAmount = policy.planOrAmount ?? '';
+    if (planOrAmount.isNotEmpty) {
+      parts.add(planOrAmount);
+    }
+    return parts.join('・');
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
@@ -261,7 +274,9 @@ class EnrolledPolicyTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text('${policy.companyName}・${policy.category}', style: TextStyle(fontSize: 10, color: colors.ink3)),
+                  Text(_companyLineText(), style: TextStyle(fontSize: 10, color: colors.ink3)),
+                  if (!policy.isInCatalog)
+                    Text('目錄中找不到此商品', style: TextStyle(fontSize: 10, color: colors.warn)),
                   Text(
                     '病房：${limitTextOrNotReady(policy.roomLimit)}｜手術：${limitTextOrNotReady(policy.surgeryLimit)}｜雜費：${limitTextOrNotReady(policy.miscLimit)}',
                     style: TextStyle(fontSize: 10, color: colors.ink3),
@@ -288,5 +303,101 @@ class EnrolledPolicyTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 側邊抽屜「已投保保單清單 (N 張)：」標題列＋「掃描保單」「搜尋商品加入」兩個按鈕
+/// （2026-10-24 從 customer_detail_side_sheet.dart 拆出；手機寬度放不下時按鈕自動換行）
+class EnrolledPoliciesHeader extends StatelessWidget {
+  final int policyCount;
+  final bool isSearchOpen;
+  final String enrollButtonLabel;
+  final VoidCallback onScanPressed;
+  final VoidCallback onToggleSearch;
+
+  const EnrolledPoliciesHeader({
+    super.key,
+    required this.policyCount,
+    required this.isSearchOpen,
+    required this.enrollButtonLabel,
+    required this.onScanPressed,
+    required this.onToggleSearch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    IconData searchIcon = Icons.add_rounded;
+    String searchLabel = enrollButtonLabel;
+    if (isSearchOpen) {
+      searchIcon = Icons.close_rounded;
+      searchLabel = '收合搜尋';
+    }
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        Text('已投保保單清單 ($policyCount 張)：',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.ink)),
+        TextButton.icon(
+          onPressed: onScanPressed,
+          icon: const Icon(Icons.document_scanner_outlined, size: 16),
+          label: const Text('掃描保單', style: TextStyle(fontSize: 11)),
+        ),
+        OutlinedButton.icon(
+          onPressed: onToggleSearch,
+          icon: Icon(searchIcon, size: 16),
+          label: Text(searchLabel, style: const TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(foregroundColor: colors.acc, side: BorderSide(color: colors.acc)),
+        ),
+      ],
+    );
+  }
+}
+
+/// 側邊抽屜的已投保保單清單；沒有保單時顯示提示文字
+/// （2026-10-24 從 customer_detail_side_sheet.dart 拆出）
+class EnrolledPolicyList extends StatelessWidget {
+  final List<CustomerEnrolledPolicy> policies;
+  final String emptyText;
+  final ValueChanged<CustomerEnrolledPolicy> onToggleStatus;
+  final ValueChanged<CustomerEnrolledPolicy> onOpenProduct;
+  final ValueChanged<CustomerEnrolledPolicy> onDelete;
+
+  const EnrolledPolicyList({
+    super.key,
+    required this.policies,
+    required this.emptyText,
+    required this.onToggleStatus,
+    required this.onOpenProduct,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (policies.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(emptyText,
+              style: TextStyle(fontSize: 12, color: context.appColors.ink3), textAlign: TextAlign.center),
+        ),
+      );
+    }
+    final List<Widget> tiles = [];
+    for (final CustomerEnrolledPolicy policy in policies) {
+      if (tiles.isNotEmpty) {
+        tiles.add(const SizedBox(height: 8));
+      }
+      tiles.add(EnrolledPolicyTile(
+        policy: policy,
+        onToggleStatus: () => onToggleStatus(policy),
+        onOpenProduct: () => onOpenProduct(policy),
+        onDelete: () => onDelete(policy),
+      ));
+    }
+    return Column(children: tiles);
   }
 }
