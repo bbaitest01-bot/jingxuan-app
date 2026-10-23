@@ -34,11 +34,33 @@ python3 -m venv .venv
 
 ## 正式寫入
 
-由 GitHub Actions「Weekly Insurance Product Catalog」執行（目前只開手動觸發）。需要：
+| 公司 | 誰來跑 | 頻率 |
+|---|---|---|
+| 國泰、富邦 | GitHub Actions「Weekly Insurance Product Catalog」自動執行（也可在 Actions 頁面按 Run workflow） | 每週一台灣時間 03:00 |
+| 南山 | 沛沛在自己的電腦手動執行（見下一節） | 每月一次 |
+
+為什麼南山不給 GitHub 跑：南山網站會拒絕 GitHub 伺服器（在國外）的連線，台灣網路就可以（2026-10-23 實測）。
+南山的資料不會錯，只是停在上次更新的日期；保險商品不常變動，每月更新一次就夠。
+
+需要的設定：
 
 - GitHub Secret `PRODUCT_CATALOG_SECRET`
 - Supabase Secret `PRODUCT_CATALOG_SECRET`（同一把密碼）
 - 雲端函式 `import-product-catalog` 已部署，且 **Verify JWT 關閉**（函式自己比對排程密碼）
+
+## 每月更新南山（Mac，約 3 分鐘）
+
+1. 確認電腦連的是台灣的網路（家裡或學校都可以；開著國外 VPN 會被擋）
+2. 打開「終端機」App，第一次使用時先準備環境（之後每個月不用再做）：
+   ```bash
+   cd ~/Documents/GitHub/jingxuan-app/tool/product_catalog && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+   ```
+3. 每個月執行這一行，看到「請貼上排程密碼」時貼上 `PRODUCT_CATALOG_SECRET` 的值（畫面不會顯示）再按 Enter：
+   ```bash
+   cd ~/Documents/GitHub/jingxuan-app/tool/product_catalog && read -s "PRODUCT_CATALOG_SECRET?請貼上排程密碼後按 Enter（畫面不會顯示）: " && echo && export PRODUCT_CATALOG_SECRET && PRODUCT_CATALOG_FUNCTION_URL=https://algufuoxkeizxwkofmmp.supabase.co/functions/v1/import-product-catalog .venv/bin/python crawl_products.py --company nanshan
+   ```
+4. 看到 `=== 南山人壽（nanshan）：success` 和 `寫入結果： 200 {"success":true…}` 就完成了
+5. 如果出現 `failed`：多半是南山網站維修中（官網會先公告停機時間），隔天再跑一次；連續失敗再找人看
 
 ## 官網改版時
 
