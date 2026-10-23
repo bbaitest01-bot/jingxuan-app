@@ -168,8 +168,10 @@ class _InfoRow extends StatelessWidget {
 /// 保單（C6、C-18）：分「有效保單」「已失效保單」兩區，各自依險種分組；點一筆跳到數據戰情並帶出那款商品；狀態在快速預覽切換
 class CustomerPoliciesSection extends StatelessWidget {
   final List<CustomerEnrolledPolicy> policies;
+  // 右上角「掃描保單」（第 5 階段 E）
+  final VoidCallback onScanPressed;
 
-  const CustomerPoliciesSection({super.key, required this.policies});
+  const CustomerPoliciesSection({super.key, required this.policies, required this.onScanPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +185,7 @@ class CustomerPoliciesSection extends StatelessWidget {
       }
     }
 
-    Widget content = const CustomerDetailEmptyText('還沒有保單，可在數據戰情「＋加到客戶」或「快速預覽」的「保單健檢與缺口」加入');
+    Widget content = const CustomerDetailEmptyText('還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入');
     if (policies.isNotEmpty) {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,6 +200,11 @@ class CustomerPoliciesSection extends StatelessWidget {
     return CustomerDetailSection(
       icon: Icons.health_and_safety_outlined,
       title: '保單（${policies.length}）',
+      action: TextButton.icon(
+        onPressed: onScanPressed,
+        icon: const Icon(Icons.document_scanner_outlined, size: 18),
+        label: const Text('掃描保單'),
+      ),
       child: content,
     );
   }
@@ -247,12 +254,33 @@ class _PolicyRow extends StatelessWidget {
     if (!policy.isActive) {
       nameColor = colors.ink3;
     }
+    // 公司 · 主約 · 計畫三 · 加入於…（掃描保單才有主附約與計畫）
+    final List<String> subtitleParts = [policy.companyName];
+    if (policy.coverageRoleLabel.isNotEmpty) {
+      subtitleParts.add(policy.coverageRoleLabel);
+    }
+    final String planOrAmount = policy.planOrAmount ?? '';
+    if (planOrAmount.isNotEmpty) {
+      subtitleParts.add(planOrAmount);
+    }
+    subtitleParts.add('加入於 ${formatVisitRecordTime(policy.enrolledAt)}');
+
+    // 目錄找不到的商品沒辦法跳到數據戰情，改標示「目錄中找不到」
+    if (!policy.isInCatalog) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        leading: const Icon(Icons.description_outlined),
+        title: Text(policy.productName, style: TextStyle(color: nameColor)),
+        subtitle: Text('${subtitleParts.join(' · ')}\n目錄中找不到此商品', style: TextStyle(color: colors.ink3)),
+      );
+    }
     return ListTile(
       contentPadding: EdgeInsets.zero,
       dense: true,
       leading: const Icon(Icons.description_outlined),
       title: Text(policy.productName, style: TextStyle(color: nameColor)),
-      subtitle: Text('${policy.companyName} · 加入於 ${formatVisitRecordTime(policy.enrolledAt)}'),
+      subtitle: Text(subtitleParts.join(' · ')),
       trailing: const Icon(Icons.chevron_right_rounded),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
       // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋

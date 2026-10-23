@@ -7,7 +7,7 @@ import '../theme/app_theme.dart';
 /// 數據戰情最上方的「客戶概況」（D12）：保戶／跟進中／未開發三張卡片＋第四張「掃描保單」動作卡。
 /// 點階段卡片跳到客戶管理並篩出那一群客戶（測試 D-02）。
 /// 2026-10-23 沛沛看過模型圖第 3 版後確認：拿掉比例；「查看名單」改右上角箭頭；
-/// 掃描保單放第四張（掃描完客戶就會變保戶，是把客戶往前推的工具），「即將推出」用灰字。
+/// 掃描保單放第四張（掃描完客戶就會變保戶，是把客戶往前推的工具），點了進入掃描流程。
 class CustomerStageSummaryBar extends StatelessWidget {
   final CustomerStageSummary summary;
   final VoidCallback onScanPressed;
@@ -266,8 +266,8 @@ class _ScanCard extends StatelessWidget {
         showChevron: false,
       ),
       SizedBox(height: isCompact ? 8 : 12),
-      // 功能還沒做（第 5 階段 E），用灰字說明，不做成按鈕樣子（沛沛 2026-10-23）
-      Text('即將推出', style: TextStyle(fontSize: isCompact ? 13 : 15, color: colors.ink3)),
+      // 第 5 階段 E 完成後，從灰字「即將推出」改成主題色「開始掃描」（整張卡都可以點）
+      Text('開始掃描 ›', style: TextStyle(fontSize: isCompact ? 13 : 15, fontWeight: FontWeight.w600, color: colors.acc)),
     ];
     if (!isCompact) {
       children.add(const SizedBox(height: 6));

@@ -6,6 +6,7 @@ import '../widgets/customer_stage_summary_bar.dart';
 import '../widgets/insurance_product_card.dart';
 import '../widgets/product_compare_bar.dart';
 import '../widgets/product_search_widgets.dart';
+import '../widgets/scan_policy/scan_policy_flow.dart';
 import 'policy_comparison_screen.dart';
 import '../theme/app_theme.dart';
 
@@ -180,7 +181,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CustomerStageSummaryBar(summary: _stageSummary, onScanPressed: _showScanComingSoon),
+              CustomerStageSummaryBar(summary: _stageSummary, onScanPressed: _openPolicyScan),
               const SizedBox(height: 24),
               _buildSearchPanel(colors),
               const SizedBox(height: 18),
@@ -215,9 +216,12 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
     );
   }
 
-  /// 掃描保單還沒做（第 5 階段 E），先佔位置（2026-10-23 沛沛選「先放即將推出」）
-  void _showScanComingSoon() {
-    CustomToast.show(context, '掃描保單功能即將推出', ToastType.warning);
+  /// 掃描保單（第 5 階段 E）：存入成功後重新讀資料，客戶概況的「保戶」數字會跟著變
+  Future<void> _openPolicyScan() async {
+    final bool saved = await startPolicyScan(context);
+    if (saved && mounted) {
+      _loadDashboard();
+    }
   }
 
   Widget _buildSearchPanel(AppColors colors) {

@@ -229,6 +229,25 @@ class InsuranceProductService {
     }
   }
 
+  /// 讀出一家公司的全部商品（掃描保單比對目錄用；一家幾百筆，一次讀完再比對）
+  Future<List<InsuranceProduct>> fetchCompanyProducts(String companyCode) async {
+    try {
+      final List<dynamic> rows = await _supabase
+          .from('insurance_products')
+          .select(_selectedColumns)
+          .eq('company_code', companyCode)
+          .limit(2000);
+      final List<InsuranceProduct> products = [];
+      for (final dynamic row in rows) {
+        products.add(InsuranceProduct.fromJson(row as Map<String, dynamic>));
+      }
+      return products;
+    } catch (error) {
+      if (kDebugMode) debugPrint('讀取公司商品失敗: $error');
+      return [];
+    }
+  }
+
   /// 商品總數與最後一次成功抓取的時間（畫面顯示「資料更新：…」）
   Future<ProductCatalogSummary> fetchCatalogSummary() async {
     try {

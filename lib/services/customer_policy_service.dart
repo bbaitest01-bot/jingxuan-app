@@ -63,6 +63,14 @@ class CustomerEnrolledPolicy {
   final DateTime enrolledAt;
   // 保單狀態：active 有效／lapsed 已失效（4-I）
   final String status;
+  // 掃描保單帶進來的欄位（4-J）；手動加入的保單這些多半是空的
+  final String? policyGroupId;
+  final String? policyNumber;
+  final String? coverageRole;
+  final String? planOrAmount;
+  final DateTime? effectiveDate;
+  final int? premium;
+  final String source;
 
   CustomerEnrolledPolicy({
     required this.id,
@@ -80,9 +88,30 @@ class CustomerEnrolledPolicy {
     required this.rawPdfUrl,
     required this.enrolledAt,
     this.status = PolicyStatus.active,
+    this.policyGroupId,
+    this.policyNumber,
+    this.coverageRole,
+    this.planOrAmount,
+    this.effectiveDate,
+    this.premium,
+    this.source = 'manual',
   });
 
   bool get isActive => status != PolicyStatus.lapsed;
+
+  /// 有對到商品目錄（policy_clause_id 有值）；掃描時目錄找不到的商品這裡是 false
+  bool get isInCatalog => policyClauseId.isNotEmpty;
+
+  /// 主約／附約的中文；沒有資料回傳空字串
+  String get coverageRoleLabel {
+    if (coverageRole == 'main') {
+      return '主約';
+    }
+    if (coverageRole == 'rider') {
+      return '附約';
+    }
+    return '';
+  }
 
   /// 三種限額數字都有，才能算進保障總額
   bool get hasLimitData {
@@ -108,6 +137,13 @@ class CustomerEnrolledPolicy {
       rawPdfUrl: json['raw_pdf_url'] ?? '',
       enrolledAt: json['enrolled_at'] != null ? DateTime.parse(json['enrolled_at']) : DateTime.now(),
       status: json['status']?.toString() ?? PolicyStatus.active,
+      policyGroupId: json['policy_group_id'] as String?,
+      policyNumber: json['policy_number'] as String?,
+      coverageRole: json['coverage_role'] as String?,
+      planOrAmount: json['plan_or_amount'] as String?,
+      effectiveDate: DateTime.tryParse(json['effective_date']?.toString() ?? ''),
+      premium: (json['premium'] as num?)?.toInt(),
+      source: json['source']?.toString() ?? 'manual',
     );
   }
 
@@ -129,6 +165,13 @@ class CustomerEnrolledPolicy {
       rawPdfUrl: rawPdfUrl,
       enrolledAt: enrolledAt,
       status: newStatus,
+      policyGroupId: policyGroupId,
+      policyNumber: policyNumber,
+      coverageRole: coverageRole,
+      planOrAmount: planOrAmount,
+      effectiveDate: effectiveDate,
+      premium: premium,
+      source: source,
     );
   }
 }
@@ -656,6 +699,11 @@ class CustomerPolicyService {
         .isFilter('deleted_at', null)
         .order('name');
     return List<Map<String, dynamic>>.from(response as List);
+  }
+
+  /// 清掉某位客戶的保單快取（掃描存入後呼叫，下次打開客戶頁會重新讀資料庫）
+  void clearCachedPolicies(String customerId) {
+    _clientPoliciesCache.remove(customerId);
   }
 
   /// 移除客戶的已購保單
