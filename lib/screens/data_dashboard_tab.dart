@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/customer_policy_service.dart';
+import '../services/customer_stage_service.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
-import '../widgets/dashboard_funnel_card.dart';
+import '../widgets/customer_stage_summary_bar.dart';
 import '../widgets/insurance_product_card.dart';
 import '../widgets/product_compare_bar.dart';
 import '../widgets/product_search_widgets.dart';
@@ -26,20 +26,18 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
   static const int _pageSize = 12;
 
   final InsuranceProductService _productService = InsuranceProductService();
-  final CustomerPolicyService _customerPolicyService = CustomerPolicyService();
+  final CustomerStageService _stageService = CustomerStageService();
   final TextEditingController _searchController = TextEditingController();
 
   bool _isLoading = true;
   bool _isSearching = false;
 
-  CustomerFunnelSummary _funnelSummary = CustomerFunnelSummary(
+  // 上方一行客戶摘要（保戶／跟進中／未開發，規則見 CustomerStage）
+  CustomerStageSummary _stageSummary = const CustomerStageSummary(
     totalCustomers: 0,
-    leadsCount: 0,
-    prospectsCount: 0,
-    clientsCount: 0,
-    monthlyVisitsCompleted: 0,
-    monthlyVisitsTotal: 0,
-    activeProjectsCount: 0,
+    clientCount: 0,
+    prospectCount: 0,
+    leadCount: 0,
   );
   ProductCatalogSummary _catalogSummary = const ProductCatalogSummary(totalCount: 0, lastUpdatedAt: null);
 
@@ -69,11 +67,11 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
   Future<void> _loadDashboard() async {
     setState(() => _isLoading = true);
     try {
-      final CustomerFunnelSummary funnel = await _customerPolicyService.fetchRealSalesFunnelMetrics();
+      final Map<String, String> stageByCustomerId = await _stageService.fetchStageByCustomerId();
       final ProductCatalogSummary catalogSummary = await _productService.fetchCatalogSummary();
       if (mounted) {
         setState(() {
-          _funnelSummary = funnel;
+          _stageSummary = CustomerStageService.summarize(stageByCustomerId);
           _catalogSummary = catalogSummary;
         });
       }
@@ -182,7 +180,7 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFunnelRow(colors),
+              CustomerStageSummaryBar(summary: _stageSummary, onScanPressed: _showScanComingSoon),
               const SizedBox(height: 24),
               _buildSearchPanel(colors),
               const SizedBox(height: 18),
@@ -217,41 +215,9 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
     );
   }
 
-  Widget _buildFunnelRow(AppColors colors) {
-    final int visitRatePercent = (_funnelSummary.monthlyVisitRate * 100).toInt();
-    return Row(
-      children: [
-        Expanded(
-          child: DashboardFunnelCard(
-            title: '名下客戶總量',
-            mainValue: '${_funnelSummary.totalCustomers} 位',
-            subtitle: '保戶 ${_funnelSummary.clientsCount}｜跟進 ${_funnelSummary.prospectsCount}｜未開發 ${_funnelSummary.leadsCount}',
-            icon: Icons.people_alt_rounded,
-            color: colors.acc,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DashboardFunnelCard(
-            title: '本月拜訪戰況',
-            mainValue: '${_funnelSummary.monthlyVisitsCompleted} / ${_funnelSummary.monthlyVisitsTotal} 次',
-            subtitle: '達成率 $visitRatePercent%',
-            icon: Icons.event_available_rounded,
-            color: colors.ok,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DashboardFunnelCard(
-            title: '推動中拜訪專案',
-            mainValue: '${_funnelSummary.activeProjectsCount} 個專案',
-            subtitle: '進行中的拜訪專案',
-            icon: Icons.assignment_turned_in_rounded,
-            color: colors.warn,
-          ),
-        ),
-      ],
-    );
+  /// 掃描保單還沒做（第 5 階段 E），先佔位置（2026-10-23 沛沛選「先放即將推出」）
+  void _showScanComingSoon() {
+    CustomToast.show(context, '掃描保單功能即將推出', ToastType.warning);
   }
 
   Widget _buildSearchPanel(AppColors colors) {
@@ -265,6 +231,9 @@ class _DataDashboardTabState extends State<DataDashboardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 商品區標題（宋體，和上方「客戶概況」一致；掃描保單在客戶概況第四張卡片）
+          Text('商品查詢', style: AppTextStyles.serif(fontSize: 16, color: colors.ink)),
+          const SizedBox(height: 12),
           _ProductSearchField(
             controller: _searchController,
             onSearch: () => _searchProducts(resetPage: true),

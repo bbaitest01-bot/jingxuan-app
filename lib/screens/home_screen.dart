@@ -41,6 +41,7 @@ class HomeScreen extends StatefulWidget {
   final String? visitRecordId; // 單篇拜訪紀錄網址的編號（/visit-records/:id）
   final String? customerId; // 客戶細節整頁網址的編號（/customers/:id）
   final String? focusProductId; // 數據戰情要帶出的商品編號（/insights?product=…）
+  final String? customerStage; // 客戶管理要篩選的階段（/customers?stage=…）
 
   const HomeScreen({
     super.key,
@@ -48,6 +49,7 @@ class HomeScreen extends StatefulWidget {
     this.visitRecordId,
     this.customerId,
     this.focusProductId,
+    this.customerStage,
   });
 
   @override
@@ -324,10 +326,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isWideScreen = screenWidth >= 768;
 
     // 側邊欄（電腦版放左邊，手機版放在抽屜裡）
-    Widget sidebarContent() {
+    // 手機抽屜一律展開（圖示＋文字）：收合是電腦版的偏好，帶到手機會只剩圖示又撐滿寬度
+    Widget sidebarContent({required bool isInDrawer}) {
       return HomeSidebar(
         activeMenu: _activeMenu,
-        isCollapsed: _effectiveSidebarCollapsed,
+        isCollapsed: isInDrawer ? false : _effectiveSidebarCollapsed,
         isWideScreen: isWideScreen,
         userName: _userName,
         userEmail: _userEmail,
@@ -356,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Stack(
       children: [
         Scaffold(
-          drawer: isWideScreen ? null : Drawer(child: sidebarContent()),
+          drawer: isWideScreen ? null : Drawer(child: sidebarContent(isInDrawer: true)),
           appBar: isWideScreen
               ? null
               : HomeMobileAppBar(
@@ -367,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
           body: Row(
             children: [
-              if (isWideScreen) sidebarContent(),
+              if (isWideScreen) sidebarContent(isInDrawer: false),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -442,7 +445,11 @@ class _HomeScreenState extends State<HomeScreen> {
       case '客戶管理':
         final String? customerId = widget.customerId;
         if (customerId != null) return CustomerDetailPage(customerId: customerId);
-        return const CustomerManagementTab();
+        // 換階段篩選時用新的 key，重新套用篩選
+        return CustomerManagementTab(
+          key: ValueKey<String>('customers-${widget.customerStage ?? ''}'),
+          stageFilter: widget.customerStage,
+        );
       case '專案拜訪':
         return const VisitProjectsPage();
       case '拜訪紀錄':

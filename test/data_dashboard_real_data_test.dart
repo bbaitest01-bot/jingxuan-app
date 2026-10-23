@@ -3,43 +3,6 @@ import 'package:insurance_helper/services/customer_policy_service.dart';
 import 'package:insurance_helper/services/policy_crawler_service.dart';
 
 void main() {
-  group('CustomerFunnelSummary Tests', () {
-    test('Calculates monthly visit rate properly', () {
-      final summary = CustomerFunnelSummary(
-        totalCustomers: 27,
-        leadsCount: 12,
-        prospectsCount: 12,
-        clientsCount: 3,
-        monthlyVisitsCompleted: 8,
-        monthlyVisitsTotal: 10,
-        activeProjectsCount: 3,
-      );
-
-      expect(summary.totalCustomers, 27);
-      expect(summary.leadsCount, 12);
-      expect(summary.prospectsCount, 12);
-      expect(summary.clientsCount, 3);
-      expect(summary.monthlyVisitsCompleted, 8);
-      expect(summary.monthlyVisitsTotal, 10);
-      expect(summary.monthlyVisitRate, 0.8);
-      expect(summary.activeProjectsCount, 3);
-    });
-
-    test('Zero total visits does not divide by zero', () {
-      final summary = CustomerFunnelSummary(
-        totalCustomers: 0,
-        leadsCount: 0,
-        prospectsCount: 0,
-        clientsCount: 0,
-        monthlyVisitsCompleted: 0,
-        monthlyVisitsTotal: 0,
-        activeProjectsCount: 0,
-      );
-
-      expect(summary.monthlyVisitRate, 0.0);
-    });
-  });
-
   group('Clinical Scenario Claim Engine Tests', () {
     final service = CustomerPolicyService();
 
