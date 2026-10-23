@@ -25,8 +25,25 @@ class ProductCompareBar extends StatelessWidget {
       selectedCodes.add(product.displayCode);
     }
 
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        // 手機寬度（D-09）：不顯示代碼、文字縮短，避免按鈕和文字擠在一起
+        final bool isNarrow = constraints.maxWidth < 520;
+        return _buildBar(colors, selectedCodes, isNarrow);
+      },
+    );
+  }
+
+  Widget _buildBar(AppColors colors, List<String> selectedCodes, bool isNarrow) {
+    String countText = '已選 ${selectedProducts.length}/$maximumCount 款商品';
+    String compareText = '開始比較';
+    if (isNarrow) {
+      countText = '已選 ${selectedProducts.length} 款';
+      compareText = '比較';
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 20, vertical: 12),
       decoration: BoxDecoration(
         color: colors.acc,
         borderRadius: BorderRadius.circular(AppRadius.card),
@@ -39,13 +56,13 @@ class ProductCompareBar extends StatelessWidget {
           Icon(Icons.check_circle_rounded, color: colors.onAcc, size: 20),
           const SizedBox(width: 8),
           Text(
-            '已選 ${selectedProducts.length}/$maximumCount 款商品',
+            countText,
             style: TextStyle(color: colors.onAcc, fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              selectedCodes.join('  '),
+              isNarrow ? '' : selectedCodes.join('  '),
               style: AppTextStyles.mono(fontSize: 11, color: colors.onAcc.withValues(alpha: 0.75)),
               overflow: TextOverflow.ellipsis,
             ),
@@ -61,10 +78,10 @@ class ProductCompareBar extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.onAcc,
               foregroundColor: colors.acc,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 16, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
             ),
-            label: const Text('開始比較', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: Text(compareText, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

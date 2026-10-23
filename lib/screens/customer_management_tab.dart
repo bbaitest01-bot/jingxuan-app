@@ -5,6 +5,8 @@ import '../router/app_routes.dart';
 import '../services/app_localizations.dart';
 import '../services/app_settings.dart';
 import '../services/customer_service.dart';
+import '../services/customer_stage_service.dart';
+import 'customers/customer_stage_filter_banner.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/customer_detail_side_sheet.dart';
 import '../widgets/customer_share_export_dialog.dart';
@@ -22,7 +24,10 @@ import 'customers/customer_top_panels.dart';
 /// 客戶管理頁的外框：保管客戶資料、搜尋與多選狀態，並處理新增、編輯、刪除等動作。
 /// 畫面的各個區塊拆在 `customers/` 資料夾；讀寫資料庫在 `CustomerService`。
 class CustomerManagementTab extends StatefulWidget {
-  const CustomerManagementTab({super.key});
+  // 從數據戰情摘要點進來時的階段（/customers?stage=client），沒有就是看全部
+  final String? stageFilter;
+
+  const CustomerManagementTab({super.key, this.stageFilter});
 
   @override
   State<CustomerManagementTab> createState() => _CustomerManagementTabState();
@@ -31,6 +36,7 @@ class CustomerManagementTab extends StatefulWidget {
 class _CustomerManagementTabState extends State<CustomerManagementTab> with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _allCustomers = [];
   List<Map<String, dynamic>> _filteredCustomers = [];
+  Map<String, String> _stageByCustomerId = {}; // 客戶編號 → 保戶／跟進中／未開發
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = false;
   late String _viewMode;
@@ -61,6 +67,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     super.initState();
     _viewMode = AppSettings.instance.defaultCustomerViewMode;
     _searchController.addListener(_filterCustomers);
+    if (CustomerStage.isValid(widget.stageFilter)) _loadCustomerStages();
     _checkDevRole();
     _showCachedThenRefresh();
   }
@@ -103,9 +110,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
   // 讀取客戶（離線預覽模式沒有資料）。[silent] 為 true 時在背景讀取：不顯示載入骨架，失敗也保留畫面上的資料
   Future<void> _fetchCustomers({bool silent = false}) async {
     if (!silent) {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
     }
 
     if (isOfflineMode) {
@@ -143,24 +148,30 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       _filterCustomers();
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
 
-  // 依搜尋文字與開發者範圍，重新篩選畫面上的客戶
+  // 階段篩選要先知道每位客戶的階段（規則和數據戰情摘要同一套）
+  Future<void> _loadCustomerStages() async {
+    final Map<String, String> stages = await CustomerStageService().fetchStageByCustomerId();
+    if (!mounted) return;
+    _stageByCustomerId = stages;
+    _filterCustomers();
+  }
+
+  // 依搜尋文字、開發者範圍與階段，重新篩選畫面上的客戶
   void _filterCustomers() {
     final String query = _searchController.text.trim().toLowerCase();
-    setState(() {
-      _filteredCustomers = CustomerService.instance.filterCustomers(
-        allCustomers: _allCustomers,
-        query: query,
-        onlyMine: _isDevUser && _devFilterOnlyMine,
-        currentUserId: _currentUserId,
-      );
-    });
+    final List<Map<String, dynamic>> searched = CustomerService.instance.filterCustomers(
+      allCustomers: _allCustomers,
+      query: query,
+      onlyMine: _isDevUser && _devFilterOnlyMine,
+      currentUserId: _currentUserId,
+    );
+    setState(() => _filteredCustomers =
+        CustomerStageService.filterByStage(searched, _stageByCustomerId, widget.stageFilter));
   }
 
   // 表單送出：有大頭貼先上傳，再新增或修改客戶；[customerId] 是 null 代表新增
@@ -174,9 +185,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final String finalAvatarUrl;
     try {
@@ -185,9 +194,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       if (mounted) {
         CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
       }
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       return;
     }
 
@@ -206,9 +213,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       if (mounted) {
         CustomToast.show(context, '$action失敗: $e', ToastType.error);
       }
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -221,9 +226,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       await CustomerService.instance.moveCustomerToTrash(id);
@@ -241,9 +244,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       if (mounted) {
         CustomToast.show(context, '刪除失敗: $e', ToastType.error);
       }
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -252,9 +253,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     final List<String> idsToDelete = _selectedCustomerIds.toList();
     final int count = idsToDelete.length;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     if (isOfflineMode) {
       setState(() {
@@ -279,9 +278,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       await _fetchCustomers();
       _showBatchDeletedToast('🟢 成功將 $count 筆客戶移至垃圾桶');
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       if (mounted) {
         CustomToast.show(context, '🔴 批量刪除失敗: $e', ToastType.error);
       }
@@ -440,6 +437,12 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
             onAddCustomer: () => _openCustomerForm(),
           ),
           const SizedBox(height: 16),
+          if (CustomerStage.isValid(widget.stageFilter))
+            CustomerStageFilterBanner(
+              stage: widget.stageFilter!,
+              count: _filteredCustomers.length,
+              onClear: () => context.go(AppRoutes.customers),
+            ),
           // 🟡 待補齊名片 / 語音草稿收件匣
           CustomerDraftInbox(
             isDark: isDark,

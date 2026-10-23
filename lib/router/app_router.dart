@@ -110,6 +110,8 @@ GoRouter createAppRouter() {
               activeMenu: AppRoutes.menuForPath(state.uri.path),
               // 數據戰情網址可帶 ?product=商品編號，打開時直接帶出那款商品
               focusProductId: state.uri.queryParameters['product'],
+              // 客戶管理網址可帶 ?stage=client／prospect／lead，只顯示那個階段的客戶
+              customerStage: state.uri.queryParameters['stage'],
             ),
           );
         },

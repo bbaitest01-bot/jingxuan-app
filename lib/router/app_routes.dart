@@ -31,6 +31,11 @@ class AppRoutes {
     return Uri(path: insights, queryParameters: {'product': productId}).toString();
   }
 
+  /// 客戶管理並篩選某個階段的網址，例：/customers?stage=client（數據戰情摘要點進來用）
+  static String customersStagePath(String stage) {
+    return Uri(path: customers, queryParameters: {'stage': stage}).toString();
+  }
+
   /// 單篇拜訪紀錄的網址，例：/visit-records/1234-…
   static String visitRecordPath(String id) => '$visitRecords/$id';
 
