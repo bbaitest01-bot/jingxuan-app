@@ -1,12 +1,13 @@
 name: 🏷️ Weekly Insurance Product Catalog
 
-# 抓取國泰、富邦、南山官網「資訊公開 → 保險商品」，送到 import-product-catalog 寫進資料庫（5-2a，見全景地圖 4-H）
-# 先只開手動觸發；確認幾次都正常後，再把下面 schedule 的註解拿掉，改成每週自動跑
+# 抓取國泰、富邦官網「資訊公開 → 保險商品」，送到 import-product-catalog 寫進資料庫（5-2a，見全景地圖 4-H）
+# 南山網站會拒絕 GitHub 伺服器（國外）的連線（2026-10-23 實測），改由沛沛每月在台灣網路的電腦手動更新，
+# 步驟見 tool/product_catalog/README.md「每月更新南山」
 on:
   workflow_dispatch:
-  # schedule:
-  #   # 台灣時間每週一 03:00（UTC 週日 19:00），避開官網上班時間
-  #   - cron: '0 19 * * 0'
+  schedule:
+    # 台灣時間每週一 03:00（UTC 週日 19:00），避開官網上班時間
+    - cron: '0 19 * * 0'
 
 jobs:
   crawl-products:
@@ -35,4 +36,4 @@ jobs:
             echo "❌ Error: GitHub Secret PRODUCT_CATALOG_SECRET 尚未設定"
             exit 1
           fi
-          python crawl_products.py
+          python crawl_products.py --company cathay --company fubon

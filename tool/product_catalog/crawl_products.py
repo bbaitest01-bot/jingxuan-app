@@ -3,8 +3,9 @@
 用法：
   先在電腦試跑、不寫資料庫（結果存成 JSON 檔）：
     python crawl_products.py --dry-run
-  只跑一家：
+  只跑指定的公司（可以重複寫，例如 GitHub 排程只跑國泰、富邦）：
     python crawl_products.py --dry-run --company cathay
+    python crawl_products.py --company cathay --company fubon
   正式送出（GitHub 排程用，需要兩個環境變數）：
     PRODUCT_CATALOG_FUNCTION_URL=https://<專案>.supabase.co/functions/v1/import-product-catalog
     PRODUCT_CATALOG_SECRET=<排程密碼>
@@ -101,7 +102,13 @@ def send_to_function(payload: dict, function_url: str, secret: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="抓取保險商品目錄")
-    parser.add_argument("--company", choices=sorted(CRAWLERS.keys()), help="只抓一家（不填就是三家）")
+    # 南山會擋國外連線，GitHub 排程只跑國泰、富邦；南山在台灣網路的電腦手動跑（README「每月更新南山」）
+    parser.add_argument(
+        "--company",
+        action="append",
+        choices=sorted(CRAWLERS.keys()),
+        help="只抓指定的公司，可以重複寫（不填就是三家）",
+    )
     parser.add_argument("--dry-run", action="store_true", help="只抓不送出，結果存成 JSON 檔")
     parser.add_argument("--output", default="output", help="--dry-run 時 JSON 檔放哪個資料夾")
     arguments = parser.parse_args()
@@ -112,7 +119,7 @@ def main() -> int:
         print("❌ 缺少 PRODUCT_CATALOG_FUNCTION_URL 或 PRODUCT_CATALOG_SECRET；只想試跑請加 --dry-run")
         return 1
 
-    company_codes = [arguments.company] if arguments.company else list(CRAWLERS.keys())
+    company_codes = arguments.company or list(CRAWLERS.keys())
     has_failure = False
     for company_code in company_codes:
         payload = crawl_company(company_code)
