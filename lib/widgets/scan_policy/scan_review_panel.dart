@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../services/policy_scan_service.dart';
 import '../../theme/app_theme.dart';
@@ -14,6 +15,7 @@ class ScanReviewPanel extends StatelessWidget {
   final bool isSaving;
   final ValueChanged<int> onEditItem;
   final ValueChanged<int> onRemoveItem;
+  final ValueChanged<int> onApplySuggestion;
   final VoidCallback onAddItem;
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onRescan;
@@ -27,6 +29,7 @@ class ScanReviewPanel extends StatelessWidget {
     required this.isSaving,
     required this.onEditItem,
     required this.onRemoveItem,
+    required this.onApplySuggestion,
     required this.onAddItem,
     required this.onStatusChanged,
     required this.onRescan,
@@ -62,6 +65,7 @@ class ScanReviewPanel extends StatelessWidget {
         item: policy.items[index],
         onEdit: () => onEditItem(index),
         onRemove: () => onRemoveItem(index),
+        onApplySuggestion: () => onApplySuggestion(index),
       ));
       itemRows.add(const SizedBox(height: 8));
     }
@@ -73,6 +77,13 @@ class ScanReviewPanel extends StatelessWidget {
         const SizedBox(height: 4),
         Text('請對照保單檢查，點商品可以修改', style: TextStyle(fontSize: 12, color: colors.ink3)),
         const SizedBox(height: 12),
+        if (policy.missingItemCount > 0) ...[
+          _MissingItemsBanner(
+            expectedCount: policy.expectedItemCount ?? 0,
+            readCount: policy.items.length,
+          ),
+          const SizedBox(height: 10),
+        ],
         ...itemRows,
         Align(
           alignment: Alignment.centerLeft,
@@ -107,12 +118,51 @@ class ScanReviewPanel extends StatelessWidget {
   }
 }
 
+/// 黃色提醒：保單上有 N 項，只讀到 M 項（AI 先數總項數，2026-10-24 沛沛實測漏項後加入）
+class _MissingItemsBanner extends StatelessWidget {
+  final int expectedCount;
+  final int readCount;
+
+  const _MissingItemsBanner({required this.expectedCount, required this.readCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.warnSoft,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: colors.warn),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '保單上有 $expectedCount 項，只讀到 $readCount 項，請對照保單檢查，可按「補上漏掉的商品」',
+              style: TextStyle(fontSize: 12, color: colors.warn),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ScannedItemRow extends StatelessWidget {
   final ScannedPolicyItem item;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
+  final VoidCallback onApplySuggestion;
 
-  const _ScannedItemRow({required this.item, required this.onEdit, required this.onRemove});
+  const _ScannedItemRow({
+    required this.item,
+    required this.onEdit,
+    required this.onRemove,
+    required this.onApplySuggestion,
+  });
 
   String _detailText() {
     final List<String> parts = [];
@@ -122,7 +172,7 @@ class _ScannedItemRow extends StatelessWidget {
     }
     final int? premium = item.premium;
     if (premium != null) {
-      parts.add('保費 $premium 元');
+      parts.add(formatPremiumText(premium, item.premiumCurrency));
     }
     return parts.join('・');
   }
@@ -159,6 +209,11 @@ class _ScannedItemRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     _CatalogMatchLine(detailText: detailText, isInCatalog: item.isInCatalog),
+                    if (item.suggestedProduct != null)
+                      _SuggestionLine(
+                        productName: item.suggestedProduct!.productName,
+                        onApply: onApplySuggestion,
+                      ),
                   ],
                 ),
               ),
@@ -235,3 +290,53 @@ class _CatalogMatchLine extends StatelessWidget {
     return Text.rich(TextSpan(style: const TextStyle(fontSize: 12), children: spans));
   }
 }
+
+/// 保費文字：新臺幣「保費 12,350 元」；外幣「保費 USD 4,215」
+String formatPremiumText(int premium, String? currency) {
+  final String amount = NumberFormat('#,###').format(premium);
+  final String code = currency ?? 'TWD';
+  if (code == 'TWD') {
+    return '保費 $amount 元';
+  }
+  return '保費 $code $amount';
+}
+
+/// 讀錯字時的建議：「可能是：XXX」＋「套用」（按了才換，不自動套用）
+class _SuggestionLine extends StatelessWidget {
+  final String productName;
+  final VoidCallback onApply;
+
+  const _SuggestionLine({required this.productName, required this.onApply});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: colors.accSoft,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lightbulb_outline_rounded, size: 16, color: colors.acc),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text('可能是：$productName', style: TextStyle(fontSize: 12, color: colors.acc)),
+          ),
+          TextButton(
+            onPressed: onApply,
+            style: TextButton.styleFrom(
+              foregroundColor: colors.acc,
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: const Text('套用'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

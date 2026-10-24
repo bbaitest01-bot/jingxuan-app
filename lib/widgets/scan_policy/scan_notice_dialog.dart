@@ -114,6 +114,7 @@ class _PrivacyDetails extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold, color: colors.ink),
           ),
           const TextSpan(text: '\n• 系統只記錄商品、保額、生效日，不記錄身分證、生日、地址'),
+          const TextSpan(text: '\n• 電子保單 PDF 只送出文字，身分證、電話、帳號等會先在您的裝置上遮蔽'),
           const TextSpan(text: '\n• 有密碼的電子保單，密碼只在您的裝置上用來開啟檔案，不會傳送或保存'),
           const TextSpan(text: '\n• 每次掃描前，都請先向客戶說明並取得同意'),
         ],

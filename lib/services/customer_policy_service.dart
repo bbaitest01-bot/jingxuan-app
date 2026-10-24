@@ -70,6 +70,7 @@ class CustomerEnrolledPolicy {
   final String? planOrAmount;
   final DateTime? effectiveDate;
   final int? premium;
+  final String? premiumCurrency;
   final String source;
 
   CustomerEnrolledPolicy({
@@ -94,6 +95,7 @@ class CustomerEnrolledPolicy {
     this.planOrAmount,
     this.effectiveDate,
     this.premium,
+    this.premiumCurrency,
     this.source = 'manual',
   });
 
@@ -143,6 +145,7 @@ class CustomerEnrolledPolicy {
       planOrAmount: json['plan_or_amount'] as String?,
       effectiveDate: DateTime.tryParse(json['effective_date']?.toString() ?? ''),
       premium: (json['premium'] as num?)?.toInt(),
+      premiumCurrency: json['premium_currency'] as String?,
       source: json['source']?.toString() ?? 'manual',
     );
   }
@@ -171,6 +174,7 @@ class CustomerEnrolledPolicy {
       planOrAmount: planOrAmount,
       effectiveDate: effectiveDate,
       premium: premium,
+      premiumCurrency: premiumCurrency,
       source: source,
     );
   }

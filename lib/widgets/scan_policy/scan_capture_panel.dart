@@ -12,6 +12,8 @@ class ScanCapturePanel extends StatelessWidget {
   final bool isMobileDevice;
   final List<Uint8List> images;
   final int maximumImageCount;
+  // 電子保單有文字：會直接讀文字（畫面提示「更準確」）
+  final bool isReadingPdfText;
   final VoidCallback onTakePhoto;
   final VoidCallback onUploadFile;
   final ValueChanged<int> onRemoveImage;
@@ -22,6 +24,7 @@ class ScanCapturePanel extends StatelessWidget {
     required this.isMobileDevice,
     required this.images,
     required this.maximumImageCount,
+    this.isReadingPdfText = false,
     required this.onTakePhoto,
     required this.onUploadFile,
     required this.onRemoveImage,
@@ -51,6 +54,10 @@ class ScanCapturePanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _buildThumbnails(colors),
+          if (isReadingPdfText) ...[
+            const SizedBox(height: 8),
+            _PdfTextHint(colors: colors),
+          ],
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: onStartRecognize,
@@ -178,6 +185,29 @@ class _PaperPolicyHint extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 電子保單提示：直接讀文字、個資先遮蔽
+class _PdfTextHint extends StatelessWidget {
+  final AppColors colors;
+
+  const _PdfTextHint({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.text_snippet_outlined, size: 16, color: colors.ok),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '電子保單：直接讀取文字（較準確），身分證、電話等個資會先在本機遮蔽',
+            style: TextStyle(fontSize: 12, color: colors.ok),
+          ),
+        ),
+      ],
     );
   }
 }

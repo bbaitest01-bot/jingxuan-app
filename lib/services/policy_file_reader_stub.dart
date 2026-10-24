@@ -10,3 +10,11 @@ Future<PolicyFileReadResult> readPdfImpl(Uint8List bytes, String password) async
 Future<PolicyFileReadResult> readImageImpl(Uint8List bytes, String mimeType) async {
   return PolicyFileReadResult(status: PolicyFileReadStatus.ok, images: [bytes], pageCount: 1);
 }
+
+Future<PolicyFileReadResult> readPdfTextImpl(Uint8List bytes, String password) async {
+  return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
+}
+
+Future<PolicyFileReadResult> splitImageImpl(Uint8List bytes) async {
+  return PolicyFileReadResult(status: PolicyFileReadStatus.ok, images: [bytes], pageCount: 1);
+}

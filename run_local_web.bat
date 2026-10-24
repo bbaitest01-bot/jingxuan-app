@@ -21,6 +21,8 @@ if %ERRORLEVEL% neq 0 (
   pause
   exit /b %ERRORLEVEL%
 )
+REM Replace Flutter's offline cache with the cleanup script so the browser always loads the newest build
+copy /Y tool\service_worker_cleanup.js build\web\flutter_service_worker.js >nul
 echo.
 echo [3/3] Starting HTTP Server on Port 8080...
 echo You can preview the web app at http://localhost:8080

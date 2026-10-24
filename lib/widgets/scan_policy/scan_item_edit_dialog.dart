@@ -125,6 +125,7 @@ class _ScanItemEditDialogState extends State<_ScanItemEditDialog> {
         coverageRole: _coverageRole,
         planOrAmount: planText.isEmpty ? null : planText,
         premium: int.tryParse(premiumDigits),
+        premiumCurrency: widget.item.premiumCurrency,
         matchedProduct: matchedProduct,
       ),
     );
@@ -166,7 +167,7 @@ class _ScanItemEditDialogState extends State<_ScanItemEditDialog> {
                 children: [
                   Expanded(child: _buildLabeledField(colors, '計畫或保額', _planController, '例：計畫三、50 萬元')),
                   const SizedBox(width: 10),
-                  Expanded(child: _buildLabeledField(colors, '保費（元）', _premiumController, '例：12350')),
+                  Expanded(child: _buildLabeledField(colors, _premiumLabel(), _premiumController, '例：12350')),
                 ],
               ),
               const SizedBox(height: 16),
@@ -188,6 +189,15 @@ class _ScanItemEditDialogState extends State<_ScanItemEditDialog> {
         ),
       ],
     );
+  }
+
+  /// 新臺幣顯示「保費（元）」，外幣顯示「保費（USD）」
+  String _premiumLabel() {
+    final String currency = widget.item.premiumCurrency ?? 'TWD';
+    if (currency == 'TWD') {
+      return '保費（元）';
+    }
+    return '保費（$currency）';
   }
 
   Widget _buildFieldLabel(AppColors colors, String label) {
