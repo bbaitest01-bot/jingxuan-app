@@ -4,15 +4,17 @@ import 'policy_file_reader_stub.dart'
     if (dart.library.js_interop) 'policy_file_reader_web.dart' as implementation;
 
 /// 讀檔的結果狀態
-enum PolicyFileReadStatus { ok, needPassword, wrongPassword, error }
+enum PolicyFileReadStatus { ok, needPassword, wrongPassword, noText, error }
 
 /// 電子保單 PDF、截圖轉成 JPEG 的結果（images 是每一頁的 JPEG 檔案內容）
 class PolicyFileReadResult {
   final PolicyFileReadStatus status;
   final List<Uint8List> images;
   final int pageCount;
+  // readPdfText() 才有：PDF 裡的文字（個資已在本機遮蔽）
+  final String text;
 
-  const PolicyFileReadResult({required this.status, this.images = const [], this.pageCount = 0});
+  const PolicyFileReadResult({required this.status, this.images = const [], this.pageCount = 0, this.text = ''});
 }
 
 /// 掃描保單：在瀏覽器裡把電子保單、截圖轉成要送去辨識的圖片（實際做法在 web/policy_file_reader.js）
@@ -27,5 +29,16 @@ class PolicyFileReader {
   /// 截圖、照片 → 縮小並轉成 JPEG
   static Future<PolicyFileReadResult> readImage(Uint8List bytes, String mimeType) {
     return implementation.readImageImpl(bytes, mimeType);
+  }
+
+  /// 電子保單 PDF → 直接取出文字（不轉圖片）；個資在本機先遮蔽。
+  /// PDF 其實是掃描圖片、沒有文字時回傳 noText，畫面改用圖片辨識
+  static Future<PolicyFileReadResult> readPdfText(Uint8List bytes, {String password = ''}) {
+    return implementation.readPdfTextImpl(bytes, password);
+  }
+
+  /// 照片切成上下兩半（中間重疊），讓 AI 看得更清楚
+  static Future<PolicyFileReadResult> splitImage(Uint8List bytes) {
+    return implementation.splitImageImpl(bytes);
   }
 }

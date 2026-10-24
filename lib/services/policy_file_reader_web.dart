@@ -11,6 +11,12 @@ external JSPromise<JSString> _pdfToImages(JSUint8Array bytes, JSString password)
 @JS('jingxuanImageToJpeg')
 external JSPromise<JSString> _imageToJpeg(JSUint8Array bytes, JSString mimeType);
 
+@JS('jingxuanPdfToText')
+external JSPromise<JSString> _pdfToText(JSUint8Array bytes, JSString password);
+
+@JS('jingxuanSplitImage')
+external JSPromise<JSString> _splitImage(JSUint8Array bytes);
+
 Future<PolicyFileReadResult> readPdfImpl(Uint8List bytes, String password) async {
   try {
     final JSString result = await _pdfToImages(bytes.toJS, password.toJS).toDart;
@@ -29,6 +35,24 @@ Future<PolicyFileReadResult> readImageImpl(Uint8List bytes, String mimeType) asy
   }
 }
 
+Future<PolicyFileReadResult> readPdfTextImpl(Uint8List bytes, String password) async {
+  try {
+    final JSString result = await _pdfToText(bytes.toJS, password.toJS).toDart;
+    return _parseResult(result.toDart);
+  } catch (error) {
+    return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
+  }
+}
+
+Future<PolicyFileReadResult> splitImageImpl(Uint8List bytes) async {
+  try {
+    final JSString result = await _splitImage(bytes.toJS).toDart;
+    return _parseResult(result.toDart);
+  } catch (error) {
+    return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
+  }
+}
+
 PolicyFileReadResult _parseResult(String jsonText) {
   final Map<String, dynamic> data = jsonDecode(jsonText) as Map<String, dynamic>;
   final String status = data['status']?.toString() ?? 'error';
@@ -37,6 +61,9 @@ PolicyFileReadResult _parseResult(String jsonText) {
   }
   if (status == 'wrong_password') {
     return const PolicyFileReadResult(status: PolicyFileReadStatus.wrongPassword);
+  }
+  if (status == 'no_text') {
+    return const PolicyFileReadResult(status: PolicyFileReadStatus.noText);
   }
   if (status != 'ok') {
     return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
@@ -48,5 +75,6 @@ PolicyFileReadResult _parseResult(String jsonText) {
     images.add(base64Decode(rawImage.toString()));
   }
   final int pageCount = (data['pageCount'] as num?)?.toInt() ?? images.length;
-  return PolicyFileReadResult(status: PolicyFileReadStatus.ok, images: images, pageCount: pageCount);
+  final String text = data['text']?.toString() ?? '';
+  return PolicyFileReadResult(status: PolicyFileReadStatus.ok, images: images, pageCount: pageCount, text: text);
 }

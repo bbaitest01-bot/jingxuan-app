@@ -7,6 +7,7 @@ import 'package:insurance_helper/services/insurance_product_service.dart';
 import 'package:insurance_helper/services/policy_scan_service.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_capture_panel.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_customer_picker_dialog.dart';
+import 'package:insurance_helper/widgets/scan_policy/scan_duplicate_dialog.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_notice_dialog.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_review_panel.dart';
 
@@ -241,6 +242,7 @@ void main() {
           isSaving: false,
           onEditItem: (_) {},
           onRemoveItem: (_) {},
+          onApplySuggestion: (_) {},
           onAddItem: () {},
           onStatusChanged: (_) {},
           onRescan: () {},
@@ -314,6 +316,164 @@ void main() {
       expect(agreed, isFalse);
 
       expect(await openNoticeDialog(tester, showPrivacyDetails: false), isTrue);
+    });
+  });
+
+  group('手機實測後的修正（2026-10-24：漏項、讀錯字、美元、重複保單）', () {
+    final List<InsuranceProduct> catalog = [
+      buildCatalogProduct('s1', '國泰人壽睛彩人生PLUS手術醫療健康保險附約（外溢型）', kind: 'rider'),
+      buildCatalogProduct('s2', '國泰人壽心安PLUS加護燒燙傷病房醫療終身健康保險附約（外溢型）', kind: 'rider'),
+      buildCatalogProduct('s3', '國泰人壽終身防癌健康保險附約', kind: 'rider'),
+      buildCatalogProduct('s4', '國泰人壽新終身防癌健康保險附約', kind: 'rider'),
+    ];
+
+    test('讀錯一兩個字：找出「可能是」的商品', () {
+      expect(PolicyScanService.findSimilarProduct('國泰人壽精彩人生PLUS手術醫療健康保險附約（外溢型）', catalog)?.id, 's1');
+      expect(PolicyScanService.findSimilarProduct('國泰人壽心安PLUS加護護燙傷病房醫療終身健康保險附約（外溢型）', catalog)?.id, 's2');
+      // 長名稱差 3 個字也要找得到（2026-10-25 國泰 PDF 實測）
+      expect(PolicyScanService.findSimilarProduct('國泰人壽心安PLUS加護病房燒傷病房醫療終身健康保險附約（外溢型）', catalog)?.id, 's2');
+    });
+
+    test('差太多、或有兩款一樣接近時不建議', () {
+      expect(PolicyScanService.findSimilarProduct('國泰人壽完全不一樣的商品名稱', catalog), isNull);
+      // 「舊終身防癌」跟「終身防癌」「新終身防癌」各差 1、1 個字 → 一樣接近，不建議
+      expect(PolicyScanService.findSimilarProduct('國泰人壽舊終身防癌健康保險附約', catalog), isNull);
+    });
+
+    test('編輯距離', () {
+      expect(PolicyScanService.editDistance('睛彩人生', '精彩人生'), 1);
+      expect(PolicyScanService.editDistance('abc', 'abc'), 0);
+      expect(PolicyScanService.editDistance('', 'ab'), 2);
+    });
+
+    test('按「套用」換成目錄商品', () {
+      final ScannedPolicyItem item = ScannedPolicyItem(productName: '國泰人壽精彩人生', suggestedProduct: catalog.first);
+      item.applySuggestion();
+      expect(item.isInCatalog, isTrue);
+      expect(item.productName, catalog.first.productName);
+      expect(item.suggestedProduct, isNull);
+    });
+
+    test('總項數比讀到的多：算出漏了幾項；幣別一起存', () {
+      final ScannedPolicy policy = PolicyScanService.parseScanResponse({
+        'company_name': '南山人壽保險股份有限公司',
+        'item_count': 11,
+        'items': [
+          {'product_name': '南山人壽御守護美元利率變動型終身壽險（定期給付型）', 'coverage_role': 'main', 'premium': 4215, 'premium_currency': 'USD'},
+        ],
+      });
+      expect(policy.expectedItemCount, 11);
+      expect(policy.missingItemCount, 10);
+      expect(policy.items.first.premiumCurrency, 'USD');
+      final List<Map<String, dynamic>> rows = PolicyScanService.buildPolicyRows(
+        customerId: 'c1',
+        policy: policy,
+        status: PolicyStatus.active,
+        policyGroupId: 'g',
+      );
+      expect(rows.first['premium_currency'], 'USD');
+    });
+
+    test('保費文字：新臺幣加「元」與千分位、外幣顯示幣別', () {
+      expect(formatPremiumText(12350, null), '保費 12,350 元');
+      expect(formatPremiumText(188, 'TWD'), '保費 188 元');
+      expect(formatPremiumText(4215, 'USD'), '保費 USD 4,215');
+    });
+
+    testWidgets('確認畫面：漏項黃色提醒、「可能是」可以套用', (WidgetTester tester) async {
+      int appliedIndex = -1;
+      await pumpInWidth(
+        tester,
+        375,
+        ScanReviewPanel(
+          customerName: '王測一',
+          policy: ScannedPolicy(
+            companyCode: 'cathay',
+            expectedItemCount: 9,
+            items: [
+              ScannedPolicyItem(productName: '國泰人壽精彩人生PLUS手術醫療', coverageRole: 'rider', suggestedProduct: catalog.first),
+            ],
+          ),
+          status: PolicyStatus.active,
+          isSaving: false,
+          onEditItem: (_) {},
+          onRemoveItem: (_) {},
+          onApplySuggestion: (int index) => appliedIndex = index,
+          onAddItem: () {},
+          onStatusChanged: (_) {},
+          onRescan: () {},
+          onSave: () {},
+        ),
+      );
+      expect(find.textContaining('保單上有 9 項，只讀到 1 項'), findsOneWidget);
+      expect(find.textContaining('可能是：國泰人壽睛彩人生'), findsOneWidget);
+      await tester.tap(find.text('套用'));
+      expect(appliedIndex, 0);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('重複保單：提醒並可以選「仍要存入」或「取消」', (WidgetTester tester) async {
+      bool? confirmed;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (BuildContext context) => TextButton(
+            onPressed: () async => confirmed = await showScanDuplicateDialog(
+              context,
+              customerName: '手機測一',
+              policyNumber: 'TEST-CA-0001',
+              existingPolicy: ExistingPolicyInfo(itemCount: 3, firstSavedAt: DateTime(2026, 10, 24)),
+            ),
+            child: const Text('打開'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('打開'));
+      await tester.pumpAndSettle();
+      expect(find.text('這份保單可能已經存過'), findsOneWidget);
+      expect(find.textContaining('3 項，10/24 存入', findRichText: true), findsOneWidget);
+      await tester.tap(find.text('仍要存入'));
+      await tester.pumpAndSettle();
+      expect(confirmed, isTrue);
+    });
+  });
+
+  group('照片切兩半、電子保單讀文字（2026-10-25）', () {
+    test('切兩半重疊處重複列出的商品只留一筆', () {
+      final ScannedPolicy policy = ScannedPolicy(items: [
+        ScannedPolicyItem(productName: '南山人壽珍安康2意外傷害保險附約', premium: 1410),
+        ScannedPolicyItem(productName: '南山人壽意外骨折暨傷害醫療保險附約', premium: 455),
+        ScannedPolicyItem(productName: '南山人壽 意外骨折暨傷害醫療保險附約', premium: 455),
+        ScannedPolicyItem(productName: '南山人壽愛家保要保人豁免保險費附約', premium: 380),
+      ]);
+      PolicyScanService.removeDuplicateItems(policy);
+      expect(policy.items.length, 3);
+    });
+
+    test('名稱一樣但保費不同，當成兩筆（不亂刪）', () {
+      final ScannedPolicy policy = ScannedPolicy(items: [
+        ScannedPolicyItem(productName: '國泰人壽新金骨力傷害暨兒童意外骨折保險附約', premium: 71),
+        ScannedPolicyItem(productName: '國泰人壽新金骨力傷害暨兒童意外骨折保險附約', premium: 120),
+      ]);
+      PolicyScanService.removeDuplicateItems(policy);
+      expect(policy.items.length, 2);
+    });
+
+    testWidgets('電子保單有文字時，上傳畫面提示「直接讀取文字」', (WidgetTester tester) async {
+      await pumpInWidth(
+        tester,
+        1200,
+        ScanCapturePanel(
+          isMobileDevice: false,
+          images: [base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=')],
+          maximumImageCount: 3,
+          isReadingPdfText: true,
+          onTakePhoto: () {},
+          onUploadFile: () {},
+          onRemoveImage: (_) {},
+          onStartRecognize: () {},
+        ),
+      );
+      expect(find.textContaining('直接讀取文字'), findsOneWidget);
     });
   });
 }

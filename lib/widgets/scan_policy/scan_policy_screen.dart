@@ -11,6 +11,7 @@ import '../../services/policy_scan_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
 import 'scan_capture_panel.dart';
+import 'scan_duplicate_dialog.dart';
 import 'scan_item_edit_dialog.dart';
 import 'scan_pdf_password_dialog.dart';
 import 'scan_review_panel.dart';
@@ -38,6 +39,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   final PolicyScanService _scanService = PolicyScanService();
   // 影像只放在記憶體裡，離開這個畫面就消失，不會存到任何地方
   final List<Uint8List> _images = [];
+  // 電子保單 PDF 取出的文字（個資已遮蔽）；有文字就送文字、不送圖片（2026-10-25 B 做法）
+  String? _pdfText;
   _ScanStep _step = _ScanStep.capture;
   ScannedPolicy? _scannedPolicy;
   String _status = PolicyStatus.active;
@@ -87,29 +90,45 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   /// 打開 PDF；有密碼就請業務員輸入，密碼錯了再問一次，按取消就放棄
   Future<void> _readPdf(Uint8List bytes) async {
     PolicyFileReadResult result = await PolicyFileReader.readPdf(bytes);
+    String password = '';
     while (result.status == PolicyFileReadStatus.needPassword ||
         result.status == PolicyFileReadStatus.wrongPassword) {
       if (!mounted) return;
-      final String? password = await showPdfPasswordDialog(
+      final String? typedPassword = await showPdfPasswordDialog(
         context,
         showWrongPasswordHint: result.status == PolicyFileReadStatus.wrongPassword,
       );
-      if (password == null) return;
+      if (typedPassword == null) return;
+      password = typedPassword;
       result = await PolicyFileReader.readPdf(bytes, password: password);
     }
-    _addImages(result);
+    // 圖片給業務員看縮圖；文字（有的話）才是送給 AI 的內容。掃描成圖片的 PDF 沒有文字，就送圖片
+    String? pdfText;
+    if (result.status == PolicyFileReadStatus.ok) {
+      final PolicyFileReadResult textResult = await PolicyFileReader.readPdfText(bytes, password: password);
+      if (textResult.status == PolicyFileReadStatus.ok) {
+        pdfText = textResult.text;
+      }
+    }
+    _addImages(result, pdfText: pdfText);
     if (result.status == PolicyFileReadStatus.ok && result.pageCount > maximumImageCount && mounted) {
       CustomToast.show(context, '這份 PDF 有 ${result.pageCount} 頁，先取前 $maximumImageCount 頁；不需要的頁面可以移除', ToastType.warning);
     }
   }
 
-  void _addImages(PolicyFileReadResult result) {
+  /// pdfText：這批圖片來自有文字的電子保單；只有「一開始就是這份 PDF」時才用文字，混了照片就改送圖片
+  void _addImages(PolicyFileReadResult result, {String? pdfText}) {
     if (!mounted) return;
     if (result.status != PolicyFileReadStatus.ok || result.images.isEmpty) {
       CustomToast.show(context, '檔案讀取失敗，請換一個檔案或改用截圖', ToastType.error);
       return;
     }
     setState(() {
+      if (pdfText != null && _images.isEmpty) {
+        _pdfText = pdfText;
+      } else {
+        _pdfText = null;
+      }
       for (final Uint8List image in result.images) {
         if (_remainingSlots <= 0) break;
         _images.add(image);
@@ -120,15 +139,42 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   // ---------------------------------------------------------------------------
   // 辨識
   // ---------------------------------------------------------------------------
-  Future<void> _recognize() async {
-    setState(() => _step = _ScanStep.recognizing);
+  void _removeImage(int index) {
+    setState(() {
+      _images.removeAt(index);
+      if (_images.isEmpty) {
+        _pdfText = null;
+      }
+    });
+  }
+
+  /// 選送給 AI 的內容：電子保單文字 → 一張照片切上下兩半 → 多張照片原樣
+  Future<ScannedPolicy> _recognizeSelectedContent() async {
+    final String? pdfText = _pdfText;
+    if (pdfText != null) {
+      return _scanService.recognizePolicyText(pdfText);
+    }
+    if (_images.length == 1) {
+      final PolicyFileReadResult splitResult = await PolicyFileReader.splitImage(_images.first);
+      if (splitResult.status == PolicyFileReadStatus.ok && splitResult.images.length == 2) {
+        final List<PolicyScanImage> halves = [];
+        for (final Uint8List half in splitResult.images) {
+          halves.add(PolicyScanImage(bytes: half, mimeType: 'image/jpeg'));
+        }
+        return _scanService.recognizePolicy(halves, isSplitImage: true);
+      }
+    }
     final List<PolicyScanImage> scanImages = [];
     for (final Uint8List image in _images) {
       scanImages.add(PolicyScanImage(bytes: image, mimeType: 'image/jpeg'));
     }
+    return _scanService.recognizePolicy(scanImages);
+  }
 
+  Future<void> _recognize() async {
+    setState(() => _step = _ScanStep.recognizing);
     try {
-      final ScannedPolicy policy = await _scanService.recognizePolicy(scanImages);
+      final ScannedPolicy policy = await _recognizeSelectedContent();
       await _scanService.matchCatalog(policy);
       if (!mounted) return;
       setState(() {
@@ -145,6 +191,7 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   void _rescan() {
     setState(() {
       _images.clear();
+      _pdfText = null;
       _scannedPolicy = null;
       _step = _ScanStep.capture;
     });
@@ -179,6 +226,34 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     setState(() => policy.items.add(added));
   }
 
+  void _applySuggestion(int index) {
+    final ScannedPolicy? policy = _scannedPolicy;
+    if (policy == null) return;
+    setState(() => policy.items[index].applySuggestion());
+  }
+
+  /// 這位客戶已經存過同一個保單號碼時，先問業務員要不要再存（新客戶不用查）
+  Future<bool> _confirmIfDuplicate(ScannedPolicy policy) async {
+    final String? customerId = widget.customerId;
+    final String policyNumber = policy.policyNumber ?? '';
+    if (customerId == null || policyNumber.isEmpty) {
+      return true;
+    }
+    final ExistingPolicyInfo? existingPolicy = await _scanService.findExistingPolicy(
+      customerId: customerId,
+      policyNumber: policyNumber,
+    );
+    if (existingPolicy == null || !mounted) {
+      return true;
+    }
+    return showScanDuplicateDialog(
+      context,
+      customerName: widget.customerName,
+      policyNumber: policyNumber,
+      existingPolicy: existingPolicy,
+    );
+  }
+
   void _removeItem(int index) {
     final ScannedPolicy? policy = _scannedPolicy;
     if (policy == null) return;
@@ -189,6 +264,11 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     final ScannedPolicy? policy = _scannedPolicy;
     if (policy == null) return;
     setState(() => _isSaving = true);
+    final bool shouldSave = await _confirmIfDuplicate(policy);
+    if (!shouldSave) {
+      if (mounted) setState(() => _isSaving = false);
+      return;
+    }
 
     try {
       // 當場新增的客戶，到這一步才建立
@@ -250,6 +330,7 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
         isSaving: _isSaving,
         onEditItem: _editItem,
         onRemoveItem: _removeItem,
+        onApplySuggestion: _applySuggestion,
         onAddItem: _addItem,
         onStatusChanged: (String status) => setState(() => _status = status),
         onRescan: _rescan,
@@ -270,7 +351,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
           maximumImageCount: maximumImageCount,
           onTakePhoto: _takePhoto,
           onUploadFile: _uploadFile,
-          onRemoveImage: (int index) => setState(() => _images.removeAt(index)),
+          isReadingPdfText: _pdfText != null,
+          onRemoveImage: _removeImage,
           onStartRecognize: _recognize,
         ),
       ],

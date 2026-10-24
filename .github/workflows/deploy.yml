@@ -39,6 +39,10 @@ jobs:
       - name: Build Web
         run: flutter build web --release
 
+      # 不用 Flutter 的離線快取：換成清快取程式，舊瀏覽器會自動清掉快取、載入最新版（2026-10-25）
+      - name: Replace Service Worker With Cleanup Script
+        run: cp tool/service_worker_cleanup.js build/web/flutter_service_worker.js
+
       - name: Install Vercel CLI
         run: npm install --global vercel
 
