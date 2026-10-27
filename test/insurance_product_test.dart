@@ -104,6 +104,19 @@ void main() {
     });
   });
 
+  group('官方條款連結', () {
+    test('富邦條款改經過雲端函式 clause-pdf，其他公司直接開', () {
+      const String restUrl = 'https://example.supabase.co/rest/v1';
+      const String fubonUrl = 'https://www.fubon.com/life/api/v1/files/12781/download/a.pdf';
+      final Uri fubonUri = clauseOpenUri(fubonUrl, restUrl);
+      expect(fubonUri.path, '/functions/v1/clause-pdf');
+      expect(fubonUri.queryParameters['url'], fubonUrl);
+
+      const String cathayUrl = 'https://www.cathaylife.com.tw/official/files/M26.pdf';
+      expect(clauseOpenUri(cathayUrl, restUrl).toString(), cathayUrl);
+    });
+  });
+
   group('保單比較畫面', () {
     testWidgets('比較的商品都沒有限額表時不顯示實支實付區塊，下方說明不是保費；試算按鈕按下只提示建置中', (WidgetTester tester) async {
       await pumpScreen(
