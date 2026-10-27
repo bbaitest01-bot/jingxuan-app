@@ -105,7 +105,7 @@ void main() {
   });
 
   group('保單比較畫面', () {
-    testWidgets('沒有限額表的商品顯示「不是實支實付」，下方說明不是保費；試算按鈕按下只提示建置中', (WidgetTester tester) async {
+    testWidgets('比較的商品都沒有限額表時不顯示實支實付區塊，下方說明不是保費；試算按鈕按下只提示建置中', (WidgetTester tester) async {
       await pumpScreen(
         tester,
         PolicyComparisonScreen(initialProducts: [
@@ -114,8 +114,10 @@ void main() {
         ]),
       );
 
-      // D14：測試商品沒有限額表；舊的「比價欄位建置中」、2-2-7、收據兩列已拿掉
-      expect(find.text('不是實支實付（沒有限額表）'), findsNWidgets(2));
+      // 兩款測試商品都沒有限額表 → 整個實支實付區塊不顯示（第 5 階段 D 第 2 層）；
+      // 舊的「比價欄位建置中」、2-2-7、收據兩列已拿掉（D14）
+      expect(find.text('理賠限額（實支實付）'), findsNothing);
+      expect(find.text('不是實支實付（沒有限額表）'), findsNothing);
       expect(find.text('比價欄位建置中'), findsNothing);
       expect(find.text('健保 2-2-7 限制'), findsNothing);
       expect(find.textContaining('不是保費'), findsOneWidget);
