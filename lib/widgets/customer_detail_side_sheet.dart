@@ -8,6 +8,8 @@ import '../services/customer_service.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
 import 'customer_policy_widgets.dart';
+import 'coverage_check/customer_coverage_check_section.dart';
+import 'coverage_check/policy_coverage_dialog.dart';
 import 'scan_policy/scan_policy_flow.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
 import '../widgets/voice_recorder_widget.dart';
@@ -111,7 +113,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
   final List<String> _customAttrKeys = [];
 
   List<CustomerEnrolledPolicy> _enrolledPolicies = [];
-  CustomerBenefitSummary? _benefitSummary;
   bool _isLoadingPolicies = true;
 
   // Search catalog to enroll new policy
@@ -210,13 +211,11 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     if (custId.isEmpty) return;
 
     final list = await _policyService.getCustomerPolicies(custId);
-    final summary = _policyService.calculateCustomerBenefitSummary(list);
     final ProductCatalogSummary catalogSummary = await _productService.fetchCatalogSummary();
 
     if (mounted) {
       setState(() {
         _enrolledPolicies = list;
-        _benefitSummary = summary;
         _catalogProductCount = catalogSummary.totalCount;
         _isLoadingPolicies = false;
       });
@@ -784,40 +783,14 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 理賠總額（只算有限額資料的保單）
-          BenefitSummaryCard(summary: _benefitSummary),
+          // 保單健檢（4-L）：取代舊的理賠總額卡與「重大缺口」紅色警告（舊警告用的是沒有出處的基準）
+          CustomerCoverageCheckSection(
+            customerId: widget.customer['id']?.toString() ?? '',
+            customerName: widget.customer['name']?.toString() ?? '',
+            policies: _enrolledPolicies,
+          ),
 
           const SizedBox(height: 16),
-
-          // Red Gaps Warning Card
-          if (_benefitSummary != null && _benefitSummary!.hasCriticalGap) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.4)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error, size: 18),
-                      const SizedBox(width: 6),
-                      Text('🚨 偵測到重大自費保障缺口：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.error)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ..._benefitSummary!.detectedGaps.map((gap) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text('• $gap', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error)),
-                  )),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
 
           EnrolledPoliciesHeader(
             policyCount: _enrolledPolicies.length,
@@ -961,6 +934,9 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             emptyText: '目前尚未加入任何已購保單，可以按「掃描保單」，或點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。',
             onToggleStatus: _togglePolicyStatus,
             onOpenProduct: _openProductInInsights,
+            onEditCoverage: (CustomerEnrolledPolicy policy) async {
+              if (await showPolicyCoverageDialog(context, policy)) _loadCustomerPolicies();
+            },
             onDelete: (CustomerEnrolledPolicy policy) async {
               await _policyService.removePolicyForCustomer(widget.customer['id'], policy.id);
               _loadCustomerPolicies();

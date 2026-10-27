@@ -138,6 +138,8 @@ void main() {
       expect(rows.first['policy_clause_id'], 'p9');
       expect(rows.first['category'], '壽險');
       expect(rows.first['premium'], 8520);
+      expect(rows.first['coverage_amount'], 1000000); // 「100 萬元」轉成保額
+      expect(rows[1]['benefit_plan_id'], isNull); // 目錄找不到，沒有計畫可對
       expect(rows[1]['policy_clause_id'], isNull);
       expect(rows[1]['company_name'], '國泰人壽');
       expect(rows[1]['category'], '未分類');
@@ -372,6 +374,8 @@ void main() {
         policyGroupId: 'g',
       );
       expect(rows.first['premium_currency'], 'USD');
+      // 外幣保額不轉（保單健檢以新臺幣計）
+      expect(rows.first['coverage_amount'], isNull);
     });
 
     test('保費文字：新臺幣加「元」與千分位、外幣顯示幣別', () {

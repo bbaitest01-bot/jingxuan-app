@@ -72,6 +72,10 @@ class CustomerEnrolledPolicy {
   final int? premium;
   final String? premiumCurrency;
   final String source;
+  // 保單健檢（4-L）：業務員改過的保障類別、保額、實支計畫
+  final String? coverageCategory;
+  final int? coverageAmount;
+  final String? benefitPlanId;
 
   CustomerEnrolledPolicy({
     required this.id,
@@ -97,6 +101,9 @@ class CustomerEnrolledPolicy {
     this.premium,
     this.premiumCurrency,
     this.source = 'manual',
+    this.coverageCategory,
+    this.coverageAmount,
+    this.benefitPlanId,
   });
 
   bool get isActive => status != PolicyStatus.lapsed;
@@ -146,6 +153,9 @@ class CustomerEnrolledPolicy {
       effectiveDate: DateTime.tryParse(json['effective_date']?.toString() ?? ''),
       premium: (json['premium'] as num?)?.toInt(),
       premiumCurrency: json['premium_currency'] as String?,
+      coverageCategory: json['coverage_category'] as String?,
+      coverageAmount: (json['coverage_amount'] as num?)?.toInt(),
+      benefitPlanId: json['benefit_plan_id'] as String?,
       source: json['source']?.toString() ?? 'manual',
     );
   }
@@ -176,6 +186,9 @@ class CustomerEnrolledPolicy {
       premium: premium,
       premiumCurrency: premiumCurrency,
       source: source,
+      coverageCategory: coverageCategory,
+      coverageAmount: coverageAmount,
+      benefitPlanId: benefitPlanId,
     );
   }
 }

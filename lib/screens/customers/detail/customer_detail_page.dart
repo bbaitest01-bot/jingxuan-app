@@ -7,6 +7,8 @@ import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
+import '../../../widgets/coverage_check/customer_coverage_check_section.dart';
+import '../../../widgets/coverage_check/policy_coverage_dialog.dart';
 import '../../../widgets/scan_policy/scan_policy_flow.dart';
 import '../customer_form_dialog.dart';
 import '../customer_status_widgets.dart';
@@ -107,6 +109,14 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
 
   void _backToCustomers() => context.go(AppRoutes.customers);
 
+  /// 保單健檢：編輯一張保單的保障類別、保額或實支計畫，存好後重新讀保單（健檢跟著重算）
+  Future<void> _editCoverage(CustomerEnrolledPolicy policy) async {
+    final bool saved = await showPolicyCoverageDialog(context, policy);
+    if (saved && mounted) {
+      await _loadAll();
+    }
+  }
+
   /// 掃描保單（第 5 階段 E）：已經在這位客戶的頁面，不用再選客戶；存入後重新讀保單
   Future<void> _scanPolicy(Map<String, dynamic> customer) async {
     final bool saved = await startPolicyScan(
@@ -139,7 +149,17 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               const SizedBox(height: 16),
               CustomerBasicInfoSection(customer: customer),
               const SizedBox(height: 16),
-              CustomerPoliciesSection(policies: _policies, onScanPressed: () => _scanPolicy(customer)),
+              CustomerCoverageCheckSection(
+                customerId: widget.customerId,
+                customerName: customer['name']?.toString() ?? '',
+                policies: _policies,
+              ),
+              const SizedBox(height: 16),
+              CustomerPoliciesSection(
+                policies: _policies,
+                onScanPressed: () => _scanPolicy(customer),
+                onEditCoverage: _editCoverage,
+              ),
               const SizedBox(height: 16),
               CustomerVisitRecordsSection(records: _visitRecords),
             ],

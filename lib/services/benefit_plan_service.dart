@@ -10,6 +10,7 @@ class InsuranceBenefitPlan {
   static const String typeDeductible = 'deductible';
   static const String typeTotal = 'total';
 
+  final String id;
   final String productId;
   final String planCode;
   final int planOrder;
@@ -29,6 +30,7 @@ class InsuranceBenefitPlan {
   final String? note;
 
   const InsuranceBenefitPlan({
+    this.id = '',
     required this.productId,
     required this.planCode,
     required this.planOrder,
@@ -50,6 +52,7 @@ class InsuranceBenefitPlan {
 
   factory InsuranceBenefitPlan.fromJson(Map<String, dynamic> json) {
     return InsuranceBenefitPlan(
+      id: json['id']?.toString() ?? '',
       productId: json['product_id']?.toString() ?? '',
       planCode: json['plan_code']?.toString() ?? '',
       planOrder: (json['plan_order'] as num?)?.toInt() ?? 1,
@@ -151,5 +154,24 @@ class BenefitPlanService {
       if (kDebugMode) debugPrint('讀取實支實付限額失敗: $error');
     }
     return plansByProduct;
+  }
+
+  /// 依計畫 id 查（保單健檢用：客戶保單存的是 benefit_plan_id）；{計畫 id: 計畫}
+  Future<Map<String, InsuranceBenefitPlan>> fetchPlansByIds(List<String> planIds) async {
+    final Map<String, InsuranceBenefitPlan> plansById = {};
+    final List<String> ids = planIds.where((String id) => id.isNotEmpty).toList();
+    if (ids.isEmpty) {
+      return plansById;
+    }
+    try {
+      final List<dynamic> rows = await _supabase.from('insurance_product_benefit_plans').select().inFilter('id', ids);
+      for (final dynamic row in rows) {
+        final InsuranceBenefitPlan plan = InsuranceBenefitPlan.fromJson(row as Map<String, dynamic>);
+        plansById[plan.id] = plan;
+      }
+    } catch (error) {
+      if (kDebugMode) debugPrint('讀取保單計畫失敗: $error');
+    }
+    return plansById;
   }
 }

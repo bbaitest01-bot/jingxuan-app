@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../models/visit_record.dart';
 import '../../../router/app_routes.dart';
@@ -170,8 +171,15 @@ class CustomerPoliciesSection extends StatelessWidget {
   final List<CustomerEnrolledPolicy> policies;
   // 右上角「掃描保單」（第 5 階段 E）
   final VoidCallback onScanPressed;
+  // 保單健檢（4-L）：按保單上的「保額」編輯保障類別、保額、實支計畫
+  final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
 
-  const CustomerPoliciesSection({super.key, required this.policies, required this.onScanPressed});
+  const CustomerPoliciesSection({
+    super.key,
+    required this.policies,
+    required this.onScanPressed,
+    required this.onEditCoverage,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -190,9 +198,9 @@ class CustomerPoliciesSection extends StatelessWidget {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _PolicyStatusGroup(title: '有效保單', policies: activePolicies),
+          _PolicyStatusGroup(title: '有效保單', policies: activePolicies, onEditCoverage: onEditCoverage),
           const SizedBox(height: 12),
-          _PolicyStatusGroup(title: '已失效保單', policies: lapsedPolicies),
+          _PolicyStatusGroup(title: '已失效保單', policies: lapsedPolicies, onEditCoverage: onEditCoverage),
         ],
       );
     }
@@ -214,8 +222,9 @@ class CustomerPoliciesSection extends StatelessWidget {
 class _PolicyStatusGroup extends StatelessWidget {
   final String title;
   final List<CustomerEnrolledPolicy> policies;
+  final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
 
-  const _PolicyStatusGroup({required this.title, required this.policies});
+  const _PolicyStatusGroup({required this.title, required this.policies, required this.onEditCoverage});
 
   @override
   Widget build(BuildContext context) {
@@ -234,7 +243,7 @@ class _PolicyStatusGroup extends StatelessWidget {
         child: Text(category, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.acc)),
       ));
       for (final CustomerEnrolledPolicy policy in categoryPolicies) {
-        children.add(_PolicyRow(policy: policy));
+        children.add(_PolicyRow(policy: policy, onEditCoverage: () => onEditCoverage(policy)));
       }
     });
 
@@ -244,8 +253,9 @@ class _PolicyStatusGroup extends StatelessWidget {
 
 class _PolicyRow extends StatelessWidget {
   final CustomerEnrolledPolicy policy;
+  final VoidCallback onEditCoverage;
 
-  const _PolicyRow({required this.policy});
+  const _PolicyRow({required this.policy, required this.onEditCoverage});
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +273,12 @@ class _PolicyRow extends StatelessWidget {
     if (planOrAmount.isNotEmpty) {
       subtitleParts.add(planOrAmount);
     }
+    final int? coverageAmount = policy.coverageAmount;
+    if (coverageAmount != null) {
+      subtitleParts.add('保額 ${formatCoverageAmount(coverageAmount)}');
+    }
     subtitleParts.add('加入於 ${formatVisitRecordTime(policy.enrolledAt)}');
+    final Widget coverageButton = TextButton(onPressed: onEditCoverage, child: const Text('保額'));
 
     // 目錄找不到的商品沒辦法跳到數據戰情，改標示「目錄中找不到」
     if (!policy.isInCatalog) {
@@ -273,6 +288,7 @@ class _PolicyRow extends StatelessWidget {
         leading: const Icon(Icons.description_outlined),
         title: Text(policy.productName, style: TextStyle(color: nameColor)),
         subtitle: Text('${subtitleParts.join(' · ')}\n目錄中找不到此商品', style: TextStyle(color: colors.ink3)),
+        trailing: coverageButton,
       );
     }
     return ListTile(
@@ -281,7 +297,10 @@ class _PolicyRow extends StatelessWidget {
       leading: const Icon(Icons.description_outlined),
       title: Text(policy.productName, style: TextStyle(color: nameColor)),
       subtitle: Text(subtitleParts.join(' · ')),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [coverageButton, const Icon(Icons.chevron_right_rounded)],
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
       // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
       onTap: () => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
@@ -327,3 +346,7 @@ class CustomerVisitRecordsSection extends StatelessWidget {
     );
   }
 }
+
+/// 保額文字：1000000 → 「1,000,000」
+String formatCoverageAmount(int amount) => NumberFormat('#,###').format(amount);
+
