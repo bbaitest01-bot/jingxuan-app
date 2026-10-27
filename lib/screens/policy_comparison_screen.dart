@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/benefit_item_service.dart';
 import '../services/benefit_plan_service.dart';
 import '../services/insurance_product_service.dart';
+import '../widgets/benefit_item_comparison.dart';
 import '../widgets/benefit_plan_comparison.dart';
+import '../widgets/comparison_table_rows.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/enroll_product_dialog.dart';
 import '../widgets/insurance_product_card.dart';
@@ -11,8 +14,10 @@ import '../theme/app_theme.dart';
 class _ComparisonRow {
   final String label;
   final String Function(InsuranceProduct product) valueOf;
+  // 給付項目的列：點格子可以看條款原文；其他列是 null
+  final InsuranceBenefitItem? Function(InsuranceProduct product)? itemOf;
 
-  const _ComparisonRow(this.label, this.valueOf);
+  const _ComparisonRow(this.label, this.valueOf, {this.itemOf});
 }
 
 /// 比較表的一個區塊（例如「基本資料」）
@@ -26,6 +31,7 @@ class _ComparisonSection {
 /// 保單比較：2～8 款真實商品並排比較；只有 1 款時當作「商品資料」頁
 ///
 /// 理賠限額（實支實付）讀 insurance_product_benefit_plans（D14，全景地圖 4-K），每欄可切換計畫；
+/// 定額型商品的給付項目讀 insurance_product_benefit_items（第 5 階段 D 第 2 層），點格子看條款原文；
 /// 「全真醫療單據試算」「組合包聯合精算」按鈕保留但先停用，不用假數字計算（全景地圖 4-H ⑪）。
 class PolicyComparisonScreen extends StatefulWidget {
   final List<InsuranceProduct> initialProducts;
@@ -52,12 +58,30 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   // 每款商品的實支實付計畫，以及目前選的是第幾個（沒有限額表的商品不在裡面）
   Map<String, List<InsuranceBenefitPlan>> _plansByProduct = {};
   final Map<String, int> _selectedPlanIndex = {};
+  // 每款商品的給付項目（定額型：住院日額、手術、癌症、重大傷病、長照、意外）
+  Map<String, List<InsuranceBenefitItem>> _itemsByProduct = {};
 
   @override
   void initState() {
     super.initState();
     _products = List.of(widget.initialProducts);
     _loadBenefitPlans();
+    _loadBenefitItems();
+  }
+
+  Future<void> _loadBenefitItems() async {
+    final List<String> productIds = [];
+    for (final InsuranceProduct product in _products) {
+      productIds.add(product.id);
+    }
+    final Map<String, List<InsuranceBenefitItem>> itemsByProduct =
+        await BenefitItemService().fetchItemsForProducts(productIds);
+    if (!mounted) return;
+    setState(() => _itemsByProduct = itemsByProduct);
+  }
+
+  List<InsuranceBenefitItem> _itemsOf(InsuranceProduct product) {
+    return _itemsByProduct[product.id] ?? const [];
   }
 
   Future<void> _loadBenefitPlans() async {
@@ -81,13 +105,41 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     return plans[index];
   }
 
-  /// 基本資料＋理賠限額兩個區塊；限額的值跟著每欄選的計畫變
+  /// 基本資料＋理賠限額＋給付項目；限額的值跟著每欄選的計畫變。
+  /// 比較的商品都沒有限額表（或都沒有給付項目）時，那一區不顯示
   List<_ComparisonSection> _allSections() {
-    final List<_ComparisonRow> benefitRows = [];
-    for (final String label in benefitRowLabels) {
-      benefitRows.add(_ComparisonRow(label, (product) => benefitRowText(label, _selectedPlanOf(product))));
+    final List<_ComparisonSection> sections = [_basicSection];
+
+    bool anyProductHasPlans = false;
+    final List<List<InsuranceBenefitItem>> itemLists = [];
+    for (final InsuranceProduct product in _products) {
+      if ((_plansByProduct[product.id] ?? const []).isNotEmpty) {
+        anyProductHasPlans = true;
+      }
+      itemLists.add(_itemsOf(product));
     }
-    return [_basicSection, _ComparisonSection('理賠限額（實支實付）', benefitRows)];
+
+    if (anyProductHasPlans) {
+      final List<_ComparisonRow> benefitRows = [];
+      for (final String label in benefitRowLabels) {
+        benefitRows.add(_ComparisonRow(label, (product) => benefitRowText(label, _selectedPlanOf(product))));
+      }
+      sections.add(_ComparisonSection('理賠限額（實支實付）', benefitRows));
+    }
+
+    final List<String> itemKeys = BenefitItemService.orderedItemKeys(itemLists);
+    if (itemKeys.isNotEmpty) {
+      final List<_ComparisonRow> itemRows = [];
+      for (final String itemKey in itemKeys) {
+        itemRows.add(_ComparisonRow(
+          itemKey,
+          (product) => benefitItemCellText(_itemsOf(product), itemKey),
+          itemOf: (product) => BenefitItemService.findItem(_itemsOf(product), itemKey),
+        ));
+      }
+      sections.add(_ComparisonSection('給付項目（條款）', itemRows));
+    }
+    return sections;
   }
 
   void _removeProduct(int index) {
@@ -207,6 +259,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             ),
             const SizedBox(height: 12),
             Text(benefitAmountNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+            const SizedBox(height: 4),
+            Text(benefitItemNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
           ],
         ),
       ),
@@ -241,9 +295,14 @@ class _ProductComparisonColumn extends StatelessWidget {
     final AppColors colors = context.appColors;
     final List<Widget> sectionWidgets = [];
     for (final _ComparisonSection section in sections) {
-      sectionWidgets.add(_SectionHeader(title: section.title));
+      sectionWidgets.add(ComparisonSectionHeader(title: section.title));
       for (final _ComparisonRow row in section.rows) {
-        sectionWidgets.add(_SpecRow(label: row.label, value: row.valueOf(product)));
+        VoidCallback? onTap;
+        final InsuranceBenefitItem? item = row.itemOf?.call(product);
+        if (item != null) {
+          onTap = () => showBenefitItemSource(context, product, item);
+        }
+        sectionWidgets.add(ComparisonSpecRow(label: row.label, value: row.valueOf(product), onTap: onTap));
       }
     }
 
@@ -373,58 +432,6 @@ class _ColumnActions extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               shape: buttonShape,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: colors.surface2,
-      child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
-    );
-  }
-}
-
-class _SpecRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _SpecRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    // 沒有資料（—）、不是實支實付、不分項目的格子用淡色，和真實數字區分
-    Color valueColor = colors.ink;
-    FontWeight valueWeight = FontWeight.bold;
-    final bool isPlaceholder = value.startsWith('—') || value == notReimbursementText || value == notItemizedText;
-    if (isPlaceholder) {
-      valueColor = colors.ink3;
-      valueWeight = FontWeight.normal;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.line, width: 0.5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 92, child: Text(label, style: TextStyle(fontSize: 11, color: colors.ink3))),
-          Expanded(
-            child: Text(value, style: TextStyle(fontSize: 11.5, fontWeight: valueWeight, color: valueColor)),
           ),
         ],
       ),
