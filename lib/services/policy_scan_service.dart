@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'benefit_plan_service.dart';
+import 'coverage_check_service.dart';
 import 'customer_policy_service.dart';
 import 'insurance_product_service.dart';
 
@@ -404,11 +406,22 @@ class PolicyScanService {
     required ScannedPolicy policy,
     required String status,
   }) async {
+    // 保單健檢（4-L）：實支實付商品先讀限額表，存入時把「計畫三」對到計畫
+    final List<String> matchedProductIds = [];
+    for (final ScannedPolicyItem item in policy.items) {
+      final InsuranceProduct? product = item.matchedProduct;
+      if (product != null) {
+        matchedProductIds.add(product.id);
+      }
+    }
+    final Map<String, List<InsuranceBenefitPlan>> plansByProduct =
+        await BenefitPlanService().fetchPlansForProducts(matchedProductIds);
     final List<Map<String, dynamic>> rows = buildPolicyRows(
       customerId: customerId,
       policy: policy,
       status: status,
       policyGroupId: generateUuid(),
+      plansByProduct: plansByProduct,
     );
     if (rows.isEmpty) {
       throw const PolicyScanException('沒有可以存入的商品');
@@ -428,6 +441,7 @@ class PolicyScanService {
     required ScannedPolicy policy,
     required String status,
     required String policyGroupId,
+    Map<String, List<InsuranceBenefitPlan>> plansByProduct = const {},
   }) {
     final String fallbackCompanyName = companyShortNames[policy.companyCode] ?? policy.companyName ?? '未知公司';
     String? effectiveDateText;
@@ -462,6 +476,9 @@ class PolicyScanService {
         'effective_date': effectiveDateText,
         'premium': item.premium,
         'premium_currency': item.premiumCurrency,
+        // 保單健檢：「50 萬元」轉成保額；實支實付把「計畫三」對到限額表的計畫（對不到就留空，業務員之後補）
+        'coverage_amount': CoverageCheckService.parseAmount(item.planOrAmount),
+        'benefit_plan_id': CoverageCheckService.matchPlan(item.planOrAmount, plansByProduct[product?.id] ?? const [])?.id,
         'source': 'scan',
       });
     }

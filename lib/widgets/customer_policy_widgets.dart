@@ -211,6 +211,8 @@ class EnrolledPolicyTile extends StatelessWidget {
   final VoidCallback onToggleStatus;
   final VoidCallback onDelete;
   final VoidCallback onOpenProduct;
+  // 保單健檢（4-L）：編輯保障類別、保額、實支計畫；沒給就不顯示按鈕
+  final VoidCallback? onEditCoverage;
 
   const EnrolledPolicyTile({
     super.key,
@@ -218,6 +220,7 @@ class EnrolledPolicyTile extends StatelessWidget {
     required this.onToggleStatus,
     required this.onDelete,
     required this.onOpenProduct,
+    this.onEditCoverage,
   });
 
   /// 公司・險種・主約・計畫三（掃描保單才有主附約與計畫）
@@ -277,14 +280,20 @@ class EnrolledPolicyTile extends StatelessWidget {
                   Text(_companyLineText(), style: TextStyle(fontSize: 10, color: colors.ink3)),
                   if (!policy.isInCatalog)
                     Text('目錄中找不到此商品', style: TextStyle(fontSize: 10, color: colors.warn)),
-                  Text(
-                    '病房：${limitTextOrNotReady(policy.roomLimit)}｜手術：${limitTextOrNotReady(policy.surgeryLimit)}｜雜費：${limitTextOrNotReady(policy.miscLimit)}',
-                    style: TextStyle(fontSize: 10, color: colors.ink3),
-                  ),
                 ],
               ),
             ),
           ),
+          if (onEditCoverage != null)
+            TextButton(
+              onPressed: onEditCoverage,
+              style: TextButton.styleFrom(
+                foregroundColor: colors.acc,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 28),
+              ),
+              child: const Text('保額', style: TextStyle(fontSize: 11)),
+            ),
           TextButton(
             onPressed: onToggleStatus,
             style: TextButton.styleFrom(
@@ -365,6 +374,7 @@ class EnrolledPolicyList extends StatelessWidget {
   final ValueChanged<CustomerEnrolledPolicy> onToggleStatus;
   final ValueChanged<CustomerEnrolledPolicy> onOpenProduct;
   final ValueChanged<CustomerEnrolledPolicy> onDelete;
+  final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
 
   const EnrolledPolicyList({
     super.key,
@@ -373,6 +383,7 @@ class EnrolledPolicyList extends StatelessWidget {
     required this.onToggleStatus,
     required this.onOpenProduct,
     required this.onDelete,
+    required this.onEditCoverage,
   });
 
   @override
@@ -396,6 +407,7 @@ class EnrolledPolicyList extends StatelessWidget {
         onToggleStatus: () => onToggleStatus(policy),
         onOpenProduct: () => onOpenProduct(policy),
         onDelete: () => onDelete(policy),
+        onEditCoverage: () => onEditCoverage(policy),
       ));
     }
     return Column(children: tiles);

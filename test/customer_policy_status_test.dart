@@ -94,7 +94,7 @@ void main() {
           buildPolicy(id: 'a', productName: '國泰人壽測試醫療終身保險', category: '醫療'),
           buildPolicy(id: 'b', productName: '富邦人壽測試壽險', category: '壽險'),
           buildPolicy(id: 'c', productName: '南山人壽測試癌症保險', category: '癌症', status: 'lapsed'),
-        ], onScanPressed: () {}),
+        ], onScanPressed: () {}, onEditCoverage: (_) {}),
       );
 
       expect(find.text('保單（3）'), findsOneWidget);
@@ -108,7 +108,7 @@ void main() {
 
     testWidgets('沒有保單時顯示提示', (WidgetTester tester) async {
       bool scanPressed = false;
-      await pumpWidgetInPage(tester, CustomerPoliciesSection(policies: const [], onScanPressed: () => scanPressed = true));
+      await pumpWidgetInPage(tester, CustomerPoliciesSection(policies: const [], onScanPressed: () => scanPressed = true, onEditCoverage: (_) {}));
       expect(find.text('保單（0）'), findsOneWidget);
       expect(find.textContaining('加到客戶'), findsOneWidget);
       // 右上角「掃描保單」（第 5 階段 E）

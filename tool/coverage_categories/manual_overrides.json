@@ -1,0 +1,21 @@
+[
+  {"product_name": "富邦人壽增守護健康保險附約", "coverage_category": "surgery", "reason": "條款給付項目只有手術醫療、特定處置（關鍵字誤判成癌症）"},
+  {"product_name": "富邦人壽金安守護終身健康保險", "coverage_category": "surgery", "reason": "條款給付項目：手術醫療、特定處置、身故（關鍵字誤判成癌症）"},
+  {"product_name": "富邦人壽樂齡金安定期健康保險", "coverage_category": "daily_hospital", "reason": "條款給付項目：住院醫療（日額）、加護病房、手術"},
+  {"product_name": "富邦人壽喜轉健活終身健康保險", "coverage_category": "daily_hospital", "reason": "條款給付項目：住院醫療（日額）、出院療養、手術"},
+  {"product_name": "南山人壽長青安溢醫療定期健康保險", "coverage_category": "daily_hospital", "reason": "條款給付項目：住院日額保險金為主（關鍵字誤判成癌症）"},
+  {"product_name": "南山人壽溢心守護2醫療保險", "coverage_category": "daily_hospital", "reason": "條款給付項目：住院日額、加護病房、手術、處置"},
+  {"product_name": "南山人壽Hold助糖定期醫療保險", "coverage_category": "daily_hospital", "reason": "條款給付項目：住院日額、手術、門診"},
+  {"product_name": "富邦人壽憶心相守終身健康保險", "coverage_category": "long_term_care", "reason": "條款給付項目：輕度、中重度失智保險金"},
+  {"product_name": "南山人壽優樂康護短期照顧終身健康保險", "coverage_category": "long_term_care", "reason": "條款：短期照顧，依單位日額給付"},
+  {"product_name": "富邦人壽金醫靠健康保險附約", "coverage_category": "none", "reason": "條款給付項目只有醫材補助，不屬八大保障"},
+  {"product_name": "富邦人壽心動守護定期健康保險", "coverage_category": "none", "reason": "條款給付項目：醫材補助、無理賠回饋，不屬八大保障"},
+  {"product_name": "富邦人壽換然醫新定期健康保險", "coverage_category": "none", "reason": "條款給付項目：眼睛、耳朵、關節醫療，不屬八大保障"},
+  {"product_name": "南山人壽好安定住院暨在宅急症照護一年期健康保險", "coverage_category": "none", "reason": "條款給付項目：住院關懷、在宅急症照護（每次一筆），不屬八大保障"},
+  {"product_name": "富邦人壽全鑫如意保險", "coverage_category": "accident", "reason": "條款給付項目：意外傷害身故、失能為主（名稱看不出險種）"},
+  {"product_name": "富邦人壽樂齡滿溢保險", "coverage_category": "accident", "reason": "條款給付項目：意外骨折、意外身故、失能"},
+  {"product_name": "南山人壽青春動起來保險", "coverage_category": "accident", "reason": "條款給付項目：意外身故、失能、骨折"},
+  {"product_name": "南山人壽大樂選利率變動型還本保險(定期給付型)", "coverage_category": "life", "reason": "條款給付項目：生存還本、身故、完全失能（以身故保障計）"},
+  {"product_name": "南山人壽溢帆風順2保險", "coverage_category": "life", "reason": "條款給付項目：身故、完全失能，另含意外保障（以身故保障計）"},
+  {"product_name": "南山人壽增享心安保險", "coverage_category": "cancer", "reason": "條款給付項目：初期、輕度、重度癌症保險金"}
+]
