@@ -105,7 +105,7 @@ void main() {
   });
 
   group('保單比較畫面', () {
-    testWidgets('限額欄位顯示「比價欄位建置中」，試算按鈕按下只提示建置中', (WidgetTester tester) async {
+    testWidgets('沒有限額表的商品顯示「不是實支實付」，下方說明不是保費；試算按鈕按下只提示建置中', (WidgetTester tester) async {
       await pumpScreen(
         tester,
         PolicyComparisonScreen(initialProducts: [
@@ -114,7 +114,11 @@ void main() {
         ]),
       );
 
-      expect(find.text('比價欄位建置中'), findsNWidgets(10));
+      // D14：測試商品沒有限額表；舊的「比價欄位建置中」、2-2-7、收據兩列已拿掉
+      expect(find.text('不是實支實付（沒有限額表）'), findsNWidgets(2));
+      expect(find.text('比價欄位建置中'), findsNothing);
+      expect(find.text('健保 2-2-7 限制'), findsNothing);
+      expect(find.textContaining('不是保費'), findsOneWidget);
       expect(find.text('國壽字第1110090697號'), findsNWidgets(2));
 
       await tester.tap(find.text('全真醫療單據試算（建置中）').first);
@@ -148,11 +152,11 @@ void main() {
       await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
 
-      // 公司、代碼、險種不同 → 顯示；文號相同、限額全是建置中 → 隱藏
+      // 公司、代碼、險種不同 → 顯示；文號相同、兩款都沒有限額表 → 隱藏
       expect(find.text('保險公司'), findsNWidgets(2));
       expect(find.text('險種'), findsNWidgets(2));
       expect(find.text('核准文號'), findsNothing);
-      expect(find.text('比價欄位建置中'), findsNothing);
+      expect(find.text('不是實支實付（沒有限額表）'), findsNothing);
     });
   });
 

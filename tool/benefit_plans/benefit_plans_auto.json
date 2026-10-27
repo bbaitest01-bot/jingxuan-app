@@ -1,0 +1,518 @@
+[
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽新iHealth一年期住院醫療健康保險（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/CWC.pdf",
+    "plans": [
+      {
+        "plan_code": "7萬",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 8,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 70000,
+        "outpatient_surgery_limit": 15000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "14萬",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 8,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 140000,
+        "outpatient_surgery_limit": 20000,
+        "hospital_expense_includes_surgery": true
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽倍愛醫靠住院醫療定期保險（外溢型）（A型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FG3.pdf",
+    "plans": [
+      {
+        "plan_code": "10萬",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 10,
+        "daily_hospital_benefit": 1000,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "outpatient_surgery_limit": 20000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "20萬",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 10,
+        "daily_hospital_benefit": 2000,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "outpatient_surgery_limit": 30000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "30萬",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 10,
+        "daily_hospital_benefit": 3000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "outpatient_surgery_limit": 40000,
+        "hospital_expense_includes_surgery": true
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽倍愛醫靠住院醫療定期保險（外溢型）（B型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FG4.pdf",
+    "plans": [
+      {
+        "plan_code": "10萬",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 11,
+        "daily_hospital_benefit": 1000,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "outpatient_surgery_limit": 20000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "20萬",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 11,
+        "daily_hospital_benefit": 2000,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "outpatient_surgery_limit": 30000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "30萬",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 11,
+        "daily_hospital_benefit": 3000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "outpatient_surgery_limit": 40000,
+        "hospital_expense_includes_surgery": true
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽點實成金住院醫療終身保險（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FPAFPC.pdf",
+    "plans": [
+      {
+        "plan_code": "10萬",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 13,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "daily_hospital_benefit": 1000,
+        "outpatient_surgery_limit": 30000,
+        "hospital_expense_includes_surgery": true,
+        "note": "住院時實支或日額擇優給付"
+      },
+      {
+        "plan_code": "20萬",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 13,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "daily_hospital_benefit": 2000,
+        "outpatient_surgery_limit": 40000,
+        "hospital_expense_includes_surgery": true,
+        "note": "住院時實支或日額擇優給付"
+      },
+      {
+        "plan_code": "30萬",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 13,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "daily_hospital_benefit": 3000,
+        "outpatient_surgery_limit": 50000,
+        "hospital_expense_includes_surgery": true,
+        "note": "住院時實支或日額擇優給付"
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽新實全心意PLUS住院醫療健康保險附約（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/CV4.pdf",
+    "plans": [
+      {
+        "plan_code": "M10",
+        "plan_order": 1,
+        "benefit_type": "deductible",
+        "source_page": 8,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "daily_hospital_benefit": 1000,
+        "outpatient_surgery_limit": 15000,
+        "outpatient_surgery_deductible": 1000,
+        "annual_total_limit": 500000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "M20",
+        "plan_order": 2,
+        "benefit_type": "deductible",
+        "source_page": 8,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "daily_hospital_benefit": 2000,
+        "outpatient_surgery_limit": 20000,
+        "outpatient_surgery_deductible": 1000,
+        "annual_total_limit": 750000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "M30",
+        "plan_order": 3,
+        "benefit_type": "deductible",
+        "source_page": 8,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "daily_hospital_benefit": 3000,
+        "outpatient_surgery_limit": 25000,
+        "outpatient_surgery_deductible": 1000,
+        "annual_total_limit": 1000000,
+        "hospital_expense_includes_surgery": true
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽超實在自負額住院醫療健康保險附約（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/WV4.pdf",
+    "plans": [
+      {
+        "plan_code": "計劃別1",
+        "plan_order": 1,
+        "benefit_type": "deductible",
+        "source_page": 7,
+        "room_daily_limit": 1000,
+        "room_deductible": 1000,
+        "hospital_expense_limit": 100000,
+        "hospital_expense_deductible": 100000,
+        "outpatient_surgery_limit": 10000,
+        "outpatient_surgery_deductible": 10000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "計劃別2",
+        "plan_order": 2,
+        "benefit_type": "deductible",
+        "source_page": 7,
+        "room_daily_limit": 2000,
+        "room_deductible": 1000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_deductible": 100000,
+        "outpatient_surgery_limit": 20000,
+        "outpatient_surgery_deductible": 10000,
+        "hospital_expense_includes_surgery": true
+      },
+      {
+        "plan_code": "計劃別3",
+        "plan_order": 3,
+        "benefit_type": "deductible",
+        "source_page": 7,
+        "room_daily_limit": 1000,
+        "room_deductible": 2000,
+        "hospital_expense_limit": 100000,
+        "hospital_expense_deductible": 200000,
+        "outpatient_surgery_limit": 20000,
+        "outpatient_surgery_deductible": 10000,
+        "hospital_expense_includes_surgery": true
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽佳實在一年期住院醫療健康保險附約",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12488/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E4%BD%B3%E5%AF%A6%E5%9C%A8%E4%B8%80%E5%B9%B4%E6%9C%9F%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf",
+    "plans": [
+      {
+        "plan_code": "計劃1",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 8,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "per_admission_total_limit": 150000,
+        "surgery_limit": 40000,
+        "outpatient_surgery_limit": 15000,
+        "daily_hospital_benefit": 1000,
+        "annual_total_limit": 750000
+      },
+      {
+        "plan_code": "計劃2",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 8,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "per_admission_total_limit": 300000,
+        "surgery_limit": 60000,
+        "outpatient_surgery_limit": 20000,
+        "daily_hospital_benefit": 2000,
+        "annual_total_limit": 1000000
+      },
+      {
+        "plan_code": "計劃3",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 8,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "per_admission_total_limit": 450000,
+        "surgery_limit": 80000,
+        "outpatient_surgery_limit": 25000,
+        "daily_hospital_benefit": 3000,
+        "annual_total_limit": 1500000
+      }
+    ],
+    "warnings": [
+      "p8 沒有對到比較項目：特定處置費用保險金限額"
+    ]
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽全鑫一年期住院醫療健康保險附約",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12506/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E5%85%A8%E9%91%AB%E4%B8%80%E5%B9%B4%E6%9C%9F%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf",
+    "plans": [
+      {
+        "plan_code": "計劃1",
+        "plan_order": 1,
+        "benefit_type": "deductible",
+        "source_page": 8,
+        "room_deductible": 1000,
+        "room_daily_limit": 3000,
+        "hospital_expense_deductible": 100000,
+        "hospital_expense_limit": 300000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_deductible": 15000,
+        "outpatient_surgery_limit": 25000,
+        "annual_total_limit": 750000
+      },
+      {
+        "plan_code": "計劃2",
+        "plan_order": 2,
+        "benefit_type": "deductible",
+        "source_page": 8,
+        "room_deductible": 2000,
+        "room_daily_limit": 3000,
+        "hospital_expense_deductible": 200000,
+        "hospital_expense_limit": 300000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_deductible": 20000,
+        "outpatient_surgery_limit": 25000,
+        "annual_total_limit": 500000
+      }
+    ],
+    "warnings": [
+      "p8 沒有對到比較項目：特定處置費用保險金自負額",
+      "p8 沒有對到比較項目：特定處置費用保險金限額"
+    ]
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽超實踐幸福自負額住院醫療健康保險附約",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/1HSD.pdf",
+    "plans": [
+      {
+        "plan_code": "A型",
+        "plan_order": 1,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 500,
+        "hospital_expense_deductible": 25000,
+        "outpatient_surgery_deductible": 25000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 40000
+      },
+      {
+        "plan_code": "B型",
+        "plan_order": 2,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 1000,
+        "hospital_expense_deductible": 50000,
+        "outpatient_surgery_deductible": 50000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 65000
+      },
+      {
+        "plan_code": "C型",
+        "plan_order": 3,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 1500,
+        "hospital_expense_deductible": 75000,
+        "outpatient_surgery_deductible": 75000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 90000
+      },
+      {
+        "plan_code": "D型",
+        "plan_order": 4,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 2000,
+        "hospital_expense_deductible": 100000,
+        "outpatient_surgery_deductible": 100000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 115000
+      },
+      {
+        "plan_code": "E型",
+        "plan_order": 5,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 1000,
+        "hospital_expense_deductible": 100000,
+        "outpatient_surgery_deductible": 15000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 30000
+      },
+      {
+        "plan_code": "F型",
+        "plan_order": 6,
+        "benefit_type": "deductible",
+        "source_page": 12,
+        "room_deductible": 2000,
+        "hospital_expense_deductible": 150000,
+        "outpatient_surgery_deductible": 15000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 30000
+      }
+    ],
+    "warnings": []
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實健溢百住院醫療終身保險",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/WEHS.pdf",
+    "plans": [
+      {
+        "plan_code": "計劃10",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 17,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 20000,
+        "lifetime_total_limit": 2500000,
+        "note": "實支實付前為定額給付；以下為實支實付後的限額"
+      },
+      {
+        "plan_code": "計劃20",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 17,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 40000,
+        "lifetime_total_limit": 5000000,
+        "note": "實支實付前為定額給付；以下為實支實付後的限額"
+      },
+      {
+        "plan_code": "計劃30",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 17,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 60000,
+        "lifetime_total_limit": 7500000,
+        "note": "實支實付前為定額給付；以下為實支實付後的限額"
+      }
+    ],
+    "warnings": [
+      "p17 沒有對到比較項目：住院前後門診費用保險金限額",
+      "p17 沒有對到比較項目：住院費用補償金額"
+    ]
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽實在滿溢住院醫療終身健康保險",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12603/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E5%AF%A6%E5%9C%A8%E6%BB%BF%E6%BA%A2%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E7%B5%82%E8%BA%AB%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA.pdf",
+    "plans": [
+      {
+        "plan_code": "計劃1",
+        "plan_order": 1,
+        "benefit_type": "itemized",
+        "source_page": 12,
+        "daily_hospital_benefit": 1000,
+        "room_daily_limit": 1000,
+        "hospital_expense_limit": 100000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 20000,
+        "lifetime_total_limit": 2500000,
+        "note": "實支實付保險金啟動日前為定額給付；以下為啟動日起的實支實付限額"
+      },
+      {
+        "plan_code": "計劃2",
+        "plan_order": 2,
+        "benefit_type": "itemized",
+        "source_page": 12,
+        "daily_hospital_benefit": 2000,
+        "room_daily_limit": 2000,
+        "hospital_expense_limit": 200000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 30000,
+        "lifetime_total_limit": 5000000,
+        "note": "實支實付保險金啟動日前為定額給付；以下為啟動日起的實支實付限額"
+      },
+      {
+        "plan_code": "計劃3",
+        "plan_order": 3,
+        "benefit_type": "itemized",
+        "source_page": 12,
+        "daily_hospital_benefit": 3000,
+        "room_daily_limit": 3000,
+        "hospital_expense_limit": 300000,
+        "hospital_expense_includes_surgery": true,
+        "outpatient_surgery_limit": 40000,
+        "lifetime_total_limit": 7500000,
+        "note": "實支實付保險金啟動日前為定額給付；以下為啟動日起的實支實付限額"
+      }
+    ],
+    "warnings": []
+  }
+]

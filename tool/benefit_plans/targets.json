@@ -1,0 +1,107 @@
+[
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽新iHealth一年期住院醫療健康保險（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/CWC.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    }
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽倍愛醫靠住院醫療定期保險（外溢型）（A型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FG3.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    }
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽倍愛醫靠住院醫療定期保險（外溢型）（B型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FG4.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    }
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽點實成金住院醫療終身保險（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/life-health-annuity/FPAFPC.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    },
+    "note": "住院時實支或日額擇優給付"
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽新實全心意PLUS住院醫療健康保險附約（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/CV4.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    }
+  },
+  {
+    "company_code": "cathay",
+    "product_name": "國泰人壽超實在自負額住院醫療健康保險附約（外溢型）",
+    "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/WV4.pdf",
+    "mode": "auto",
+    "overrides": {
+      "hospital_expense_includes_surgery": true
+    }
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽佳實在一年期住院醫療健康保險附約",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12488/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E4%BD%B3%E5%AF%A6%E5%9C%A8%E4%B8%80%E5%B9%B4%E6%9C%9F%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf",
+    "mode": "auto"
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽全鑫一年期住院醫療健康保險附約",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12506/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E5%85%A8%E9%91%AB%E4%B8%80%E5%B9%B4%E6%9C%9F%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf",
+    "mode": "auto"
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽超實踐幸福自負額住院醫療健康保險附約",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/1HSD.pdf",
+    "mode": "auto"
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實健溢百住院醫療終身保險",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/WEHS.pdf",
+    "mode": "auto",
+    "note": "實支實付前為定額給付；以下為實支實付後的限額"
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽鑫安實在住院醫療終身健康保險",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12786/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E9%91%AB%E5%AE%89%E5%AF%A6%E5%9C%A8%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E7%B5%82%E8%BA%AB%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA.pdf",
+    "mode": "manual"
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽實在滿溢住院醫療終身健康保險",
+    "clause_url": "https://www.fubon.com/life/api/v1/files/12603/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E5%AF%A6%E5%9C%A8%E6%BB%BF%E6%BA%A2%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E7%B5%82%E8%BA%AB%E5%81%A5%E5%BA%B7%E4%BF%9D%E9%9A%AA.pdf",
+    "mode": "auto",
+    "note": "實支實付保險金啟動日前為定額給付；以下為啟動日起的實支實付限額"
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實踐幸福住院醫療健康保險附約",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/1HS.pdf",
+    "mode": "manual"
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實現幸福部分負擔住院醫療健康保險附約",
+    "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/1HSCO.pdf",
+    "mode": "manual"
+  }
+]
