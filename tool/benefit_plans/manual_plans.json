@@ -1,0 +1,28 @@
+[
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實踐幸福住院醫療健康保險附約",
+    "source": "條款第 5～6 條條文（2026-10-27 Claude 依官方條款整理）",
+    "plans": [
+      {"plan_code": "A型", "plan_order": 1, "benefit_type": "itemized", "room_daily_limit": 3000, "hospital_expense_limit": 200000, "hospital_expense_includes_surgery": true, "outpatient_surgery_limit": 30000, "source_page": 5},
+      {"plan_code": "B型", "plan_order": 2, "benefit_type": "itemized", "room_daily_limit": 2000, "hospital_expense_limit": 150000, "hospital_expense_includes_surgery": true, "outpatient_surgery_limit": 15000, "source_page": 5},
+      {"plan_code": "C型", "plan_order": 3, "benefit_type": "itemized", "room_daily_limit": 1000, "hospital_expense_limit": 100000, "hospital_expense_includes_surgery": true, "outpatient_surgery_limit": 15000, "source_page": 5}
+    ]
+  },
+  {
+    "company_code": "nanshan",
+    "product_name": "南山人壽實現幸福部分負擔住院醫療健康保險附約",
+    "source": "條款第 5～6 條條文與附表二（2026-10-27 Claude 依官方條款整理）",
+    "plans": [
+      {"plan_code": "各型別", "plan_order": 1, "benefit_type": "itemized", "room_daily_limit": 3000, "hospital_expense_limit": 300000, "hospital_expense_includes_surgery": true, "outpatient_surgery_limit": 30000, "note": "限額再乘以給付比例：I 型 80%、II 型 70%、III 型 60%（客戶自行負擔 20%～40%）", "source_page": 5}
+    ]
+  },
+  {
+    "company_code": "fubon",
+    "product_name": "富邦人壽鑫安實在住院醫療終身健康保險",
+    "source": "條款第 2～3 頁（2026-10-27 Claude 依官方條款整理）",
+    "plans": [
+      {"plan_code": "依投保單位", "plan_order": 1, "benefit_type": "total", "note": "不分項目，醫療費用都從累計總限額扣；每單位總限額為標準體躉繳保險費的一定比例（第 1 保單年度 90%，之後逐年提高），金額依投保年齡而不同", "source_page": 2}
+    ]
+  }
+]

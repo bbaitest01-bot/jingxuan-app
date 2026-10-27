@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/benefit_plan_service.dart';
 import '../services/insurance_product_service.dart';
+import '../widgets/benefit_plan_comparison.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/enroll_product_dialog.dart';
 import '../widgets/insurance_product_card.dart';
@@ -21,12 +23,9 @@ class _ComparisonSection {
   const _ComparisonSection(this.title, this.rows);
 }
 
-/// 第二層比價資料還沒做好時，限額欄位一律顯示這段文字（2026-10-23 沛沛選 B）
-const String _notReadyText = '比價欄位建置中';
-
 /// 保單比較：2～8 款真實商品並排比較；只有 1 款時當作「商品資料」頁
 ///
-/// 理賠限額（病房、手術、雜費、2-2-7、收據）是第二層比價資料，目前顯示「建置中」；
+/// 理賠限額（實支實付）讀 insurance_product_benefit_plans（D14，全景地圖 4-K），每欄可切換計畫；
 /// 「全真醫療單據試算」「組合包聯合精算」按鈕保留但先停用，不用假數字計算（全景地圖 4-H ⑪）。
 class PolicyComparisonScreen extends StatefulWidget {
   final List<InsuranceProduct> initialProducts;
@@ -38,8 +37,7 @@ class PolicyComparisonScreen extends StatefulWidget {
 }
 
 class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
-  static final List<_ComparisonSection> _sections = [
-    _ComparisonSection('基本資料', [
+  static final _ComparisonSection _basicSection = _ComparisonSection('基本資料', [
       _ComparisonRow('保險公司', (product) => product.companyName),
       _ComparisonRow('商品代碼', (product) => product.displayCode),
       _ComparisonRow('險種', (product) => product.insuranceTypeLabel),
@@ -47,23 +45,49 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       _ComparisonRow('官網分類', (product) => product.sourceCategory),
       _ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
       _ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
-    ]),
-    _ComparisonSection('理賠限額與條款細節', [
-      _ComparisonRow('病房費用', (product) => _notReadyText),
-      _ComparisonRow('住院／門診手術', (product) => _notReadyText),
-      _ComparisonRow('醫療雜費', (product) => _notReadyText),
-      _ComparisonRow('健保 2-2-7 限制', (product) => _notReadyText),
-      _ComparisonRow('收據規定', (product) => _notReadyText),
-    ]),
-  ];
+    ]);
 
   late final List<InsuranceProduct> _products;
   bool _onlyShowDifferences = false;
+  // 每款商品的實支實付計畫，以及目前選的是第幾個（沒有限額表的商品不在裡面）
+  Map<String, List<InsuranceBenefitPlan>> _plansByProduct = {};
+  final Map<String, int> _selectedPlanIndex = {};
 
   @override
   void initState() {
     super.initState();
     _products = List.of(widget.initialProducts);
+    _loadBenefitPlans();
+  }
+
+  Future<void> _loadBenefitPlans() async {
+    final List<String> productIds = [];
+    for (final InsuranceProduct product in _products) {
+      productIds.add(product.id);
+    }
+    final Map<String, List<InsuranceBenefitPlan>> plansByProduct =
+        await BenefitPlanService().fetchPlansForProducts(productIds);
+    if (!mounted) return;
+    setState(() => _plansByProduct = plansByProduct);
+  }
+
+  /// 這款商品目前選的計畫；沒有限額表回傳 null
+  InsuranceBenefitPlan? _selectedPlanOf(InsuranceProduct product) {
+    final List<InsuranceBenefitPlan> plans = _plansByProduct[product.id] ?? const [];
+    if (plans.isEmpty) {
+      return null;
+    }
+    final int index = (_selectedPlanIndex[product.id] ?? 0).clamp(0, plans.length - 1);
+    return plans[index];
+  }
+
+  /// 基本資料＋理賠限額兩個區塊；限額的值跟著每欄選的計畫變
+  List<_ComparisonSection> _allSections() {
+    final List<_ComparisonRow> benefitRows = [];
+    for (final String label in benefitRowLabels) {
+      benefitRows.add(_ComparisonRow(label, (product) => benefitRowText(label, _selectedPlanOf(product))));
+    }
+    return [_basicSection, _ComparisonSection('理賠限額（實支實付）', benefitRows)];
   }
 
   void _removeProduct(int index) {
@@ -95,7 +119,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   /// 依「只看差異」篩過後要顯示的區塊（整區都沒有差異就整區隱藏）
   List<_ComparisonSection> _visibleSections() {
     final List<_ComparisonSection> visibleSections = [];
-    for (final _ComparisonSection section in _sections) {
+    for (final _ComparisonSection section in _allSections()) {
       final List<_ComparisonRow> visibleRows = [];
       for (final _ComparisonRow row in section.rows) {
         if (_isRowVisible(row)) {
@@ -116,9 +140,13 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
     final List<Widget> productColumns = [];
     for (int index = 0; index < _products.length; index++) {
+      final InsuranceProduct product = _products[index];
       productColumns.add(_ProductComparisonColumn(
-        product: _products[index],
+        product: product,
         sections: sections,
+        plans: _plansByProduct[product.id] ?? const [],
+        selectedPlanIndex: _selectedPlanIndex[product.id] ?? 0,
+        onPlanChanged: (int planIndex) => setState(() => _selectedPlanIndex[product.id] = planIndex),
         onRemove: () => _removeProduct(index),
         onCalculatorPressed: _showCalculatorNotReady,
         canRemove: _products.length > 1,
@@ -167,12 +195,19 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: productColumns,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: productColumns,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(benefitAmountNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+          ],
         ),
       ),
     );
@@ -183,6 +218,9 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 class _ProductComparisonColumn extends StatelessWidget {
   final InsuranceProduct product;
   final List<_ComparisonSection> sections;
+  final List<InsuranceBenefitPlan> plans;
+  final int selectedPlanIndex;
+  final ValueChanged<int> onPlanChanged;
   final VoidCallback onRemove;
   final VoidCallback onCalculatorPressed;
   final bool canRemove;
@@ -190,6 +228,9 @@ class _ProductComparisonColumn extends StatelessWidget {
   const _ProductComparisonColumn({
     required this.product,
     required this.sections,
+    required this.plans,
+    required this.selectedPlanIndex,
+    required this.onPlanChanged,
     required this.onRemove,
     required this.onCalculatorPressed,
     required this.canRemove,
@@ -219,6 +260,11 @@ class _ProductComparisonColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _ColumnHeader(product: product, onRemove: onRemove, canRemove: canRemove),
+          if (plans.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+              child: BenefitPlanSelector(plans: plans, selectedIndex: selectedPlanIndex, onChanged: onPlanChanged),
+            ),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
           _ColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
@@ -359,10 +405,11 @@ class _SpecRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    // 建置中的欄位用淡色，和真實資料區分
+    // 沒有資料（—）、不是實支實付、不分項目的格子用淡色，和真實數字區分
     Color valueColor = colors.ink;
     FontWeight valueWeight = FontWeight.bold;
-    if (value == _notReadyText) {
+    final bool isPlaceholder = value.startsWith('—') || value == notReimbursementText || value == notItemizedText;
+    if (isPlaceholder) {
       valueColor = colors.ink3;
       valueWeight = FontWeight.normal;
     }
