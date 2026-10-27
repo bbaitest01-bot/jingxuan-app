@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/insurance_product_service.dart';
 import '../theme/app_theme.dart';
@@ -11,11 +12,23 @@ Future<void> openOfficialClause(BuildContext context, InsuranceProduct product) 
     CustomToast.show(context, '這款商品官網沒有提供條款連結', ToastType.warning);
     return;
   }
-  final Uri clauseUri = Uri.parse(product.clauseUrl!);
+  final Uri clauseUri = clauseOpenUri(product.clauseUrl!, Supabase.instance.client.rest.url);
   final bool opened = await launchUrl(clauseUri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
     CustomToast.show(context, '無法開啟條款連結', ToastType.error);
   }
+}
+
+/// 要打開的條款網址：富邦的改經過我們的雲端函式 clause-pdf 轉送
+/// （iPhone 直接點富邦條款會被轉到富邦金控首頁；D5 再次發生，2026-10-28），其他公司直接開
+/// restUrl 是 Supabase 的 …/rest/v1，換成 …/functions/v1 就是雲端函式的位置
+Uri clauseOpenUri(String clauseUrl, String restUrl) {
+  final Uri originalUri = Uri.parse(clauseUrl);
+  if (originalUri.host != 'www.fubon.com') {
+    return originalUri;
+  }
+  final String functionsUrl = restUrl.replaceFirst(RegExp(r'/rest/v1/?$'), '/functions/v1');
+  return Uri.parse('$functionsUrl/clause-pdf').replace(queryParameters: {'url': clauseUrl});
 }
 
 /// 核准日期顯示成 2022/09/29；沒有日期顯示「—」
