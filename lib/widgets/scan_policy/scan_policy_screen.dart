@@ -1,4 +1,6 @@
 
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -42,6 +44,9 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   final List<Uint8List> _images = [];
   // 好幾張照片分開辨識時，目前辨識到第幾張（畫面顯示「第 1／2 張」）
   int _recognizingPhotoNumber = 0;
+  // 這一張辨識超過 10 秒：多半是 AI 每分鐘用量滿了在等，畫面說明不是當機
+  bool _isWaitingLong = false;
+  Timer? _longWaitTimer;
   // 電子保單 PDF 取出的文字（個資已遮蔽）；有文字就送文字、不送圖片（2026-10-25 B 做法）
   String? _pdfText;
   _ScanStep _step = _ScanStep.capture;
@@ -162,9 +167,14 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     // 封面這類沒有商品的頁面不算失敗；全部都沒有商品才提示
     final bool hasSeveralPhotos = _images.length > 1;
     final List<ScannedPolicy> pages = [];
-    for (int index = 0; index < _images.length; index++) {
-      if (mounted) setState(() => _recognizingPhotoNumber = index + 1);
-      pages.add(await _recognizePhoto(_images[index], allowNoItems: hasSeveralPhotos));
+    try {
+      for (int index = 0; index < _images.length; index++) {
+        if (mounted) setState(() => _recognizingPhotoNumber = index + 1);
+        _startLongWaitTimer();
+        pages.add(await _recognizePhoto(_images[index], allowNoItems: hasSeveralPhotos));
+      }
+    } finally {
+      _stopLongWaitTimer();
     }
     if (pages.length == 1) {
       return pages.first;
@@ -174,6 +184,25 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
       throw const PolicyScanException(PolicyScanService.noItemsMessage);
     }
     return merged;
+  }
+
+  void _startLongWaitTimer() {
+    _stopLongWaitTimer();
+    _longWaitTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted) setState(() => _isWaitingLong = true);
+    });
+  }
+
+  void _stopLongWaitTimer() {
+    _longWaitTimer?.cancel();
+    _longWaitTimer = null;
+    if (mounted && _isWaitingLong) setState(() => _isWaitingLong = false);
+  }
+
+  @override
+  void dispose() {
+    _longWaitTimer?.cancel();
+    super.dispose();
   }
 
   /// 一張照片：切成上下兩半辨識；切不了就整張送，並把原因記到雲端函式 Logs
@@ -232,6 +261,7 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
       item: policy.items[index],
       companyShortName: PolicyScanService.companyShortNames[policy.companyCode],
       isNewItem: false,
+      onDelete: () => _removeItem(index),
     );
     if (edited == null) return;
     setState(() => policy.items[index] = edited);
@@ -365,6 +395,9 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
       String progressText = 'AI 辨識中，通常幾秒鐘就好…';
       if (_images.length > 1 && _pdfText == null) {
         progressText = 'AI 辨識中（第 $_recognizingPhotoNumber／${_images.length} 張）…';
+      }
+      if (_isWaitingLong) {
+        progressText += '\nAI 使用量暫時滿了，會自動等一下再繼續（約 20 秒），不用重來';
       }
       return _RecognizingIndicator(colors: colors, progressText: progressText);
     }
