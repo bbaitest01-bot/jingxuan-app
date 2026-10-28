@@ -35,6 +35,15 @@ void main() {
       expect(BenefitTrialCalculator.amountText('保額 × 附表比例', input), isNull);
     });
 
+    test('外幣保單用該幣別顯示金額', () {
+      expect(BenefitTrialCalculator.currencyUnitOf('國泰人壽美利甘心利率變動型美元終身壽險'), '美元');
+      expect(BenefitTrialCalculator.currencyUnitOf('富邦人壽金好美滿外幣終身保險'), '外幣');
+      expect(BenefitTrialCalculator.currencyUnitOf('國泰人壽自由配一年定期身故及完全失能壽險'), '元');
+      const BenefitTrialInput dollarInput = BenefitTrialInput(coverageAmount: 100000, currencyUnit: '美元');
+      expect(BenefitTrialCalculator.amountText('保額 × 1', dollarInput), '10 萬美元');
+      expect(BenefitTrialCalculator.amountText('保額 × 5%', dollarInput), '5,000 美元');
+    });
+
     test('依項目算法決定要問保額、日額或單位', () {
       const List<InsuranceBenefitItem> items = [
         InsuranceBenefitItem(productId: 'p', itemOrder: 1, itemKey: '住院', itemName: '住院', formula: '日額 × 天數', sourceExcerpt: ''),

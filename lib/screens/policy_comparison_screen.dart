@@ -18,8 +18,10 @@ class _ComparisonRow {
   final String Function(InsuranceProduct product) valueOf;
   // 給付項目的列：點格子可以看條款原文；其他列是 null
   final InsuranceBenefitItem? Function(InsuranceProduct product)? itemOf;
+  // 點了要做別的事的列（例：資料來源打開官網）；其他列是 null
+  final void Function(BuildContext context, InsuranceProduct product)? onTapOf;
 
-  const _ComparisonRow(this.label, this.valueOf, {this.itemOf});
+  const _ComparisonRow(this.label, this.valueOf, {this.itemOf, this.onTapOf});
 }
 
 /// 比較表的一個區塊（例如「基本資料」）
@@ -53,6 +55,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       _ComparisonRow('官網分類', (product) => product.sourceCategory),
       _ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
       _ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
+      _ComparisonRow('資料來源', productSourceLabel, onTapOf: openProductSource),
+      _ComparisonRow('官網最後確認', (product) => formatApprovalDate(product.lastSeenAt)),
     ]);
 
   late final List<InsuranceProduct> _products;
@@ -88,8 +92,13 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     return _itemsByProduct[product.id] ?? const [];
   }
 
+  /// 這款商品的試算數字；還沒填時也要帶幣別（外幣保單的換算說明用美元…）
   BenefitTrialInput _trialInputOf(InsuranceProduct product) {
-    return _trialInputByProduct[product.id] ?? BenefitTrialInput.empty;
+    final BenefitTrialInput? input = _trialInputByProduct[product.id];
+    if (input != null) {
+      return input;
+    }
+    return BenefitTrialInput(currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName));
   }
 
   /// 「年繳保費」列：有填顯示金額，沒填顯示「—」
@@ -98,7 +107,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     if (annualPremium == null) {
       return '—';
     }
-    return BenefitTrialCalculator.formatMoney(annualPremium.toDouble());
+    return BenefitTrialCalculator.formatMoney(annualPremium.toDouble(), _trialInputOf(product).currencyUnit);
   }
 
   Future<void> _loadBenefitPlans() async {
@@ -280,6 +289,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
             Text(benefitAmountNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
             const SizedBox(height: 4),
             Text(benefitItemNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+            const SizedBox(height: 4),
+            Text(productDataSourceNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
           ],
         ),
       ),
@@ -325,6 +336,10 @@ class _ProductComparisonColumn extends StatelessWidget {
         if (item != null) {
           onTap = () => showBenefitItemSource(context, product, item);
         }
+        final void Function(BuildContext context, InsuranceProduct product)? rowTap = row.onTapOf;
+        if (rowTap != null) {
+          onTap = () => rowTap(context, product);
+        }
         sectionWidgets.add(ComparisonSpecRow(label: row.label, value: row.valueOf(product), onTap: onTap));
       }
     }
@@ -349,7 +364,11 @@ class _ProductComparisonColumn extends StatelessWidget {
             ),
           // 有給付項目（定額型）的商品才有試算
           if (benefitItems.isNotEmpty)
-            BenefitTrialPanel(fields: BenefitTrialCalculator.fieldsFor(benefitItems), onChanged: onTrialChanged),
+            BenefitTrialPanel(
+              fields: BenefitTrialCalculator.fieldsFor(benefitItems),
+              currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName),
+              onChanged: onTrialChanged,
+            ),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
           _ColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),

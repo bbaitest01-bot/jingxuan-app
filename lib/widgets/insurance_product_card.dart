@@ -31,6 +31,30 @@ Uri clauseOpenUri(String clauseUrl, String restUrl) {
   return Uri.parse('$functionsUrl/clause-pdf').replace(queryParameters: {'url': clauseUrl});
 }
 
+/// 商品資料的出處說明（數據戰情商品查詢、比較頁下方）
+const String productDataSourceNotice =
+    '資料來源：國泰、富邦、南山人壽官網「資訊公開」（商品清單、契約條款），每週自動更新；給付項目由官方條款整理，點格子可看原文，以官方條款為準。';
+
+/// 比較頁「資料來源」列的文字：國泰人壽官網・資訊公開 ↗
+String productSourceLabel(InsuranceProduct product) {
+  if (product.sourceUrl.isEmpty) {
+    return '${product.companyName}官網・資訊公開';
+  }
+  return '${product.companyName}官網・資訊公開 ↗';
+}
+
+/// 打開這款商品資料的官網來源頁（商品清單所在頁面）
+Future<void> openProductSource(BuildContext context, InsuranceProduct product) async {
+  if (product.sourceUrl.isEmpty) {
+    CustomToast.show(context, '這款商品沒有記錄來源網址', ToastType.warning);
+    return;
+  }
+  final bool opened = await launchUrl(Uri.parse(product.sourceUrl), mode: LaunchMode.externalApplication);
+  if (!opened && context.mounted) {
+    CustomToast.show(context, '無法開啟官網', ToastType.error);
+  }
+}
+
 /// 核准日期顯示成 2022/09/29；沒有日期顯示「—」
 String formatApprovalDate(DateTime? approvalDate) {
   if (approvalDate == null) {

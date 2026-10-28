@@ -43,6 +43,7 @@ void main() {
       expect(benefitItemExampleText('保額 × 附表比例'), isNull);
       expect(benefitItemExampleText('保額 × 1%～105%（依投保第幾年）'), isNull);
       expect(benefitItemExampleText('第2年起：保額 × 5（第1年內：保額 × 50%）'), '每萬元保額可領 50,000 元');
+      expect(benefitItemExampleText('保額 × 1', '美元'), '每萬美元保額可領 10,000 美元');
     });
 
     test('商品沒有給付項目資料時顯示「—」，不說它沒有', () {

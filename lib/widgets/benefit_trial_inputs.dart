@@ -7,9 +7,11 @@ import '../theme/app_theme.dart';
 /// 只在這次比較用，不存檔；填好後給付項目的格子會算出真正金額
 class BenefitTrialPanel extends StatefulWidget {
   final BenefitTrialFields fields;
+  // 台幣「元」或外幣「美元」…（輸入框單位跟著變）
+  final String currencyUnit;
   final ValueChanged<BenefitTrialInput> onChanged;
 
-  const BenefitTrialPanel({super.key, required this.fields, required this.onChanged});
+  const BenefitTrialPanel({super.key, required this.fields, required this.onChanged, this.currencyUnit = '元'});
 
   @override
   State<BenefitTrialPanel> createState() => _BenefitTrialPanelState();
@@ -46,6 +48,7 @@ class _BenefitTrialPanelState extends State<BenefitTrialPanel> {
       dailyAmount: _numberOf(_dailyController),
       units: _numberOf(_unitsController),
       annualPremium: _numberOf(_premiumController),
+      currencyUnit: widget.currencyUnit,
     ));
   }
 
@@ -54,7 +57,7 @@ class _BenefitTrialPanelState extends State<BenefitTrialPanel> {
     final AppColors colors = context.appColors;
     final List<Widget> inputs = [];
     if (widget.fields.needsCoverageAmount) {
-      inputs.add(_TrialField(label: '保額', suffix: '萬元', controller: _coverageController, onChanged: _notifyChanged));
+      inputs.add(_TrialField(label: '保額', suffix: '萬${widget.currencyUnit}', controller: _coverageController, onChanged: _notifyChanged));
     }
     if (widget.fields.needsDailyAmount) {
       inputs.add(_TrialField(label: '日額', suffix: '元', controller: _dailyController, onChanged: _notifyChanged));
@@ -62,7 +65,7 @@ class _BenefitTrialPanelState extends State<BenefitTrialPanel> {
     if (widget.fields.needsUnits) {
       inputs.add(_TrialField(label: '投保', suffix: '單位', controller: _unitsController, onChanged: _notifyChanged));
     }
-    inputs.add(_TrialField(label: '年繳保費', suffix: '元', controller: _premiumController, onChanged: _notifyChanged));
+    inputs.add(_TrialField(label: '年繳保費', suffix: widget.currencyUnit, controller: _premiumController, onChanged: _notifyChanged));
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
@@ -103,8 +106,8 @@ class _TrialField extends StatelessWidget {
         style: AppTextStyles.mono(fontSize: 12),
         decoration: InputDecoration(
           isDense: true,
-          labelText: label,
-          suffixText: suffix,
+          // 單位寫在名稱裡（suffixText 要點進去才看得到）：「保額（萬美元）」
+          labelText: '$label（$suffix）',
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
         ),
       ),
