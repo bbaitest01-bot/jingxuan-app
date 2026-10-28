@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../services/benefit_item_service.dart';
+import '../services/benefit_trial_calculator.dart';
 import '../services/insurance_product_service.dart';
 import '../theme/app_theme.dart';
 import 'insurance_product_card.dart';
@@ -20,8 +21,12 @@ const String benefitItemNoDataText = '—';
 /// 表格下方的說明
 const String benefitItemNotice = '給付項目由條款自動整理：「保額」「日額」是客戶投保時買的金額，括號內用每 1 萬元保額、每 1,000 元日額換算可領多少；點格子可看條款原文，以官方條款為準。';
 
-/// 某款商品、某一列要顯示的文字
-String benefitItemCellText(List<InsuranceBenefitItem> productItems, String itemKey) {
+/// 某款商品、某一列要顯示的文字；業務員有填試算數字時，第一行是算好的金額、第二行是算法
+String benefitItemCellText(
+  List<InsuranceBenefitItem> productItems,
+  String itemKey, [
+  BenefitTrialInput trialInput = BenefitTrialInput.empty,
+]) {
   if (productItems.isEmpty) {
     return benefitItemNoDataText;
   }
@@ -32,6 +37,10 @@ String benefitItemCellText(List<InsuranceBenefitItem> productItems, String itemK
   final String? formula = item.formula;
   if (formula == null) {
     return benefitItemSeeClauseText;
+  }
+  final String? trialAmount = BenefitTrialCalculator.amountText(formula, trialInput);
+  if (trialAmount != null) {
+    return '$trialAmount\n$formula';
   }
   final String? example = benefitItemExampleText(formula);
   if (example == null) {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/benefit_item_service.dart';
 import '../services/benefit_plan_service.dart';
+import '../services/benefit_trial_calculator.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/benefit_item_comparison.dart';
 import '../widgets/benefit_plan_comparison.dart';
+import '../widgets/benefit_trial_inputs.dart';
 import '../widgets/comparison_table_rows.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/enroll_product_dialog.dart';
@@ -60,6 +62,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   final Map<String, int> _selectedPlanIndex = {};
   // 每款商品的給付項目（定額型：住院日額、手術、癌症、重大傷病、長照、意外）
   Map<String, List<InsuranceBenefitItem>> _itemsByProduct = {};
+  // 每款商品的試算數字（業務員填的保額、年繳保費…），只在這次比較用
+  final Map<String, BenefitTrialInput> _trialInputByProduct = {};
 
   @override
   void initState() {
@@ -82,6 +86,19 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
   List<InsuranceBenefitItem> _itemsOf(InsuranceProduct product) {
     return _itemsByProduct[product.id] ?? const [];
+  }
+
+  BenefitTrialInput _trialInputOf(InsuranceProduct product) {
+    return _trialInputByProduct[product.id] ?? BenefitTrialInput.empty;
+  }
+
+  /// 「年繳保費」列：有填顯示金額，沒填顯示「—」
+  String _annualPremiumText(InsuranceProduct product) {
+    final int? annualPremium = _trialInputOf(product).annualPremium;
+    if (annualPremium == null) {
+      return '—';
+    }
+    return BenefitTrialCalculator.formatMoney(annualPremium.toDouble());
   }
 
   Future<void> _loadBenefitPlans() async {
@@ -129,11 +146,11 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
     final List<String> itemKeys = BenefitItemService.orderedItemKeys(itemLists);
     if (itemKeys.isNotEmpty) {
-      final List<_ComparisonRow> itemRows = [];
+      final List<_ComparisonRow> itemRows = [_ComparisonRow('年繳保費（試算）', _annualPremiumText)];
       for (final String itemKey in itemKeys) {
         itemRows.add(_ComparisonRow(
           itemKey,
-          (product) => benefitItemCellText(_itemsOf(product), itemKey),
+          (product) => benefitItemCellText(_itemsOf(product), itemKey, _trialInputOf(product)),
           itemOf: (product) => BenefitItemService.findItem(_itemsOf(product), itemKey),
         ));
       }
@@ -197,6 +214,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
         product: product,
         sections: sections,
         plans: _plansByProduct[product.id] ?? const [],
+        benefitItems: _itemsOf(product),
+        onTrialChanged: (BenefitTrialInput input) => setState(() => _trialInputByProduct[product.id] = input),
         selectedPlanIndex: _selectedPlanIndex[product.id] ?? 0,
         onPlanChanged: (int planIndex) => setState(() => _selectedPlanIndex[product.id] = planIndex),
         onRemove: () => _removeProduct(index),
@@ -273,6 +292,8 @@ class _ProductComparisonColumn extends StatelessWidget {
   final InsuranceProduct product;
   final List<_ComparisonSection> sections;
   final List<InsuranceBenefitPlan> plans;
+  final List<InsuranceBenefitItem> benefitItems;
+  final ValueChanged<BenefitTrialInput> onTrialChanged;
   final int selectedPlanIndex;
   final ValueChanged<int> onPlanChanged;
   final VoidCallback onRemove;
@@ -283,6 +304,8 @@ class _ProductComparisonColumn extends StatelessWidget {
     required this.product,
     required this.sections,
     required this.plans,
+    required this.benefitItems,
+    required this.onTrialChanged,
     required this.selectedPlanIndex,
     required this.onPlanChanged,
     required this.onRemove,
@@ -324,6 +347,9 @@ class _ProductComparisonColumn extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
               child: BenefitPlanSelector(plans: plans, selectedIndex: selectedPlanIndex, onChanged: onPlanChanged),
             ),
+          // 有給付項目（定額型）的商品才有試算
+          if (benefitItems.isNotEmpty)
+            BenefitTrialPanel(fields: BenefitTrialCalculator.fieldsFor(benefitItems), onChanged: onTrialChanged),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
           _ColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
