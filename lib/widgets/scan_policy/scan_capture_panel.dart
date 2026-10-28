@@ -39,7 +39,9 @@ class ScanCapturePanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('只要拍「保單首頁」（列出主約、附約那一頁）', style: TextStyle(fontSize: 13, color: colors.ink2)),
+        Text('只要拍 1 張：列出主約、附約的那一頁', style: TextStyle(fontSize: 13, color: colors.ink2)),
+        const SizedBox(height: 2),
+        Text('封面、條款說明頁不用拍；保單號碼不在這頁的話，辨識後可以自己補上', style: TextStyle(fontSize: 12, color: colors.ink3)),
         const SizedBox(height: 12),
         _buildSourceButtons(colors),
         if (!isMobileDevice) ...[
@@ -54,6 +56,14 @@ class ScanCapturePanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           _buildThumbnails(colors),
+          // 照片拍了 2 張以上：AI 要分次看，可能要等比較久（2026-10-29 Groq 每分鐘用量上限）
+          if (images.length > 1 && !isReadingPdfText) ...[
+            const SizedBox(height: 8),
+            Text(
+              '拍了 ${images.length} 張，AI 要一張一張看，可能要等 20～40 秒；只留主約、附約那一頁會比較快',
+              style: TextStyle(fontSize: 12, color: colors.warn),
+            ),
+          ],
           if (isReadingPdfText) ...[
             const SizedBox(height: 8),
             _PdfTextHint(colors: colors),

@@ -3,12 +3,16 @@ import 'package:intl/intl.dart';
 
 import '../../services/policy_scan_service.dart';
 import '../../theme/app_theme.dart';
+import '../custom_toast.dart';
 import '../customer_policy_widgets.dart';
+import 'scan_review_items.dart';
 
-/// 掃描保單第 ④ 步：確認／修正辨識結果，選有效／已失效，再存入
+/// 掃描保單第 ④ 步：確認／修正辨識結果，存入客戶保單
 ///
-/// 每個商品標示「已對到商品目錄 ✓」或「目錄中找不到此商品，仍會存入」（2026-10-24 模型圖）
-class ScanReviewPanel extends StatelessWidget {
+/// 2026-10-29 依組長意見改版（模型圖沛沛確認）：
+/// 最上方一眼看結果（讀取完成／有 N 件事要確認）→ 保單資料卡 → 商品清單（只有有問題的才標黃）
+/// → 業務員勾「已對照保單，共 N 項」才能存（AI 數錯總項數時不會提醒，人工確認最可靠，D19）
+class ScanReviewPanel extends StatefulWidget {
   final String customerName;
   final ScannedPolicy policy;
   final String status;
@@ -36,113 +40,237 @@ class ScanReviewPanel extends StatelessWidget {
     required this.onSave,
   });
 
-  /// 標題下的一行摘要：客戶・公司・生效日・保單號碼（沒讀到的就不顯示）
-  String _summaryText() {
-    final List<String> parts = [customerName];
-    final String companyName = PolicyScanService.companyShortNames[policy.companyCode] ?? policy.companyName ?? '';
-    if (companyName.isNotEmpty) {
-      parts.add(companyName);
+  @override
+  State<ScanReviewPanel> createState() => _ScanReviewPanelState();
+}
+
+class _ScanReviewPanelState extends State<ScanReviewPanel> {
+  // 勾選「已對照保單，共 N 項」；項數變了（補了、刪了）就要重新確認
+  bool _isCountConfirmed = false;
+  int _confirmedItemCount = 0;
+  // 附約很多時先收起來（有問題的項目一律顯示）
+  bool _isExpanded = false;
+  static const int _collapsedVisibleCount = 4;
+
+  ScannedPolicy get _policy => widget.policy;
+
+  /// 要業務員確認的事；空的代表讀取完成、沒有可疑之處
+  List<String> _issues() {
+    final List<String> issues = [];
+    if (_policy.missingItemCount > 0) {
+      issues.add('保單上可能有 ${_policy.expectedItemCount} 項，只讀到 ${_policy.items.length} 項，請對照保單補上');
     }
-    final DateTime? effectiveDate = policy.effectiveDate;
-    if (effectiveDate != null) {
-      final String month = effectiveDate.month.toString().padLeft(2, '0');
-      final String day = effectiveDate.day.toString().padLeft(2, '0');
-      parts.add('生效日 ${effectiveDate.year}/$month/$day');
+    if (_policy.sentWholePhoto) {
+      issues.add('這次是整張辨識，下面幾項比較容易漏，請核對項數');
     }
-    final String policyNumber = policy.policyNumber ?? '';
-    if (policyNumber.isNotEmpty) {
-      parts.add('保單號碼 $policyNumber');
+    int notInCatalogCount = 0;
+    for (final ScannedPolicyItem item in _policy.items) {
+      if (!item.isInCatalog) notInCatalogCount++;
     }
-    return parts.join('・');
+    if (notInCatalogCount > 0) {
+      issues.add('$notInCatalogCount 項在商品目錄找不到，請核對名稱（仍會存入）');
+    }
+    return issues;
+  }
+
+  void _trySave() {
+    final bool countStillMatches = _confirmedItemCount == _policy.items.length;
+    if (!_isCountConfirmed || !countStillMatches) {
+      setState(() => _isCountConfirmed = false);
+      CustomToast.show(context, '請先對照保單，勾選項數確認', ToastType.warning);
+      return;
+    }
+    widget.onSave();
   }
 
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final List<Widget> itemRows = [];
-    for (int index = 0; index < policy.items.length; index++) {
-      itemRows.add(_ScannedItemRow(
-        item: policy.items[index],
-        onEdit: () => onEditItem(index),
-        onRemove: () => onRemoveItem(index),
-        onApplySuggestion: () => onApplySuggestion(index),
-      ));
-      itemRows.add(const SizedBox(height: 8));
-    }
+    final int itemCount = _policy.items.length;
+    // 項數變了，之前的勾選就不算
+    final bool isConfirmed = _isCountConfirmed && _confirmedItemCount == itemCount;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(_summaryText(), style: TextStyle(fontSize: 13, color: colors.ink2)),
-        const SizedBox(height: 4),
-        Text('請對照保單檢查，點商品可以修改', style: TextStyle(fontSize: 12, color: colors.ink3)),
+        _ResultBanner(issues: _issues(), itemCount: itemCount),
         const SizedBox(height: 12),
-        if (policy.sentWholePhoto) ...[
-          const _WarningBanner(text: '這次照片沒有切成上下兩半，是整張辨識，比較容易漏掉下面幾項，請對照保單核對項數'),
-          const SizedBox(height: 10),
-        ],
-        if (policy.missingItemCount > 0) ...[
-          _WarningBanner(
-            text: '保單上有 ${policy.expectedItemCount ?? 0} 項，只讀到 ${policy.items.length} 項，請對照保單檢查，可按「補上漏掉的商品」',
-          ),
-          const SizedBox(height: 10),
-        ],
-        ...itemRows,
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: onAddItem,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('補上漏掉的商品'),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Text('保單狀態：', style: TextStyle(fontSize: 13, color: colors.ink2)),
-            PolicyStatusSelector(status: status, onChanged: onStatusChanged),
-          ],
+        _PolicyInfoCard(
+          customerName: widget.customerName,
+          policy: _policy,
+          status: widget.status,
+          onStatusChanged: widget.onStatusChanged,
         ),
         const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Text('讀到 $itemCount 項商品', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
+            ),
+            Text('點一項可修改或刪除', style: TextStyle(fontSize: 11, color: colors.ink3)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ScanReviewItemList(
+          items: _policy.items,
+          isExpanded: _isExpanded,
+          collapsedVisibleCount: _collapsedVisibleCount,
+          onToggleExpanded: () => setState(() => _isExpanded = !_isExpanded),
+          onEditItem: widget.onEditItem,
+          onApplySuggestion: widget.onApplySuggestion,
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: widget.onAddItem,
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text('手動補一項', style: TextStyle(fontSize: 13)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.ink2,
+              side: BorderSide(color: colors.line),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _CountConfirmBox(
+          itemCount: itemCount,
+          isConfirmed: isConfirmed,
+          onChanged: (bool value) => setState(() {
+            _isCountConfirmed = value;
+            _confirmedItemCount = itemCount;
+          }),
+        ),
+        const SizedBox(height: 12),
         ElevatedButton(
-          onPressed: isSaving || policy.items.isEmpty ? null : onSave,
+          onPressed: widget.isSaving || itemCount == 0 ? null : _trySave,
           style: ElevatedButton.styleFrom(
             backgroundColor: colors.acc,
             foregroundColor: colors.onAcc,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
-          child: Text(isSaving ? '存入中…' : '存入客戶保單（${policy.items.length} 項）'),
+          child: Text(widget.isSaving ? '存入中…' : '存入客戶保單（$itemCount 項）'),
         ),
-        const SizedBox(height: 6),
-        TextButton(onPressed: isSaving ? null : onRescan, child: const Text('辨識得不好？重新拍攝')),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: widget.isSaving ? null : widget.onRescan,
+          child: Text('重新拍整張', style: TextStyle(fontSize: 12, color: colors.ink3)),
+        ),
       ],
     );
   }
 }
 
-/// 黃色提醒：可能漏項（AI 數的總項數比讀到的多，2026-10-24）、照片整張辨識（2026-10-28）
-class _WarningBanner extends StatelessWidget {
-  final String text;
+/// 最上方的結果：沒有問題是綠色「讀取完成」；有問題是黃色「有 N 件事要確認」並列出原因
+class _ResultBanner extends StatelessWidget {
+  final List<String> issues;
+  final int itemCount;
 
-  const _WarningBanner({required this.text});
+  const _ResultBanner({required this.issues, required this.itemCount});
 
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
+    final bool hasIssues = issues.isNotEmpty;
+    Color backgroundColor = colors.okSoft;
+    Color textColor = colors.ok;
+    IconData icon = Icons.check_circle_outline_rounded;
+    String title = '讀取完成';
+    List<String> lines = ['$itemCount 項都對到商品目錄，對照保單確認項數後就能存入'];
+    if (hasIssues) {
+      backgroundColor = colors.warnSoft;
+      textColor = colors.warn;
+      icon = Icons.warning_amber_rounded;
+      title = '有 ${issues.length} 件事要確認';
+      lines = issues;
+    }
     return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: colors.warnSoft,
-        borderRadius: BorderRadius.circular(AppRadius.control),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(AppRadius.card)),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.warning_amber_rounded, size: 18, color: colors.warn),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text, style: TextStyle(fontSize: 12, color: colors.warn)),
+          Row(
+            children: [
+              Icon(icon, size: 18, color: textColor),
+              const SizedBox(width: 6),
+              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final String line in lines)
+            Padding(
+              padding: const EdgeInsets.only(left: 24, top: 2),
+              child: Text(line, style: TextStyle(fontSize: 12, color: textColor)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 保單資料卡：公司、保單號碼、生效日、客戶，以及有效／已失效
+class _PolicyInfoCard extends StatelessWidget {
+  final String customerName;
+  final ScannedPolicy policy;
+  final String status;
+  final ValueChanged<String> onStatusChanged;
+
+  const _PolicyInfoCard({
+    required this.customerName,
+    required this.policy,
+    required this.status,
+    required this.onStatusChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    String companyName = PolicyScanService.companyShortNames[policy.companyCode] ?? policy.companyName ?? '';
+    if (companyName.isEmpty) {
+      companyName = '保險公司未讀到';
+    }
+    final String policyNumber = policy.policyNumber ?? '';
+    String effectiveDateText = '未讀到';
+    final DateTime? effectiveDate = policy.effectiveDate;
+    if (effectiveDate != null) {
+      effectiveDateText = DateFormat('yyyy/MM/dd').format(effectiveDate);
+    }
+    final TextStyle labelStyle = TextStyle(fontSize: 12, color: colors.ink3);
+    final TextStyle valueStyle = AppTextStyles.mono(fontSize: 12, color: colors.ink2);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: colors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(companyName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.ink)),
+          const SizedBox(height: 4),
+          Text.rich(TextSpan(children: [
+            TextSpan(text: '保單號碼　', style: labelStyle),
+            TextSpan(text: policyNumber.isEmpty ? '未讀到（可之後補）' : policyNumber, style: valueStyle),
+          ])),
+          Text.rich(TextSpan(children: [
+            TextSpan(text: '生效日　', style: labelStyle),
+            TextSpan(text: effectiveDateText, style: valueStyle),
+            TextSpan(text: '　客戶　', style: labelStyle),
+            TextSpan(text: customerName, style: TextStyle(fontSize: 12, color: colors.ink2)),
+          ])),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text('這張保單目前', style: TextStyle(fontSize: 12, color: colors.ink2)),
+              const SizedBox(width: 8),
+              PolicyStatusSelector(status: status, onChanged: onStatusChanged),
+            ],
           ),
         ],
       ),
@@ -150,143 +278,36 @@ class _WarningBanner extends StatelessWidget {
   }
 }
 
-class _ScannedItemRow extends StatelessWidget {
-  final ScannedPolicyItem item;
-  final VoidCallback onEdit;
-  final VoidCallback onRemove;
-  final VoidCallback onApplySuggestion;
+/// 存入前的確認：業務員對照紙本保單，勾「共 N 項，和上面一樣」
+class _CountConfirmBox extends StatelessWidget {
+  final int itemCount;
+  final bool isConfirmed;
+  final ValueChanged<bool> onChanged;
 
-  const _ScannedItemRow({
-    required this.item,
-    required this.onEdit,
-    required this.onRemove,
-    required this.onApplySuggestion,
-  });
-
-  String _detailText() {
-    final List<String> parts = [];
-    final String plan = item.planOrAmount ?? '';
-    if (plan.isNotEmpty) {
-      parts.add(plan);
-    }
-    final int? premium = item.premium;
-    if (premium != null) {
-      parts.add(formatPremiumText(premium, item.premiumCurrency));
-    }
-    return parts.join('・');
-  }
+  const _CountConfirmBox({required this.itemCount, required this.isConfirmed, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final String detailText = _detailText();
-    return Material(
-      color: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.control),
-        side: BorderSide(color: colors.line),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.control),
-        onTap: onEdit,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _CoverageRoleTag(role: item.coverageRole, isInCatalog: item.isInCatalog),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(item.productName, style: TextStyle(fontSize: 13, color: colors.ink)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    _CatalogMatchLine(detailText: detailText, isInCatalog: item.isInCatalog),
-                    if (item.suggestedProduct != null)
-                      _SuggestionLine(
-                        productName: item.suggestedProduct!.productName,
-                        onApply: onApplySuggestion,
-                      ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                color: colors.ink3,
-                tooltip: '修改',
-                onPressed: onEdit,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                color: colors.ink3,
-                tooltip: '刪除這項',
-                onPressed: onRemove,
-              ),
-            ],
-          ),
+    return InkWell(
+      onTap: () => onChanged(!isConfirmed),
+      borderRadius: BorderRadius.circular(AppRadius.control),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          border: Border.all(color: isConfirmed ? colors.ok : colors.line),
+        ),
+        child: Row(
+          children: [
+            Checkbox(value: isConfirmed, onChanged: (bool? value) => onChanged(value ?? false), activeColor: colors.ok),
+            Expanded(
+              child: Text('我已對照保單，保單上共 $itemCount 項，和上面一樣', style: TextStyle(fontSize: 13, color: colors.ink)),
+            ),
+          ],
         ),
       ),
     );
-  }
-}
-
-/// 「主約／附約」小標籤：對到目錄用綠色，找不到用橘色
-class _CoverageRoleTag extends StatelessWidget {
-  final String? role;
-  final bool isInCatalog;
-
-  const _CoverageRoleTag({required this.role, required this.isInCatalog});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    String label = '商品';
-    if (role == 'main') {
-      label = '主約';
-    } else if (role == 'rider') {
-      label = '附約';
-    }
-    Color backgroundColor = colors.okSoft;
-    Color textColor = colors.ok;
-    if (!isInCatalog) {
-      backgroundColor = colors.warnSoft;
-      textColor = colors.warn;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-      decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(AppRadius.pill)),
-      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textColor)),
-    );
-  }
-}
-
-class _CatalogMatchLine extends StatelessWidget {
-  final String detailText;
-  final bool isInCatalog;
-
-  const _CatalogMatchLine({required this.detailText, required this.isInCatalog});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    String matchText = '已對到商品目錄 ✓';
-    Color matchColor = colors.ink3;
-    if (!isInCatalog) {
-      matchText = '目錄中找不到此商品，仍會存入';
-      matchColor = colors.warn;
-    }
-    final List<InlineSpan> spans = [];
-    if (detailText.isNotEmpty) {
-      spans.add(TextSpan(text: '$detailText・', style: TextStyle(color: colors.ink3)));
-    }
-    spans.add(TextSpan(text: matchText, style: TextStyle(color: matchColor)));
-    return Text.rich(TextSpan(style: const TextStyle(fontSize: 12), children: spans));
   }
 }
 
@@ -299,43 +320,3 @@ String formatPremiumText(int premium, String? currency) {
   }
   return '保費 $code $amount';
 }
-
-/// 讀錯字時的建議：「可能是：XXX」＋「套用」（按了才換，不自動套用）
-class _SuggestionLine extends StatelessWidget {
-  final String productName;
-  final VoidCallback onApply;
-
-  const _SuggestionLine({required this.productName, required this.onApply});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-      decoration: BoxDecoration(
-        color: colors.accSoft,
-        borderRadius: BorderRadius.circular(AppRadius.control),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.lightbulb_outline_rounded, size: 16, color: colors.acc),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text('可能是：$productName', style: TextStyle(fontSize: 12, color: colors.acc)),
-          ),
-          TextButton(
-            onPressed: onApply,
-            style: TextButton.styleFrom(
-              foregroundColor: colors.acc,
-              minimumSize: const Size(0, 30),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-            ),
-            child: const Text('套用'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-

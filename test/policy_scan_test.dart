@@ -252,14 +252,23 @@ void main() {
           onSave: () => saved = true,
         ),
       );
-      expect(find.text('王測一・國泰人壽・生效日 2025/03/01'), findsOneWidget);
+      expect(find.text('國泰人壽'), findsOneWidget);
+      expect(find.textContaining('2025/03/01', findRichText: true), findsOneWidget);
       expect(find.text('主約'), findsOneWidget);
       expect(find.text('附約'), findsOneWidget);
-      expect(find.textContaining('已對到商品目錄 ✓'), findsOneWidget);
-      expect(find.textContaining('目錄中找不到此商品，仍會存入'), findsOneWidget);
+      // 只有目錄找不到的才標示；上方結果寫有 1 件事要確認
+      expect(find.textContaining('目錄找不到，仍會存入'), findsOneWidget);
+      expect(find.text('有 1 件事要確認'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // 沒勾項數確認不能存
+      await tester.tap(find.text('存入客戶保單（2 項）'));
+      await tester.pump();
+      expect(saved, isFalse);
+      await tester.tap(find.textContaining('保單上共 2 項'));
+      await tester.pump();
       await tester.tap(find.text('存入客戶保單（2 項）'));
       expect(saved, isTrue);
+      await tester.pump(const Duration(seconds: 5));
     });
 
     Future<bool?> openNoticeDialog(WidgetTester tester, {required bool showPrivacyDetails}) async {
@@ -410,7 +419,7 @@ void main() {
           onSave: () {},
         ),
       );
-      expect(find.textContaining('保單上有 9 項，只讀到 1 項'), findsOneWidget);
+      expect(find.textContaining('保單上可能有 9 項，只讀到 1 項'), findsOneWidget);
       expect(find.textContaining('可能是：國泰人壽睛彩人生'), findsOneWidget);
       await tester.tap(find.text('套用'));
       expect(appliedIndex, 0);

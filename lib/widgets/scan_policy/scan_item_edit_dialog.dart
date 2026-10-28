@@ -9,11 +9,13 @@ import '../../theme/app_theme.dart';
 /// 修改或新增一個辨識出的商品；回傳修改後的商品，按取消回傳 null
 ///
 /// 可以手動改名稱、主附約、計畫或保額、保費，也可以從商品目錄搜尋，選對正確的商品。
+/// onDelete：修改時視窗左下角有「刪除這項」（2026-10-29 改版：刪除從清單每列移到這裡）
 Future<ScannedPolicyItem?> showScanItemEditDialog(
   BuildContext context, {
   required ScannedPolicyItem item,
   required String? companyShortName,
   required bool isNewItem,
+  VoidCallback? onDelete,
 }) {
   return showDialog<ScannedPolicyItem>(
     context: context,
@@ -21,6 +23,7 @@ Future<ScannedPolicyItem?> showScanItemEditDialog(
       item: item,
       companyShortName: companyShortName,
       isNewItem: isNewItem,
+      onDelete: onDelete,
     ),
   );
 }
@@ -29,8 +32,14 @@ class _ScanItemEditDialog extends StatefulWidget {
   final ScannedPolicyItem item;
   final String? companyShortName;
   final bool isNewItem;
+  final VoidCallback? onDelete;
 
-  const _ScanItemEditDialog({required this.item, required this.companyShortName, required this.isNewItem});
+  const _ScanItemEditDialog({
+    required this.item,
+    required this.companyShortName,
+    required this.isNewItem,
+    this.onDelete,
+  });
 
   @override
   State<_ScanItemEditDialog> createState() => _ScanItemEditDialogState();
@@ -177,6 +186,15 @@ class _ScanItemEditDialogState extends State<_ScanItemEditDialog> {
         ),
       ),
       actions: [
+        if (widget.onDelete != null)
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onDelete?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: colors.warn),
+            child: const Text('刪除這項'),
+          ),
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
         ElevatedButton(
           onPressed: _submit,
