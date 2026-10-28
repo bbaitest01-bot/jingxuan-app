@@ -13,8 +13,16 @@ class PolicyFileReadResult {
   final int pageCount;
   // readPdfText() 才有：PDF 裡的文字（個資已在本機遮蔽）
   final String text;
+  // 失敗原因（例：decode_failed、exception 4032x3024 …）；只記技術原因，不含保單內容
+  final String failureReason;
 
-  const PolicyFileReadResult({required this.status, this.images = const [], this.pageCount = 0, this.text = ''});
+  const PolicyFileReadResult({
+    required this.status,
+    this.images = const [],
+    this.pageCount = 0,
+    this.text = '',
+    this.failureReason = '',
+  });
 }
 
 /// 掃描保單：在瀏覽器裡把電子保單、截圖轉成要送去辨識的圖片（實際做法在 web/policy_file_reader.js）

@@ -121,27 +121,45 @@
       var blob = new Blob([bytes], { type: 'image/jpeg' });
       var url = URL.createObjectURL(blob);
       var image = new Image();
+      // 2026-10-28：iPhone 上切兩半失敗會默默改送整張（D7 再次發生），失敗時回傳原因，記到雲端函式 Logs
       image.onload = function () {
-        var halfHeight = Math.round(image.height * (0.5 + SPLIT_OVERLAP / 2));
-        var tops = [0, image.height - halfHeight];
-        var images = [];
-        for (var index = 0; index < tops.length; index++) {
-          var scale = Math.min(1, MAX_LONG_SIDE / Math.max(image.width, halfHeight));
-          var canvas = document.createElement('canvas');
-          canvas.width = Math.round(image.width * scale);
-          canvas.height = Math.round(halfHeight * scale);
-          var context = canvas.getContext('2d');
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, tops[index], image.width, halfHeight, 0, 0, canvas.width, canvas.height);
-          images.push(canvasToBase64(canvas));
+        var size = image.width + 'x' + image.height;
+        try {
+          var halfHeight = Math.round(image.height * (0.5 + SPLIT_OVERLAP / 2));
+          var tops = [0, image.height - halfHeight];
+          var images = [];
+          for (var index = 0; index < tops.length; index++) {
+            var scale = Math.min(1, MAX_LONG_SIDE / Math.max(image.width, halfHeight));
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.width * scale);
+            canvas.height = Math.round(halfHeight * scale);
+            var context = canvas.getContext('2d');
+            if (!context) {
+              URL.revokeObjectURL(url);
+              resolve(JSON.stringify({ status: 'error', reason: 'no_canvas_context ' + size }));
+              return;
+            }
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, tops[index], image.width, halfHeight, 0, 0, canvas.width, canvas.height);
+            var half = canvasToBase64(canvas);
+            if (!half) {
+              URL.revokeObjectURL(url);
+              resolve(JSON.stringify({ status: 'error', reason: 'empty_half ' + size }));
+              return;
+            }
+            images.push(half);
+          }
+          URL.revokeObjectURL(url);
+          resolve(JSON.stringify({ status: 'ok', images: images }));
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          resolve(JSON.stringify({ status: 'error', reason: 'exception ' + size + ' ' + String(error && error.message || error).slice(0, 80) }));
         }
-        URL.revokeObjectURL(url);
-        resolve(JSON.stringify({ status: 'ok', images: images }));
       };
       image.onerror = function () {
         URL.revokeObjectURL(url);
-        resolve(JSON.stringify({ status: 'error' }));
+        resolve(JSON.stringify({ status: 'error', reason: 'decode_failed bytes=' + (bytes && bytes.length) }));
       };
       image.src = url;
     });

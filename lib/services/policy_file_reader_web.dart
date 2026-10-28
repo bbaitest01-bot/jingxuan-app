@@ -49,7 +49,12 @@ Future<PolicyFileReadResult> splitImageImpl(Uint8List bytes) async {
     final JSString result = await _splitImage(bytes.toJS).toDart;
     return _parseResult(result.toDart);
   } catch (error) {
-    return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
+    // 呼叫 JS 本身失敗（例：函式沒載入）也要知道原因
+    String reason = 'interop $error';
+    if (reason.length > 100) {
+      reason = reason.substring(0, 100);
+    }
+    return PolicyFileReadResult(status: PolicyFileReadStatus.error, failureReason: reason);
   }
 }
 
@@ -66,7 +71,7 @@ PolicyFileReadResult _parseResult(String jsonText) {
     return const PolicyFileReadResult(status: PolicyFileReadStatus.noText);
   }
   if (status != 'ok') {
-    return const PolicyFileReadResult(status: PolicyFileReadStatus.error);
+    return PolicyFileReadResult(status: PolicyFileReadStatus.error, failureReason: data['reason']?.toString() ?? '');
   }
 
   final List<Uint8List> images = [];

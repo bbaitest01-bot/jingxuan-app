@@ -61,6 +61,8 @@ class ScannedPolicy {
   DateTime? effectiveDate;
   // AI 數出來保單上一共幾項；比讀到的項數多時，畫面提醒可能有漏
   int? expectedItemCount;
+  // 照片沒有切成上下兩半、整張送去辨識（較容易漏項，畫面提醒；2026-10-28 D7 再次發生）
+  bool sentWholePhoto = false;
   final List<ScannedPolicyItem> items;
 
   ScannedPolicy({
@@ -147,7 +149,12 @@ class PolicyScanService {
   // 1. 送去辨識
   // ---------------------------------------------------------------------------
   /// 照片、截圖送去辨識；isSplitImage＝同一頁照片切成的上下兩半（2026-10-25）
-  Future<ScannedPolicy> recognizePolicy(List<PolicyScanImage> images, {bool isSplitImage = false}) async {
+  /// splitFailureReason：一張照片卻沒切成兩半的原因，送到雲端函式記進 Logs（不含保單內容）
+  Future<ScannedPolicy> recognizePolicy(
+    List<PolicyScanImage> images, {
+    bool isSplitImage = false,
+    String? splitFailureReason,
+  }) async {
     final List<Map<String, String>> imagePayload = [];
     for (final PolicyScanImage image in images) {
       imagePayload.add({'base64': base64Encode(image.bytes), 'mimeType': image.mimeType});
@@ -156,7 +163,15 @@ class PolicyScanService {
     if (isSplitImage) {
       body['layout'] = 'split';
     }
+    if (splitFailureReason != null) {
+      String reason = splitFailureReason;
+      if (reason.length > 120) {
+        reason = reason.substring(0, 120);
+      }
+      body['split_failed'] = reason;
+    }
     final ScannedPolicy policy = await _invokeScan(body);
+    policy.sentWholePhoto = splitFailureReason != null;
     // 上下兩半中間有重疊，萬一 AI 把重疊那一列列了兩次，這裡去掉
     if (isSplitImage) {
       removeDuplicateItems(policy);
