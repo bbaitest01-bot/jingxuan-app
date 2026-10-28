@@ -159,32 +159,39 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     }
     // 每張照片各自切兩半、分開辨識，再合成一份（2026-10-29 做法 A：封面＋條款頁兩張時原本整張送，容易漏項）
     // 一張一張依序送，不同時送，避免碰到 Groq 每分鐘上限
+    // 封面這類沒有商品的頁面不算失敗；全部都沒有商品才提示
+    final bool hasSeveralPhotos = _images.length > 1;
     final List<ScannedPolicy> pages = [];
     for (int index = 0; index < _images.length; index++) {
       if (mounted) setState(() => _recognizingPhotoNumber = index + 1);
-      pages.add(await _recognizePhoto(_images[index]));
+      pages.add(await _recognizePhoto(_images[index], allowNoItems: hasSeveralPhotos));
     }
     if (pages.length == 1) {
       return pages.first;
     }
-    return PolicyScanMerge.mergePages(pages);
+    final ScannedPolicy merged = PolicyScanMerge.mergePages(pages);
+    if (merged.items.isEmpty) {
+      throw const PolicyScanException(PolicyScanService.noItemsMessage);
+    }
+    return merged;
   }
 
   /// 一張照片：切成上下兩半辨識；切不了就整張送，並把原因記到雲端函式 Logs
-  Future<ScannedPolicy> _recognizePhoto(Uint8List photo) async {
+  Future<ScannedPolicy> _recognizePhoto(Uint8List photo, {required bool allowNoItems}) async {
     final PolicyFileReadResult splitResult = await PolicyFileReader.splitImage(photo);
     if (splitResult.status == PolicyFileReadStatus.ok && splitResult.images.length == 2) {
       final List<PolicyScanImage> halves = [];
       for (final Uint8List half in splitResult.images) {
         halves.add(PolicyScanImage(bytes: half, mimeType: 'image/jpeg'));
       }
-      return _scanService.recognizePolicy(halves, isSplitImage: true);
+      return _scanService.recognizePolicy(halves, isSplitImage: true, allowNoItems: allowNoItems);
     }
     final String splitFailureReason =
         'split_${splitResult.status.name} ${splitResult.failureReason} images=${splitResult.images.length}';
     return _scanService.recognizePolicy(
       [PolicyScanImage(bytes: photo, mimeType: 'image/jpeg')],
       splitFailureReason: splitFailureReason,
+      allowNoItems: allowNoItems,
     );
   }
 
@@ -357,7 +364,7 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     if (_step == _ScanStep.recognizing) {
       String progressText = 'AI 辨識中，通常幾秒鐘就好…';
       if (_images.length > 1 && _pdfText == null) {
-        progressText = 'AI 辨識中（第 $_recognizingPhotoNumber／${_images.length} 張，一張一張放大看）…';
+        progressText = 'AI 辨識中（第 $_recognizingPhotoNumber／${_images.length} 張）…';
       }
       return _RecognizingIndicator(colors: colors, progressText: progressText);
     }
