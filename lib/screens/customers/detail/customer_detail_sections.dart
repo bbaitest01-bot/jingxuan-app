@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../models/visit_record.dart';
 import '../../../router/app_routes.dart';
 import '../../../services/customer_policy_service.dart';
+import '../../../services/policy_group_service.dart';
 import '../../../services/customer_service.dart';
 import '../../visit_records/visit_record_widgets.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/policy_group_card.dart';
 import '../customer_status_widgets.dart';
 
 /// 客戶細節頁的一個區塊外框：標題（含筆數）、右上角按鈕、內容
@@ -166,144 +167,50 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// 保單（C6、C-18）：分「有效保單」「已失效保單」兩區，各自依險種分組；點一筆跳到數據戰情並帶出那款商品；狀態在快速預覽切換
+/// 保單（C6、C-18、D21）：一張保單一張卡片，分「有效保單」「已失效保單」兩區（卡片在 policy_group_card.dart）
 class CustomerPoliciesSection extends StatelessWidget {
   final List<CustomerEnrolledPolicy> policies;
   // 右上角「掃描保單」（第 5 階段 E）
   final VoidCallback onScanPressed;
-  // 保單健檢（4-L）：按保單上的「保額」編輯保障類別、保額、實支計畫
+  // 保單健檢（4-L）：編輯保障類別、保額、實支計畫
   final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
+  // 標為已失效／改回有效、刪除：給一項或整張保單的項目
+  final void Function(List<CustomerEnrolledPolicy> items, String status) onSetStatus;
+  final ValueChanged<List<CustomerEnrolledPolicy>> onDelete;
 
   const CustomerPoliciesSection({
     super.key,
     required this.policies,
     required this.onScanPressed,
     required this.onEditCoverage,
+    required this.onSetStatus,
+    required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final List<CustomerEnrolledPolicy> activePolicies = [];
-    final List<CustomerEnrolledPolicy> lapsedPolicies = [];
-    for (final CustomerEnrolledPolicy policy in policies) {
-      if (policy.isActive) {
-        activePolicies.add(policy);
-      } else {
-        lapsedPolicies.add(policy);
-      }
-    }
-
     Widget content = const CustomerDetailEmptyText('還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入');
     if (policies.isNotEmpty) {
-      content = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PolicyStatusGroup(title: '有效保單', policies: activePolicies, onEditCoverage: onEditCoverage),
-          const SizedBox(height: 12),
-          _PolicyStatusGroup(title: '已失效保單', policies: lapsedPolicies, onEditCoverage: onEditCoverage),
-        ],
+      content = PolicyGroupList(
+        policies: policies,
+        emptyText: '',
+        // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
+        onOpenProduct: (CustomerEnrolledPolicy policy) => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
+        onEditCoverage: onEditCoverage,
+        onSetStatus: onSetStatus,
+        onDelete: onDelete,
       );
     }
 
     return CustomerDetailSection(
       icon: Icons.health_and_safety_outlined,
-      title: '保單（${policies.length}）',
+      title: '保單（${PolicyGrouping.group(policies).length} 張）',
       action: TextButton.icon(
         onPressed: onScanPressed,
         icon: const Icon(Icons.document_scanner_outlined, size: 18),
         label: const Text('掃描保單'),
       ),
       child: content,
-    );
-  }
-}
-
-/// 一個狀態區（例如「有效保單（2）」），底下依險種分組
-class _PolicyStatusGroup extends StatelessWidget {
-  final String title;
-  final List<CustomerEnrolledPolicy> policies;
-  final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
-
-  const _PolicyStatusGroup({required this.title, required this.policies, required this.onEditCoverage});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final List<Widget> children = [
-      Text('$title（${policies.length}）', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
-    ];
-    if (policies.isEmpty) {
-      children.add(const CustomerDetailEmptyText('沒有'));
-    }
-
-    final Map<String, List<CustomerEnrolledPolicy>> groups = CustomerPolicyService.groupPoliciesByCategory(policies);
-    groups.forEach((String category, List<CustomerEnrolledPolicy> categoryPolicies) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 2),
-        child: Text(category, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.acc)),
-      ));
-      for (final CustomerEnrolledPolicy policy in categoryPolicies) {
-        children.add(_PolicyRow(policy: policy, onEditCoverage: () => onEditCoverage(policy)));
-      }
-    });
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
-  }
-}
-
-class _PolicyRow extends StatelessWidget {
-  final CustomerEnrolledPolicy policy;
-  final VoidCallback onEditCoverage;
-
-  const _PolicyRow({required this.policy, required this.onEditCoverage});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    Color nameColor = colors.ink;
-    if (!policy.isActive) {
-      nameColor = colors.ink3;
-    }
-    // 公司 · 主約 · 計畫三 · 加入於…（掃描保單才有主附約與計畫）
-    final List<String> subtitleParts = [policy.companyName];
-    if (policy.coverageRoleLabel.isNotEmpty) {
-      subtitleParts.add(policy.coverageRoleLabel);
-    }
-    final String planOrAmount = policy.planOrAmount ?? '';
-    if (planOrAmount.isNotEmpty) {
-      subtitleParts.add(planOrAmount);
-    }
-    final int? coverageAmount = policy.coverageAmount;
-    if (coverageAmount != null) {
-      subtitleParts.add('保額 ${formatCoverageAmount(coverageAmount)}');
-    }
-    subtitleParts.add('加入於 ${formatVisitRecordTime(policy.enrolledAt)}');
-    final Widget coverageButton = TextButton(onPressed: onEditCoverage, child: const Text('保額'));
-
-    // 目錄找不到的商品沒辦法跳到數據戰情，改標示「目錄中找不到」
-    if (!policy.isInCatalog) {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        dense: true,
-        leading: const Icon(Icons.description_outlined),
-        title: Text(policy.productName, style: TextStyle(color: nameColor)),
-        subtitle: Text('${subtitleParts.join(' · ')}\n目錄中找不到此商品', style: TextStyle(color: colors.ink3)),
-        trailing: coverageButton,
-      );
-    }
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      leading: const Icon(Icons.description_outlined),
-      title: Text(policy.productName, style: TextStyle(color: nameColor)),
-      subtitle: Text(subtitleParts.join(' · ')),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [coverageButton, const Icon(Icons.chevron_right_rounded)],
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
-      // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
-      onTap: () => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
     );
   }
 }
@@ -346,7 +253,4 @@ class CustomerVisitRecordsSection extends StatelessWidget {
     );
   }
 }
-
-/// 保額文字：1000000 → 「1,000,000」
-String formatCoverageAmount(int amount) => NumberFormat('#,###').format(amount);
 

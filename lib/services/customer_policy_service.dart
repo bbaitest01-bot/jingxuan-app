@@ -666,19 +666,6 @@ class CustomerPolicyService {
     }
   }
 
-  /// 依險種分組（客戶完整頁用，C-18）；保留原本的順序（新加的在前面）
-  static Map<String, List<CustomerEnrolledPolicy>> groupPoliciesByCategory(List<CustomerEnrolledPolicy> policies) {
-    final Map<String, List<CustomerEnrolledPolicy>> groups = {};
-    for (final CustomerEnrolledPolicy policy in policies) {
-      String category = policy.category.trim();
-      if (category.isEmpty) {
-        category = '其他';
-      }
-      groups.putIfAbsent(category, () => []).add(policy);
-    }
-    return groups;
-  }
-
   /// 切換保單狀態（有效 ↔ 已失效）；成功才更新快取，失敗回傳 false 讓畫面提示
   Future<bool> updatePolicyStatus({
     required String customerId,
@@ -731,9 +718,33 @@ class CustomerPolicyService {
     try {
       await _supabase.from('customer_policies').delete().eq('id', policyId);
       return true;
-    } catch (e) {
-      return true;
+    } catch (error) {
+      if (kDebugMode) print('移除保單失敗: $error');
+      return false;
     }
+  }
+
+  /// 一張保單的幾項一起改狀態（D21「整張標為已失效」）；回傳成功的項數
+  Future<int> updateStatusForPolicies(String customerId, List<CustomerEnrolledPolicy> items, String status) async {
+    int successCount = 0;
+    for (final CustomerEnrolledPolicy item in items) {
+      if (item.status == status) {
+        successCount++;
+        continue;
+      }
+      final bool success = await updatePolicyStatus(customerId: customerId, policyId: item.id, status: status);
+      if (success) successCount++;
+    }
+    return successCount;
+  }
+
+  /// 一張保單的幾項一起刪除（D21「刪除整張保單」）；回傳成功的項數
+  Future<int> removePoliciesForCustomer(String customerId, List<CustomerEnrolledPolicy> items) async {
+    int successCount = 0;
+    for (final CustomerEnrolledPolicy item in items) {
+      if (await removePolicyForCustomer(customerId, item.id)) successCount++;
+    }
+    return successCount;
   }
 
   /// 🧮 100% 本地 0 成本精算引擎 (Deterministic Actuarial Math Engine)

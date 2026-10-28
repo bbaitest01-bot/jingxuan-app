@@ -3,7 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:insurance_helper/router/app_routes.dart';
 import 'package:insurance_helper/screens/customers/detail/customer_detail_sections.dart';
 import 'package:insurance_helper/services/customer_policy_service.dart';
-import 'package:insurance_helper/widgets/customer_policy_widgets.dart';
+import 'package:insurance_helper/services/policy_group_service.dart';
+import 'package:insurance_helper/widgets/policy_group_card.dart';
 
 /// 依 customer_policies 欄位做一筆測試保單
 CustomerEnrolledPolicy buildPolicy({
@@ -12,6 +13,10 @@ CustomerEnrolledPolicy buildPolicy({
   String category = '醫療',
   String? status,
   Map<String, dynamic>? benefits,
+  String? groupId,
+  String? role,
+  String? policyNumber,
+  int? coverageAmount,
 }) {
   final Map<String, dynamic> json = {
     'id': id,
@@ -26,6 +31,10 @@ CustomerEnrolledPolicy buildPolicy({
   if (status != null) {
     json['status'] = status;
   }
+  json['policy_group_id'] = groupId;
+  json['coverage_role'] = role;
+  json['policy_number'] = policyNumber;
+  json['coverage_amount'] = coverageAmount;
   return CustomerEnrolledPolicy.fromJson(json);
 }
 
@@ -63,16 +72,49 @@ void main() {
       expect(summary.countedPolicyCount, 1);
       expect(summary.totalRoomDaily, 2000);
     });
+  });
 
-    test('依險種分組，保留原本順序；沒有險種的歸到「其他」', () {
-      final Map<String, List<CustomerEnrolledPolicy>> groups = CustomerPolicyService.groupPoliciesByCategory([
-        buildPolicy(id: 'a', category: '醫療'),
-        buildPolicy(id: 'b', category: '壽險'),
-        buildPolicy(id: 'c', category: '醫療'),
-        buildPolicy(id: 'd', category: ' '),
+  group('一張保單一張卡片（D21）', () {
+    test('同保單編號歸成一張，主約排第一；手動加入的自己一張', () {
+      final List<PolicyGroup> groups = PolicyGrouping.group([
+        buildPolicy(id: 'r1', groupId: 'g1', role: 'rider', policyNumber: 'A123'),
+        buildPolicy(id: 'm1', groupId: 'g1', role: 'main', policyNumber: 'A123'),
+        buildPolicy(id: 'x'),
+        buildPolicy(id: 'r2', groupId: 'g1', role: 'rider'),
       ]);
-      expect(groups.keys.toList(), ['醫療', '壽險', '其他']);
-      expect(groups['醫療']!.length, 2);
+      expect(groups.length, 2);
+      expect(groups[0].items.map((CustomerEnrolledPolicy item) => item.id).toList(), ['m1', 'r1', 'r2']);
+      expect(groups[0].policyNumber, 'A123');
+      expect(groups[0].isManual, isFalse);
+      expect(groups[1].isManual, isTrue);
+    });
+
+    test('沒有保單編號但同公司同保單號碼也算同一張', () {
+      final List<PolicyGroup> groups = PolicyGrouping.group([
+        buildPolicy(id: 'a', policyNumber: 'B9'),
+        buildPolicy(id: 'b', policyNumber: ' B9 '),
+      ]);
+      expect(groups.length, 1);
+    });
+
+    test('整張都失效才算已失效', () {
+      final List<PolicyGroup> partly = PolicyGrouping.group([
+        buildPolicy(id: 'a', groupId: 'g', role: 'main'),
+        buildPolicy(id: 'b', groupId: 'g', status: 'lapsed'),
+      ]);
+      expect(partly.single.isAllLapsed, isFalse);
+      final List<PolicyGroup> all = PolicyGrouping.group([
+        buildPolicy(id: 'a', groupId: 'g', status: 'lapsed'),
+        buildPolicy(id: 'b', groupId: 'g', status: 'lapsed'),
+      ]);
+      expect(all.single.isAllLapsed, isTrue);
+    });
+
+    test('金額文字：萬為單位，沒有保額用計畫', () {
+      expect(policyAmountText(buildPolicy(coverageAmount: 1000000)), '100 萬');
+      expect(policyAmountText(buildPolicy(coverageAmount: 15000)), '1.5 萬');
+      expect(policyAmountText(buildPolicy(coverageAmount: 3500)), '3,500');
+      expect(policyAmountText(buildPolicy()), '');
     });
   });
 
@@ -86,71 +128,73 @@ void main() {
     });
   });
 
-  group('客戶完整頁的保單區（C-18）', () {
-    testWidgets('分「有效保單」「已失效保單」兩區，各自依險種分組', (WidgetTester tester) async {
+  group('客戶完整頁的保單區（D21）', () {
+    testWidgets('一張保單一張卡片：收合只顯示主約，點開看附約；整張失效放已失效', (WidgetTester tester) async {
       await pumpWidgetInPage(
         tester,
         CustomerPoliciesSection(policies: [
-          buildPolicy(id: 'a', productName: '國泰人壽測試醫療終身保險', category: '醫療'),
-          buildPolicy(id: 'b', productName: '富邦人壽測試壽險', category: '壽險'),
-          buildPolicy(id: 'c', productName: '南山人壽測試癌症保險', category: '癌症', status: 'lapsed'),
-        ], onScanPressed: () {}, onEditCoverage: (_) {}),
+          buildPolicy(id: 'm', productName: '國泰測試終身壽險', groupId: 'g1', role: 'main', policyNumber: 'A1', coverageAmount: 1000000),
+          buildPolicy(id: 'r', productName: '國泰測試醫療附約', groupId: 'g1', role: 'rider', policyNumber: 'A1'),
+          buildPolicy(id: 'c', productName: '南山人壽測試癌症保險', status: 'lapsed'),
+        ], onScanPressed: () {}, onEditCoverage: (_) {}, onSetStatus: (_, __) {}, onDelete: (_) {}),
       );
 
-      expect(find.text('保單（3）'), findsOneWidget);
-      expect(find.text('有效保單（2）'), findsOneWidget);
-      expect(find.text('已失效保單（1）'), findsOneWidget);
-      expect(find.text('醫療'), findsOneWidget);
-      expect(find.text('壽險'), findsOneWidget);
-      expect(find.text('癌症'), findsOneWidget);
+      expect(find.text('保單（2 張）'), findsOneWidget);
+      expect(find.text('有效保單'), findsOneWidget);
+      expect(find.text('已失效保單'), findsOneWidget);
+      expect(find.text('100 萬'), findsOneWidget);
+      expect(find.text('國泰測試醫療附約'), findsNothing);
+      await tester.tap(find.text('＋ 1 項附約'));
+      await tester.pumpAndSettle();
+      expect(find.text('國泰測試醫療附約'), findsOneWidget);
       expect(find.text('南山人壽測試癌症保險'), findsOneWidget);
+      expect(find.text('手動加入'), findsOneWidget);
+    });
+
+    testWidgets('「⋯」整張標為已失效：把整張的每一項都交出去', (WidgetTester tester) async {
+      List<CustomerEnrolledPolicy> changedItems = [];
+      String changedStatus = '';
+      await pumpWidgetInPage(
+        tester,
+        CustomerPoliciesSection(
+          policies: [
+            buildPolicy(id: 'm', groupId: 'g1', role: 'main'),
+            buildPolicy(id: 'r', groupId: 'g1', role: 'rider'),
+          ],
+          onScanPressed: () {},
+          onEditCoverage: (_) {},
+          onSetStatus: (List<CustomerEnrolledPolicy> items, String status) {
+            changedItems = items;
+            changedStatus = status;
+          },
+          onDelete: (_) {},
+        ),
+      );
+      await tester.tap(find.byTooltip('整張保單'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('整張標為已失效'));
+      await tester.pumpAndSettle();
+      expect(changedItems.length, 2);
+      expect(changedStatus, PolicyStatus.lapsed);
     });
 
     testWidgets('沒有保單時顯示提示', (WidgetTester tester) async {
       bool scanPressed = false;
-      await pumpWidgetInPage(tester, CustomerPoliciesSection(policies: const [], onScanPressed: () => scanPressed = true, onEditCoverage: (_) {}));
-      expect(find.text('保單（0）'), findsOneWidget);
+      await pumpWidgetInPage(
+        tester,
+        CustomerPoliciesSection(
+          policies: const [],
+          onScanPressed: () => scanPressed = true,
+          onEditCoverage: (_) {},
+          onSetStatus: (_, __) {},
+          onDelete: (_) {},
+        ),
+      );
+      expect(find.text('保單（0 張）'), findsOneWidget);
       expect(find.textContaining('加到客戶'), findsOneWidget);
       // 右上角「掃描保單」（第 5 階段 E）
       await tester.tap(find.text('掃描保單'));
       expect(scanPressed, isTrue);
-    });
-  });
-
-  group('側邊抽屜的保單列', () {
-    testWidgets('有效保單顯示「標為已失效」，按了會呼叫切換', (WidgetTester tester) async {
-      int toggleCount = 0;
-      int openCount = 0;
-      await pumpWidgetInPage(
-        tester,
-        EnrolledPolicyTile(
-          policy: buildPolicy(),
-          onToggleStatus: () => toggleCount++,
-          onDelete: () {},
-          onOpenProduct: () => openCount++,
-        ),
-      );
-      expect(find.text('有效'), findsOneWidget);
-      await tester.tap(find.text('標為已失效'));
-      expect(toggleCount, 1);
-      // 點商品名稱打開商品資料頁，不會誤觸切換
-      await tester.tap(find.text('國泰人壽測試醫療終身保險'));
-      expect(openCount, 1);
-      expect(toggleCount, 1);
-    });
-
-    testWidgets('已失效保單顯示「改回有效」', (WidgetTester tester) async {
-      await pumpWidgetInPage(
-        tester,
-        EnrolledPolicyTile(
-          policy: buildPolicy(status: 'lapsed'),
-          onToggleStatus: () {},
-          onDelete: () {},
-          onOpenProduct: () {},
-        ),
-      );
-      expect(find.text('已失效'), findsOneWidget);
-      expect(find.text('改回有效'), findsOneWidget);
     });
   });
 }

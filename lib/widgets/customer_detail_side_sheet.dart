@@ -8,6 +8,7 @@ import '../services/customer_service.dart';
 import '../services/insurance_product_service.dart';
 import '../widgets/custom_toast.dart';
 import 'customer_policy_widgets.dart';
+import 'policy_group_card.dart';
 import 'coverage_check/customer_coverage_check_section.dart';
 import 'coverage_check/policy_coverage_dialog.dart';
 import 'scan_policy/scan_policy_flow.dart';
@@ -298,26 +299,6 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
     final GoRouter router = GoRouter.of(context);
     widget.onClose();
     router.go(AppRoutes.insightsProductPath(policy.policyClauseId));
-  }
-
-  /// 有效 ↔ 已失效切換；成功後重新讀保單，理賠總額會跟著更新
-  Future<void> _togglePolicyStatus(CustomerEnrolledPolicy policy) async {
-    String newStatus = PolicyStatus.lapsed;
-    if (!policy.isActive) {
-      newStatus = PolicyStatus.active;
-    }
-    final bool success = await _policyService.updatePolicyStatus(
-      customerId: widget.customer['id'].toString(),
-      policyId: policy.id,
-      status: newStatus,
-    );
-    if (!mounted) return;
-    if (!success) {
-      CustomToast.show(context, '切換失敗，請檢查網路後再試', ToastType.error);
-      return;
-    }
-    CustomToast.show(context, '已改為${PolicyStatus.label(newStatus)}：${policy.productName}', ToastType.success);
-    _loadCustomerPolicies();
   }
 
   Future<void> _saveBasicInfo() async {
@@ -929,17 +910,18 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
             const SizedBox(height: 14),
           ],
 
-          EnrolledPolicyList(
+          PolicyGroupList(
             policies: _enrolledPolicies,
             emptyText: '目前尚未加入任何已購保單，可以按「掃描保單」，或點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。',
-            onToggleStatus: _togglePolicyStatus,
             onOpenProduct: _openProductInInsights,
             onEditCoverage: (CustomerEnrolledPolicy policy) async {
               if (await showPolicyCoverageDialog(context, policy)) _loadCustomerPolicies();
             },
-            onDelete: (CustomerEnrolledPolicy policy) async {
-              await _policyService.removePolicyForCustomer(widget.customer['id'], policy.id);
-              _loadCustomerPolicies();
+            onSetStatus: (List<CustomerEnrolledPolicy> items, String status) async {
+              if (await savePolicyStatus(context, widget.customer['id'].toString(), items, status)) _loadCustomerPolicies();
+            },
+            onDelete: (List<CustomerEnrolledPolicy> items) async {
+              if (await deletePolicyItems(context, widget.customer['id'].toString(), items)) _loadCustomerPolicies();
             },
           ),
         ],

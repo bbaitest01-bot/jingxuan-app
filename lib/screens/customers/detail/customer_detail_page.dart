@@ -7,6 +7,7 @@ import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
+import '../../../widgets/policy_group_card.dart';
 import '../../../widgets/coverage_check/customer_coverage_check_section.dart';
 import '../../../widgets/coverage_check/policy_coverage_dialog.dart';
 import '../../../widgets/scan_policy/scan_policy_flow.dart';
@@ -117,6 +118,20 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     }
   }
 
+  /// 一項或整張保單改有效／已失效（D21），成功後重新讀保單（健檢跟著重算）
+  Future<void> _setPolicyStatus(List<CustomerEnrolledPolicy> items, String status) async {
+    if (await savePolicyStatus(context, widget.customerId, items, status) && mounted) {
+      await _loadAll();
+    }
+  }
+
+  /// 刪除一項或整張保單（D21，卡片上已先確認）
+  Future<void> _deletePolicies(List<CustomerEnrolledPolicy> items) async {
+    if (await deletePolicyItems(context, widget.customerId, items) && mounted) {
+      await _loadAll();
+    }
+  }
+
   /// 掃描保單（第 5 階段 E）：已經在這位客戶的頁面，不用再選客戶；存入後重新讀保單
   Future<void> _scanPolicy(Map<String, dynamic> customer) async {
     final bool saved = await startPolicyScan(
@@ -159,6 +174,8 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                 policies: _policies,
                 onScanPressed: () => _scanPolicy(customer),
                 onEditCoverage: _editCoverage,
+                onSetStatus: _setPolicyStatus,
+                onDelete: _deletePolicies,
               ),
               const SizedBox(height: 16),
               CustomerVisitRecordsSection(records: _visitRecords),
