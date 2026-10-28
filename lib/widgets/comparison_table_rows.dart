@@ -45,10 +45,25 @@ class ComparisonSpecRow extends StatelessWidget {
       valueWeight = FontWeight.normal;
     }
 
+    // 兩行的格子（金額＋算法、算法＋每萬元換算）：第一行粗體是重點，第二行小字補充
+    final int lineBreak = value.indexOf('\n');
+    String mainText = value;
+    String? detailText;
+    if (lineBreak != -1) {
+      mainText = value.substring(0, lineBreak);
+      detailText = value.substring(lineBreak + 1);
+    }
+    final List<Widget> valueLines = [
+      Text(mainText, style: TextStyle(fontSize: 11.5, fontWeight: valueWeight, color: valueColor)),
+    ];
+    if (detailText != null) {
+      valueLines.add(Text(detailText, style: TextStyle(fontSize: 10.5, color: colors.ink3)));
+    }
+
     final List<Widget> rowChildren = [
       SizedBox(width: 92, child: Text(label, style: TextStyle(fontSize: 11, color: colors.ink3))),
       Expanded(
-        child: Text(value, style: TextStyle(fontSize: 11.5, fontWeight: valueWeight, color: valueColor)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: valueLines),
       ),
     ];
     // 可以點的格子（給付項目）後面加一個小圖示，提示可看原文
