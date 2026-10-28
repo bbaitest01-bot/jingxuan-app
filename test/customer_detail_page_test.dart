@@ -61,7 +61,7 @@ void main() {
       expect(find.text('0912345678'), findsOneWidget);
       expect(find.text('1990/01/01'), findsOneWidget);
       expect(find.text('喜歡打高爾夫'), findsOneWidget);
-      expect(find.text('保單（0）'), findsOneWidget);
+      expect(find.text('保單（0 張）'), findsOneWidget);
       expect(find.text('拜訪紀錄（1）'), findsOneWidget);
       expect(find.text('拜訪王小明'), findsOneWidget);
       expect(find.text('沒連結的紀錄'), findsNothing);
