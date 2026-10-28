@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
 import '../customer_policy_widgets.dart';
 import 'scan_review_items.dart';
+import 'scan_save_check_dialog.dart';
 
 /// 掃描保單第 ④ 步：確認／修正辨識結果，存入客戶保單
 ///
@@ -21,6 +22,9 @@ class ScanReviewPanel extends StatefulWidget {
   final ValueChanged<int> onRemoveItem;
   final ValueChanged<int> onApplySuggestion;
   final VoidCallback onAddItem;
+  // 補拍漏掉的部分；「改用補拍的」（金額或計畫和第一次不同時）
+  final VoidCallback onRetake;
+  final ValueChanged<int> onUseRetakeValue;
   final ValueChanged<String> onStatusChanged;
   final VoidCallback onRescan;
   final VoidCallback onSave;
@@ -35,6 +39,8 @@ class ScanReviewPanel extends StatefulWidget {
     required this.onRemoveItem,
     required this.onApplySuggestion,
     required this.onAddItem,
+    required this.onRetake,
+    required this.onUseRetakeValue,
     required this.onStatusChanged,
     required this.onRescan,
     required this.onSave,
@@ -70,15 +76,33 @@ class _ScanReviewPanelState extends State<ScanReviewPanel> {
     if (notInCatalogCount > 0) {
       issues.add('$notInCatalogCount 項在商品目錄找不到，請核對名稱（仍會存入）');
     }
+    int conflictCount = 0;
+    for (final ScannedPolicyItem item in _policy.items) {
+      if (item.retakeAlternative != null) conflictCount++;
+    }
+    if (conflictCount > 0) {
+      issues.add('$conflictCount 項補拍讀到的金額或計畫不一樣，請選擇用哪一個');
+    }
     return issues;
   }
 
-  void _trySave() {
+  Future<void> _trySave() async {
     final bool countStillMatches = _confirmedItemCount == _policy.items.length;
     if (!_isCountConfirmed || !countStillMatches) {
       setState(() => _isCountConfirmed = false);
       CustomToast.show(context, '請先對照保單，勾選項數確認', ToastType.warning);
       return;
+    }
+    // 還有「可能是…」沒套用、補拍金額不同沒選：先問（全部套用會列出每一項怎麼換）
+    final ScanSaveChoice choice = await checkBeforeSave(context, _policy);
+    if (choice == ScanSaveChoice.goBack) return;
+    if (choice == ScanSaveChoice.applyAllAndSave) {
+      for (int index = 0; index < _policy.items.length; index++) {
+        final ScannedPolicyItem item = _policy.items[index];
+        if (!item.isInCatalog && item.suggestedProduct != null) {
+          widget.onApplySuggestion(index);
+        }
+      }
     }
     widget.onSave();
   }
@@ -120,20 +144,15 @@ class _ScanReviewPanelState extends State<ScanReviewPanel> {
           onToggleExpanded: () => setState(() => _isExpanded = !_isExpanded),
           onEditItem: widget.onEditItem,
           onApplySuggestion: widget.onApplySuggestion,
+          onUseRetakeValue: widget.onUseRetakeValue,
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: widget.onAddItem,
-            icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('手動補一項', style: TextStyle(fontSize: 13)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.ink2,
-              side: BorderSide(color: colors.line),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
-            ),
-          ),
+        Row(
+          children: [
+            Expanded(child: _SecondaryButton(icon: Icons.add_rounded, label: '手動補一項', onPressed: widget.onAddItem)),
+            const SizedBox(width: 8),
+            Expanded(child: _SecondaryButton(icon: Icons.photo_camera_outlined, label: '補拍漏掉的', onPressed: widget.onRetake)),
+          ],
         ),
         const SizedBox(height: 16),
         _CountConfirmBox(
@@ -161,6 +180,30 @@ class _ScanReviewPanelState extends State<ScanReviewPanel> {
           child: Text('重新拍整張', style: TextStyle(fontSize: 12, color: colors.ink3)),
         ),
       ],
+    );
+  }
+}
+
+/// 清單下方的次要按鈕（手動補一項、補拍漏掉的）
+class _SecondaryButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _SecondaryButton({required this.icon, required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 13)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: colors.ink2,
+        side: BorderSide(color: colors.line),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+      ),
     );
   }
 }

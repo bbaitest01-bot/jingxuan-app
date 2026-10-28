@@ -12,6 +12,7 @@ import '../../services/policy_file_reader.dart';
 import '../../services/policy_scan_merge.dart';
 import '../../services/policy_scan_service.dart';
 import '../../theme/app_theme.dart';
+import 'scan_retake.dart';
 import '../custom_toast.dart';
 import 'scan_capture_panel.dart';
 import 'scan_duplicate_dialog.dart';
@@ -46,6 +47,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   int _recognizingPhotoNumber = 0;
   // 這一張辨識超過 10 秒：多半是 AI 每分鐘用量滿了在等，畫面說明不是當機
   bool _isWaitingLong = false;
+  // 補拍辨識中（辨識畫面文字不同）
+  bool _isRetaking = false;
   Timer? _longWaitTimer;
   // 電子保單 PDF 取出的文字（個資已遮蔽）；有文字就送文字、不送圖片（2026-10-25 B 做法）
   String? _pdfText;
@@ -280,6 +283,41 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     setState(() => policy.items.add(added));
   }
 
+  /// 補拍：只辨識補拍的照片，和目前結果比對後合併（D19）；辨識中畫面寫「補拍辨識中」
+  Future<void> _retake() async {
+    final ScannedPolicy? policy = _scannedPolicy;
+    if (policy == null) return;
+    final Uint8List? photo = await pickRetakePhoto(context, isMobileDevice: _isMobileDevice);
+    if (photo == null || !mounted) return;
+    setState(() {
+      _isRetaking = true;
+      _step = _ScanStep.recognizing;
+    });
+    try {
+      final ScannedPolicy retakePolicy = await _recognizePhoto(photo, allowNoItems: true);
+      await _scanService.matchCatalog(retakePolicy);
+      if (!mounted) return;
+      setState(() => _step = _ScanStep.review);
+      final RetakeResult result = PolicyRetake.compare(policy, retakePolicy);
+      final String? mismatch = result.mismatchText;
+      if (mismatch != null && !await confirmRetakeMismatch(context, mismatch)) return;
+      setState(() => PolicyRetake.apply(policy, retakePolicy, result));
+      if (mounted) CustomToast.show(context, retakeSummaryText(result), ToastType.success);
+    } on PolicyScanException catch (error) {
+      if (!mounted) return;
+      setState(() => _step = _ScanStep.review);
+      CustomToast.show(context, error.message, ToastType.error);
+    } finally {
+      if (mounted) setState(() => _isRetaking = false);
+    }
+  }
+
+  void _useRetakeValue(int index) {
+    final ScannedPolicy? policy = _scannedPolicy;
+    if (policy == null) return;
+    setState(() => PolicyRetake.useRetakeValue(policy.items[index]));
+  }
+
   void _applySuggestion(int index) {
     final ScannedPolicy? policy = _scannedPolicy;
     if (policy == null) return;
@@ -385,6 +423,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
         onEditItem: _editItem,
         onRemoveItem: _removeItem,
         onApplySuggestion: _applySuggestion,
+        onRetake: _retake,
+        onUseRetakeValue: _useRetakeValue,
         onAddItem: _addItem,
         onStatusChanged: (String status) => setState(() => _status = status),
         onRescan: _rescan,
@@ -393,7 +433,9 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     }
     if (_step == _ScanStep.recognizing) {
       String progressText = 'AI 辨識中，通常幾秒鐘就好…';
-      if (_images.length > 1 && _pdfText == null) {
+      if (_isRetaking) {
+        progressText = '補拍辨識中，完成後會和剛才的結果比對…';
+      } else if (_images.length > 1 && _pdfText == null) {
         progressText = 'AI 辨識中（第 $_recognizingPhotoNumber／${_images.length} 張）…';
       }
       if (_isWaitingLong) {

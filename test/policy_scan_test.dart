@@ -247,6 +247,8 @@ void main() {
           onRemoveItem: (_) {},
           onApplySuggestion: (_) {},
           onAddItem: () {},
+          onRetake: () {},
+          onUseRetakeValue: (_) {},
           onStatusChanged: (_) {},
           onRescan: () {},
           onSave: () => saved = true,
@@ -414,6 +416,8 @@ void main() {
           onRemoveItem: (_) {},
           onApplySuggestion: (int index) => appliedIndex = index,
           onAddItem: () {},
+          onRetake: () {},
+          onUseRetakeValue: (_) {},
           onStatusChanged: (_) {},
           onRescan: () {},
           onSave: () {},
@@ -422,6 +426,16 @@ void main() {
       expect(find.textContaining('保單上可能有 9 項，只讀到 1 項'), findsOneWidget);
       expect(find.textContaining('可能是：國泰人壽睛彩人生'), findsOneWidget);
       await tester.tap(find.text('套用'));
+      expect(appliedIndex, 0);
+      // 有沒套用的建議時，存入前會列出來，可以「全部套用並存入」
+      appliedIndex = -1;
+      await tester.tap(find.textContaining('保單上共 1 項'));
+      await tester.pump();
+      await tester.tap(find.text('存入客戶保單（1 項）'));
+      await tester.pumpAndSettle();
+      expect(find.text('還有 1 項沒處理'), findsOneWidget);
+      await tester.tap(find.text('全部套用並存入'));
+      await tester.pumpAndSettle();
       expect(appliedIndex, 0);
       expect(tester.takeException(), isNull);
     });
@@ -450,6 +464,69 @@ void main() {
       expect(merged.sentWholePhoto, isFalse);
     });
 
+    test('補拍比對：新項目加入、重複略過、金額不同標出、保單號碼不同提醒', () {
+      final ScannedPolicy first = ScannedPolicy(companyCode: 'fubon', policyNumber: 'A123', items: [
+        ScannedPolicyItem(productName: '富邦人壽美好人生終身壽險', coverageRole: 'main', premium: 30000),
+        ScannedPolicyItem(productName: '富邦人壽實支實付醫療附約', coverageRole: 'rider', planOrAmount: '計畫三', premium: 3500),
+      ]);
+      final ScannedPolicy retake = ScannedPolicy(companyCode: 'fubon', policyNumber: 'A123', effectiveDate: DateTime(2024, 3, 1), items: [
+        ScannedPolicyItem(productName: '富邦人壽實支實付醫療附約', coverageRole: 'rider', planOrAmount: '計畫二', premium: 3500),
+        ScannedPolicyItem(productName: '富邦人壽美好人生終身壽險', coverageRole: 'main', premium: 30000),
+        ScannedPolicyItem(productName: '富邦人壽癌症健康附約', coverageRole: 'rider', premium: 1200),
+      ]);
+      final RetakeResult result = PolicyRetake.compare(first, retake);
+      expect(result.mismatchText, isNull);
+      expect(result.newItems.length, 1);
+      expect(result.duplicateCount, 1);
+      expect(result.conflicts.length, 1);
+
+      PolicyRetake.apply(first, retake, result);
+      expect(first.items.length, 3);
+      expect(first.items.last.addedByRetake, isTrue);
+      expect(first.effectiveDate, DateTime(2024, 3, 1));
+      expect(first.items[1].retakeAlternative?.planOrAmount, '計畫二');
+      PolicyRetake.useRetakeValue(first.items[1]);
+      expect(first.items[1].planOrAmount, '計畫二');
+      expect(first.items[1].retakeAlternative, isNull);
+
+      final ScannedPolicy otherPolicy = ScannedPolicy(companyCode: 'fubon', policyNumber: 'B456', items: []);
+      expect(PolicyRetake.compare(first, otherPolicy).mismatchText, contains('A123 → B456'));
+    });
+
+    testWidgets('確認畫面：補拍新增標示、金額不同可改用補拍的', (WidgetTester tester) async {
+      final ScannedPolicyItem changed = ScannedPolicyItem(productName: '富邦人壽實支實付醫療附約', coverageRole: 'rider', planOrAmount: '計畫三');
+      changed.retakeAlternative = ScannedPolicyItem(productName: '富邦人壽實支實付醫療附約', planOrAmount: '計畫二');
+      final ScannedPolicyItem added = ScannedPolicyItem(productName: '富邦人壽癌症健康附約', coverageRole: 'rider');
+      added.addedByRetake = true;
+      int usedIndex = -1;
+      await pumpInWidth(
+        tester,
+        375,
+        ScanReviewPanel(
+          customerName: '王測一',
+          policy: ScannedPolicy(companyCode: 'fubon', items: [changed, added]),
+          status: PolicyStatus.active,
+          isSaving: false,
+          onEditItem: (_) {},
+          onRemoveItem: (_) {},
+          onApplySuggestion: (_) {},
+          onAddItem: () {},
+          onRetake: () {},
+          onUseRetakeValue: (int index) => usedIndex = index,
+          onStatusChanged: (_) {},
+          onRescan: () {},
+          onSave: () {},
+        ),
+      );
+      expect(find.text('補拍新增'), findsOneWidget);
+      expect(find.textContaining('補拍讀到：計畫二'), findsOneWidget);
+      expect(find.textContaining('補拍讀到的金額或計畫不一樣'), findsOneWidget);
+      expect(find.text('補拍漏掉的'), findsOneWidget);
+      await tester.tap(find.text('改用補拍的'));
+      expect(usedIndex, 0);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('確認畫面：照片沒切成兩半、整張辨識時黃色提醒核對項數', (WidgetTester tester) async {
       final ScannedPolicy policy = ScannedPolicy(
         companyCode: 'fubon',
@@ -468,6 +545,8 @@ void main() {
           onRemoveItem: (_) {},
           onApplySuggestion: (_) {},
           onAddItem: () {},
+          onRetake: () {},
+          onUseRetakeValue: (_) {},
           onStatusChanged: (_) {},
           onRescan: () {},
           onSave: () {},
