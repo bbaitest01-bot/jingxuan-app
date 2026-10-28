@@ -46,7 +46,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 - 業務邏輯（Supabase 查詢、資料轉換、外部 API）寫在 `lib/services/`，Widget 只負責畫面與狀態。
 - 平台差異用條件匯入（參考 `voice_web_helper*.dart`、`platform_file_helper*.dart`），不要在共用程式碼直接 `import 'dart:html'`。
 - 資料庫變更一律新增 `supabase/migrations/YYYYMMDD_說明.sql`，不要直接改舊 migration；新表必須設定 RLS。
-- 新增或升級套件後，同步更新 `../jingxuan-vault/工具包.md`（格式：**`套件名`** (`版本`)），並跑一次工具包校對。
+- 新增或升級套件後，同步更新 `../jingxuan-vault/工具包.md`（格式：**`套件名`** (`版本`)）並在 `../jingxuan-vault/工具包更新紀錄.md` 新增一列，再跑一次工具包校對。Flutter 版本升級要同時改 `.github/workflows/deploy.yml` 的 `flutter-version`。
 
 ## 4. 架構嚴謹協定（沿用自舊專案 AGENTS.md）
 
@@ -70,7 +70,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 
 ## 6. 快捷指令
 
-「開工」(`/start`)、「收工」(`/finish`)、「回報」(`/report`)、「讓我看看」(`/preview`)、「確認狀況」(`/status`)、「精簡模式」(`/brief`)、「詳細模式」(`/verbose`)（`.claude/commands/`）。
+「開工」(`/start`)、「收工」(`/finish`)、「回報」(`/report`)、「讓我看看」(`/preview`)、「確認狀況」(`/status`)、「精簡模式」(`/brief`)、「詳細模式」(`/verbose`)、「更新工具包」(`/toolpack-update`)、「對齊工具包」(`/toolpack-align`)（`.claude/commands/`）。
 純文件工作請在 `jingxuan-vault` 開啟，另有 「對齊」(`/align`)、「book」(`/book`)、「自我修復」(`/self-repair`)。
 
 ## 7. 學習筆記（給新手組員看懂程式）
@@ -109,4 +109,4 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 
 ## 中文觸發詞（沿用舊習慣）
 使用者在對話中說出下列中文指令時，等同執行對應的 `.claude/commands/` 檔案（也可直接輸入斜線指令）：
-「開工」→ `start.md`｜「收工」→ `finish.md`｜「回報」（可加 人類／AI／雙軌）→ `report.md`｜「讓我看看」→ `preview.md`｜「確認狀況」→ `status.md`｜「精簡模式」／caveman → `brief.md`｜「詳細模式」→ `verbose.md`
+「開工」→ `start.md`｜「收工」→ `finish.md`｜「回報」（可加 人類／AI／雙軌）→ `report.md`｜「讓我看看」→ `preview.md`｜「確認狀況」→ `status.md`｜「精簡模式」／caveman → `brief.md`｜「詳細模式」→ `verbose.md`｜「更新工具包」→ `toolpack-update.md`｜「對齊工具包」→ `toolpack-align.md`

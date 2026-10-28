@@ -25,7 +25,9 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          # 固定版本，和 jingxuan-vault/工具包.md 的建議版本一致；升級時兩邊一起改並記入工具包更新紀錄
           channel: 'stable'
+          flutter-version: '3.47.8'
           cache: true
 
       - name: Install Dependencies
