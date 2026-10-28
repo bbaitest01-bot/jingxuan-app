@@ -72,3 +72,111 @@ class PolicyScanMerge {
     return score;
   }
 }
+
+/// 補拍的比對結果（2026-10-29 D19：不要整張重拍，只補拍漏掉的部分再比對）
+class RetakeResult {
+  // 補拍的保單號碼或保險公司和第一次不同（可能拿錯保單）；例：「A123 → B456」
+  final String? mismatchText;
+  // 第一次沒有、補拍才讀到的項目
+  final List<ScannedPolicyItem> newItems;
+  // 同一個商品，保費或計畫不一樣（第一次的那筆 → 補拍讀到的）
+  final Map<ScannedPolicyItem, ScannedPolicyItem> conflicts;
+  // 和第一次完全一樣、略過的項數
+  final int duplicateCount;
+
+  const RetakeResult({
+    required this.mismatchText,
+    required this.newItems,
+    required this.conflicts,
+    required this.duplicateCount,
+  });
+}
+
+/// 補拍的比對與套用
+class PolicyRetake {
+  /// 比對第一次與補拍的結果；不改任何資料
+  static RetakeResult compare(ScannedPolicy current, ScannedPolicy retake) {
+    final List<ScannedPolicyItem> newItems = [];
+    final Map<ScannedPolicyItem, ScannedPolicyItem> conflicts = {};
+    int duplicateCount = 0;
+    for (final ScannedPolicyItem retakeItem in retake.items) {
+      final ScannedPolicyItem? sameItem = _findSameProduct(current.items, retakeItem);
+      if (sameItem == null) {
+        newItems.add(retakeItem);
+      } else if (_valuesDiffer(sameItem, retakeItem)) {
+        conflicts[sameItem] = retakeItem;
+      } else {
+        duplicateCount++;
+      }
+    }
+    return RetakeResult(
+      mismatchText: _mismatchText(current, retake),
+      newItems: newItems,
+      conflicts: conflicts,
+      duplicateCount: duplicateCount,
+    );
+  }
+
+  /// 套用：新項目加在最後並標「補拍新增」；金額不同的標在原本那筆上讓業務員選；第一次沒讀到的保單資料補上
+  static void apply(ScannedPolicy current, ScannedPolicy retake, RetakeResult result) {
+    for (final ScannedPolicyItem item in result.newItems) {
+      item.addedByRetake = true;
+      current.items.add(item);
+    }
+    result.conflicts.forEach((ScannedPolicyItem original, ScannedPolicyItem retakeItem) {
+      original.retakeAlternative = retakeItem;
+    });
+    current.policyNumber ??= retake.policyNumber;
+    current.effectiveDate ??= retake.effectiveDate;
+    current.companyCode ??= retake.companyCode;
+    current.companyName ??= retake.companyName;
+  }
+
+  /// 業務員選「改用補拍的」：保費、計畫換成補拍讀到的
+  static void useRetakeValue(ScannedPolicyItem item) {
+    final ScannedPolicyItem? alternative = item.retakeAlternative;
+    if (alternative == null) return;
+    item.premium = alternative.premium ?? item.premium;
+    item.premiumCurrency = alternative.premiumCurrency ?? item.premiumCurrency;
+    if ((alternative.planOrAmount ?? '').isNotEmpty) {
+      item.planOrAmount = alternative.planOrAmount;
+    }
+    item.retakeAlternative = null;
+  }
+
+  static ScannedPolicyItem? _findSameProduct(List<ScannedPolicyItem> items, ScannedPolicyItem target) {
+    final String targetName = PolicyScanService.normalizeProductName(target.productName);
+    for (final ScannedPolicyItem item in items) {
+      if (PolicyScanService.normalizeProductName(item.productName) == targetName) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  /// 兩邊都有值、而且不一樣才算不同（其中一邊沒讀到不算）
+  static bool _valuesDiffer(ScannedPolicyItem first, ScannedPolicyItem second) {
+    final bool premiumDiffers = first.premium != null && second.premium != null && first.premium != second.premium;
+    final String firstPlan = (first.planOrAmount ?? '').replaceAll(' ', '');
+    final String secondPlan = (second.planOrAmount ?? '').replaceAll(' ', '');
+    final bool planDiffers = firstPlan.isNotEmpty && secondPlan.isNotEmpty && firstPlan != secondPlan;
+    return premiumDiffers || planDiffers;
+  }
+
+  /// 保單號碼或保險公司不同時回傳說明；看不出來（有一邊沒讀到）不算不同
+  static String? _mismatchText(ScannedPolicy current, ScannedPolicy retake) {
+    final String currentNumber = (current.policyNumber ?? '').replaceAll(RegExp(r'[\s-]'), '');
+    final String retakeNumber = (retake.policyNumber ?? '').replaceAll(RegExp(r'[\s-]'), '');
+    if (currentNumber.isNotEmpty && retakeNumber.isNotEmpty && currentNumber != retakeNumber) {
+      return '保單號碼 ${current.policyNumber} → ${retake.policyNumber}';
+    }
+    final String? currentCompany = current.companyCode;
+    final String? retakeCompany = retake.companyCode;
+    if (currentCompany != null && retakeCompany != null && currentCompany != retakeCompany) {
+      final String currentName = PolicyScanService.companyShortNames[currentCompany] ?? currentCompany;
+      final String retakeName = PolicyScanService.companyShortNames[retakeCompany] ?? retakeCompany;
+      return '保險公司 $currentName → $retakeName';
+    }
+    return null;
+  }
+}

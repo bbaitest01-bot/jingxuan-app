@@ -14,6 +14,7 @@ class ScanReviewItemList extends StatelessWidget {
   final VoidCallback onToggleExpanded;
   final ValueChanged<int> onEditItem;
   final ValueChanged<int> onApplySuggestion;
+  final ValueChanged<int> onUseRetakeValue;
 
   const ScanReviewItemList({
     super.key,
@@ -23,6 +24,7 @@ class ScanReviewItemList extends StatelessWidget {
     required this.onToggleExpanded,
     required this.onEditItem,
     required this.onApplySuggestion,
+    required this.onUseRetakeValue,
   });
 
   @override
@@ -32,7 +34,8 @@ class ScanReviewItemList extends StatelessWidget {
     int hiddenCount = 0;
     for (int index = 0; index < items.length; index++) {
       final ScannedPolicyItem item = items[index];
-      final bool canHide = index >= collapsedVisibleCount && item.isInCatalog;
+      // 有問題、或補拍新增的項目一律顯示
+      final bool canHide = index >= collapsedVisibleCount && item.isInCatalog && !item.addedByRetake && item.retakeAlternative == null;
       if (!isExpanded && canHide) {
         hiddenCount++;
         continue;
@@ -42,6 +45,7 @@ class ScanReviewItemList extends StatelessWidget {
         isLast: index == items.length - 1 && hiddenCount == 0,
         onEdit: () => onEditItem(index),
         onApplySuggestion: () => onApplySuggestion(index),
+        onUseRetakeValue: () => onUseRetakeValue(index),
       ));
     }
     final bool canCollapse = items.length > collapsedVisibleCount;
@@ -83,18 +87,21 @@ class _ScannedItemRow extends StatelessWidget {
   final bool isLast;
   final VoidCallback onEdit;
   final VoidCallback onApplySuggestion;
+  final VoidCallback onUseRetakeValue;
 
   const _ScannedItemRow({
     required this.item,
     required this.isLast,
     required this.onEdit,
     required this.onApplySuggestion,
+    required this.onUseRetakeValue,
   });
 
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final bool hasProblem = !item.isInCatalog;
+    final ScannedPolicyItem? retakeAlternative = item.retakeAlternative;
+    final bool hasProblem = !item.isInCatalog || retakeAlternative != null;
     final String plan = item.planOrAmount ?? '';
     final int? premium = item.premium;
     final List<Widget> lines = [
@@ -103,6 +110,10 @@ class _ScannedItemRow extends StatelessWidget {
           _CoverageRoleTag(role: item.coverageRole),
           const SizedBox(width: 8),
           Expanded(child: Text(item.productName, style: TextStyle(fontSize: 13, color: colors.ink))),
+          if (item.addedByRetake) ...[
+            const SizedBox(width: 6),
+            Text('補拍新增', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.ok)),
+          ],
           if (plan.isNotEmpty) ...[
             const SizedBox(width: 8),
             Text(plan, style: AppTextStyles.mono(fontSize: 12, color: colors.ink2)),
@@ -116,7 +127,10 @@ class _ScannedItemRow extends StatelessWidget {
         child: Text(formatPremiumText(premium, item.premiumCurrency), style: TextStyle(fontSize: 11, color: colors.ink3)),
       ));
     }
-    if (hasProblem) {
+    if (retakeAlternative != null) {
+      lines.add(_RetakeConflictLine(alternative: retakeAlternative, onUse: onUseRetakeValue));
+    }
+    if (!item.isInCatalog) {
       lines.add(_NotInCatalogLine(
         suggestedName: item.suggestedProduct?.productName,
         onApplySuggestion: onApplySuggestion,
@@ -195,6 +209,41 @@ class _NotInCatalogLine extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 補拍讀到的金額或計畫不一樣：顯示補拍的值，按「改用補拍的」才換（不按就保留第一次的）
+class _RetakeConflictLine extends StatelessWidget {
+  final ScannedPolicyItem alternative;
+  final VoidCallback onUse;
+
+  const _RetakeConflictLine({required this.alternative, required this.onUse});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final List<String> values = [];
+    final String plan = alternative.planOrAmount ?? '';
+    if (plan.isNotEmpty) values.add(plan);
+    final int? premium = alternative.premium;
+    if (premium != null) values.add(formatPremiumText(premium, alternative.premiumCurrency));
+    return Padding(
+      padding: const EdgeInsets.only(left: 44, top: 4),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        children: [
+          Text('補拍讀到：${values.join('・')}', style: TextStyle(fontSize: 11, color: colors.warn)),
+          InkWell(
+            onTap: onUse,
+            child: Text(
+              '改用補拍的',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.acc, decoration: TextDecoration.underline),
+            ),
+          ),
         ],
       ),
     );
