@@ -32,6 +32,8 @@ interface PolicyContent {
   text: string | null;
   images: PolicyImage[];
   isSplitImage: boolean;
+  // App 沒切成兩半的原因（只有技術代碼，不含保單內容）；有切或文字版是空字串
+  splitFailedReason?: string;
 }
 
 const corsHeaders = {
@@ -149,7 +151,11 @@ function readContent(body: Record<string, unknown>): { content?: PolicyContent; 
   }
   const { images, error } = readImages(body?.images);
   if (error) return { error };
-  return { content: { text: null, images, isSplitImage: body?.layout === 'split' && images.length === 2 } };
+  // App 沒能把照片切成兩半時帶來的原因（2026-10-28 D7 再次發生：iPhone 都是 image）；只留英數與少數符號，最多 120 字
+  const rawSplitFailed = typeof body?.split_failed === 'string' ? body.split_failed : '';
+  const splitFailedReason = rawSplitFailed.replace(/[^A-Za-z0-9_ =.:x-]/g, '').slice(0, 120);
+  if (splitFailedReason) console.warn(`split skipped: ${splitFailedReason}`);
+  return { content: { text: null, images, isSplitImage: body?.layout === 'split' && images.length === 2, splitFailedReason } };
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +234,7 @@ async function extractFieldsWithAi(policyContent: PolicyContent): Promise<{ resu
     let source = 'image';
     if (policyContent.text) source = 'text';
     else if (policyContent.isSplitImage) source = 'split';
+    else if (policyContent.splitFailedReason) source = `image, split_failed=${policyContent.splitFailedReason}`;
     console.log(`Groq scan attempt ${attempt} ok (${source}, ${elapsedMilliseconds}ms)`);
     return { result: keepAllowedFields(parsed) };
   }

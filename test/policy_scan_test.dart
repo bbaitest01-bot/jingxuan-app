@@ -416,6 +416,33 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('確認畫面：照片沒切成兩半、整張辨識時黃色提醒核對項數', (WidgetTester tester) async {
+      final ScannedPolicy policy = ScannedPolicy(
+        companyCode: 'fubon',
+        items: [ScannedPolicyItem(productName: '富邦人壽測試壽險', coverageRole: 'main')],
+      );
+      policy.sentWholePhoto = true;
+      await pumpInWidth(
+        tester,
+        375,
+        ScanReviewPanel(
+          customerName: '王測一',
+          policy: policy,
+          status: PolicyStatus.active,
+          isSaving: false,
+          onEditItem: (_) {},
+          onRemoveItem: (_) {},
+          onApplySuggestion: (_) {},
+          onAddItem: () {},
+          onStatusChanged: (_) {},
+          onRescan: () {},
+          onSave: () {},
+        ),
+      );
+      expect(find.textContaining('整張辨識'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('重複保單：提醒並可以選「仍要存入」或「取消」', (WidgetTester tester) async {
       bool? confirmed;
       await tester.pumpWidget(MaterialApp(

@@ -154,6 +154,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     if (pdfText != null) {
       return _scanService.recognizePolicyText(pdfText);
     }
+    // 沒切成兩半的原因（一張照片才切；多張照片原樣送也記下來，方便從 Logs 判斷）
+    String splitFailureReason = 'photo_count_${_images.length}';
     if (_images.length == 1) {
       final PolicyFileReadResult splitResult = await PolicyFileReader.splitImage(_images.first);
       if (splitResult.status == PolicyFileReadStatus.ok && splitResult.images.length == 2) {
@@ -163,12 +165,13 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
         }
         return _scanService.recognizePolicy(halves, isSplitImage: true);
       }
+      splitFailureReason = 'split_${splitResult.status.name} ${splitResult.failureReason} images=${splitResult.images.length}';
     }
     final List<PolicyScanImage> scanImages = [];
     for (final Uint8List image in _images) {
       scanImages.add(PolicyScanImage(bytes: image, mimeType: 'image/jpeg'));
     }
-    return _scanService.recognizePolicy(scanImages);
+    return _scanService.recognizePolicy(scanImages, splitFailureReason: splitFailureReason);
   }
 
   Future<void> _recognize() async {

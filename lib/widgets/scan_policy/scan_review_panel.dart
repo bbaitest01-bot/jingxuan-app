@@ -77,10 +77,13 @@ class ScanReviewPanel extends StatelessWidget {
         const SizedBox(height: 4),
         Text('請對照保單檢查，點商品可以修改', style: TextStyle(fontSize: 12, color: colors.ink3)),
         const SizedBox(height: 12),
+        if (policy.sentWholePhoto) ...[
+          const _WarningBanner(text: '這次照片沒有切成上下兩半，是整張辨識，比較容易漏掉下面幾項，請對照保單核對項數'),
+          const SizedBox(height: 10),
+        ],
         if (policy.missingItemCount > 0) ...[
-          _MissingItemsBanner(
-            expectedCount: policy.expectedItemCount ?? 0,
-            readCount: policy.items.length,
+          _WarningBanner(
+            text: '保單上有 ${policy.expectedItemCount ?? 0} 項，只讀到 ${policy.items.length} 項，請對照保單檢查，可按「補上漏掉的商品」',
           ),
           const SizedBox(height: 10),
         ],
@@ -118,12 +121,11 @@ class ScanReviewPanel extends StatelessWidget {
   }
 }
 
-/// 黃色提醒：保單上有 N 項，只讀到 M 項（AI 先數總項數，2026-10-24 沛沛實測漏項後加入）
-class _MissingItemsBanner extends StatelessWidget {
-  final int expectedCount;
-  final int readCount;
+/// 黃色提醒：可能漏項（AI 數的總項數比讀到的多，2026-10-24）、照片整張辨識（2026-10-28）
+class _WarningBanner extends StatelessWidget {
+  final String text;
 
-  const _MissingItemsBanner({required this.expectedCount, required this.readCount});
+  const _WarningBanner({required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -140,10 +142,7 @@ class _MissingItemsBanner extends StatelessWidget {
           Icon(Icons.warning_amber_rounded, size: 18, color: colors.warn),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '保單上有 $expectedCount 項，只讀到 $readCount 項，請對照保單檢查，可按「補上漏掉的商品」',
-              style: TextStyle(fontSize: 12, color: colors.warn),
-            ),
+            child: Text(text, style: TextStyle(fontSize: 12, color: colors.warn)),
           ),
         ],
       ),
