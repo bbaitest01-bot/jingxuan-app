@@ -3,7 +3,7 @@
 用法：
     python3 tool/benefit_items/build_seed_sql.py
 
-輸出 supabase/seed/benefit_items_1.sql、benefit_items_2.sql（太大一次貼會卡，分兩份）：
+輸出 supabase/seed/benefit_items_1.sql～_3.sql（太大一次貼會卡，分三份）：
 在 Supabase SQL Editor 依序各執行一次即可匯入。
 用「公司代號＋商品名稱」找 insurance_products 的 id；會先刪掉這些商品舊的項目再寫入，可重複執行。
 """
@@ -14,7 +14,7 @@ TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 REPOSITORY_DIR = os.path.dirname(os.path.dirname(TOOL_DIR))
 INPUT_PATH = os.path.join(TOOL_DIR, 'benefit_items_auto.json')
 OUTPUT_DIR = os.path.join(REPOSITORY_DIR, 'supabase', 'seed')
-PART_COUNT = 2
+PART_COUNT = 3
 
 
 def sql_text(value):
@@ -54,7 +54,7 @@ def build_part_sql(products, part_number):
         'FROM benefit_items_import v\n'
         'JOIN public.insurance_products p ON p.company_code = v.company_code AND p.product_name = v.product_name;\n\n'
         'DROP TABLE benefit_items_import;\n\n'
-        '-- 檢查：兩份都跑完應該是 194 款商品\n'
+        '-- 檢查：三份都跑完應該是 416 款商品\n'
         'SELECT count(DISTINCT product_id) AS product_count, count(*) AS item_count, count(formula) AS with_formula\n'
         'FROM public.insurance_product_benefit_items;\n'
     )

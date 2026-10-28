@@ -19,6 +19,8 @@ class InsuranceProduct {
   final String? approvalHistory;
   final String? clauseUrl;
   final String sourceUrl;
+  // 最後一次在官網商品清單看到（每週自動檢查），畫面顯示「官網最後確認」
+  final DateTime? lastSeenAt;
 
   const InsuranceProduct({
     required this.id,
@@ -34,6 +36,7 @@ class InsuranceProduct {
     required this.approvalHistory,
     required this.clauseUrl,
     required this.sourceUrl,
+    this.lastSeenAt,
   });
 
   factory InsuranceProduct.fromJson(Map<String, dynamic> json) {
@@ -57,6 +60,7 @@ class InsuranceProduct {
       approvalHistory: json['approval_history'] as String?,
       clauseUrl: json['clause_url'] as String?,
       sourceUrl: json['source_url']?.toString() ?? '',
+      lastSeenAt: DateTime.tryParse(json['last_seen_at']?.toString() ?? '')?.toLocal(),
     );
   }
 
@@ -145,7 +149,7 @@ class InsuranceProductService {
   /// 每頁固定要讀的欄位（不讀 created_at 等用不到的欄位）
   static const String _selectedColumns =
       'id, company_code, company_name, product_code, product_name, product_kind, insurance_type, '
-      'source_category, approval_date, approval_number, approval_history, clause_url, source_url';
+      'source_category, approval_date, approval_number, approval_history, clause_url, source_url, last_seen_at';
 
   /// 把搜尋文字切成關鍵字；拿掉逗號、括號等符號，避免組出錯誤的查詢條件
   static List<String> splitKeywords(String query) {

@@ -42,7 +42,7 @@ String benefitItemCellText(
   if (trialAmount != null) {
     return '$trialAmount\n$formula';
   }
-  final String? example = benefitItemExampleText(formula);
+  final String? example = benefitItemExampleText(formula, trialInput.currencyUnit);
   if (example == null) {
     return formula;
   }
@@ -52,7 +52,7 @@ String benefitItemCellText(
 /// 把算法換成看得到的金額：保額用每 1 萬元、日額用每 1,000 元來算
 /// 「保額 × 10%」→「每萬元保額可領 1,000 元」；「日額 × 3 × 天數」→「日額 1,000 元，每天可領 3,000 元」
 /// 「每單位 50,000 元」本身就是金額、「附表比例」算不出固定數字，回傳 null
-String? benefitItemExampleText(String formula) {
+String? benefitItemExampleText(String formula, [String currencyUnit = '元']) {
   // 「保額 × 1%～115%（依投保第幾年）」是範圍，不換算單一金額
   if (formula.contains('～')) {
     return null;
@@ -68,11 +68,12 @@ String? benefitItemExampleText(String formula) {
   final bool isPerDay = match.group(4)!.contains('天數');
 
   // 換算的基準：保額每 1 萬元、日額每 1,000 元
+  // 外幣保單（美元…）基準跟著幣別：每萬美元保額
   int baseAmount = 10000;
-  String baseText = '每萬元保額';
+  String baseText = '每萬$currencyUnit保額';
   if (base == '日額') {
     baseAmount = 1000;
-    baseText = '日額 1,000 元，';
+    baseText = '日額 1,000 $currencyUnit，';
   }
 
   double amount = baseAmount * multiplier;
@@ -81,9 +82,9 @@ String? benefitItemExampleText(String formula) {
   }
   final String amountText = NumberFormat('#,###').format(amount.round());
   if (isPerDay) {
-    return '$baseText每天可領 $amountText 元';
+    return '$baseText每天可領 $amountText $currencyUnit';
   }
-  return '$baseText可領 $amountText 元';
+  return '$baseText可領 $amountText $currencyUnit';
 }
 
 /// 點格子：顯示條款原文那一句，可以再打開官方條款 PDF

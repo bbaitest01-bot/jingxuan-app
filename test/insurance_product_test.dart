@@ -104,6 +104,20 @@ void main() {
     });
   });
 
+  group('資料來源', () {
+    test('有來源網址加 ↗ 表示可點；讀得到官網最後確認日期', () {
+      final InsuranceProduct product = InsuranceProduct.fromJson({
+        'id': 'p1',
+        'company_name': '國泰人壽',
+        'product_name': '國泰人壽測試',
+        'source_url': 'https://www.cathaylife.com.tw/official/laws-policies',
+        'last_seen_at': '2026-10-26T02:00:00+00:00',
+      });
+      expect(productSourceLabel(product), '國泰人壽官網・資訊公開 ↗');
+      expect(formatApprovalDate(product.lastSeenAt), '2026/10/26');
+    });
+  });
+
   group('官方條款連結', () {
     test('富邦條款改經過雲端函式 clause-pdf，其他公司直接開', () {
       const String restUrl = 'https://example.supabase.co/rest/v1';

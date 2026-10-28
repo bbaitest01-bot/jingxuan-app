@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import unicodedata
+import urllib.parse
 import urllib.request
 
 import pdfplumber
@@ -23,13 +24,13 @@ import pdfplumber
 TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 CATEGORY_FILE = os.path.join(TOOL_DIR, '..', 'coverage_categories', 'coverage_categories.json')
 OUTPUT_FILE = os.path.join(TOOL_DIR, 'benefit_items_auto.json')
-TARGET_CATEGORIES = ['daily_hospital', 'surgery', 'cancer', 'critical_illness', 'long_term_care', 'accident']
+TARGET_CATEGORIES = ['daily_hospital', 'surgery', 'cancer', 'critical_illness', 'long_term_care', 'accident', 'life']
 MAX_PAGES = 30
 
 CHINESE_NUMBERS = {'零': 0, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
 # 不是給付項目的標題（限制、責任、扣除這類）
 # 指稱其他條的寫法（各項保險金、前項保險金）不是項目名稱
-LOOSE_REFERENCE_WORDS = ['各項', '本項', '該項', '前項', '其他', '相關', '之', '最高', '其中', '一項', '較嚴重', '金額']
+LOOSE_REFERENCE_WORDS = ['各項', '本項', '該項', '前項', '其他', '相關', '之', '最高', '其中', '一項', '較嚴重', '金額', '指定', '開始日前', '增額繳清', '分期定期']
 NOT_BENEFIT_WORDS = ['限制', '責任', '扣除', '申領', '受益人', '減少', '停止', '暫停', '方式', '上限', '總額', '文件']
 
 
@@ -77,7 +78,8 @@ def download_clause(url, cache_dir):
     os.makedirs(cache_dir, exist_ok=True)
     path = os.path.join(cache_dir, hashlib.md5(url.encode('utf-8')).hexdigest() + '.pdf')
     if not os.path.exists(path):
-        request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        # 網址裡有中文要先編碼
+        request = urllib.request.Request(urllib.parse.quote(url, safe=':/?=&%#'), headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(request, timeout=40) as response:
             data = response.read()
         with open(path, 'wb') as output:
@@ -144,7 +146,7 @@ def format_unit_amount(rows):
 
 
 # 算法的基準：保額或日額（條款寫法很多種）
-BASE_PATTERN = r'(保險金額|單位日額|住院醫療保險金日額|住院日額保險金日額|保險金日額|日額)」?'
+BASE_PATTERN = r'(總保險金額|基本保額|保險金額|單位日額|住院醫療保險金日額|住院日額保險金日額|保險金日額|日額)」?'
 NUMBER_PATTERN = r'([一二三四五六七八九十百點零\d.]+)'
 
 
@@ -212,9 +214,10 @@ def find_formula(context):
             if '增額係數' in tail:
                 text += '（再乘增額係數）'
             return text
-    if re.search(r'按(?:本契約|本附約)?(?:保險單上所記載之)?「?(?:保險單上所記載之|當年度|[^，。「」]{0,14}?(?:時|當時|日)之)?「?保險金額」?(?:為準)?[，,]?(?:依照本契約約定)?給付$', context):
+    if re.search(r'(?:按|依)(?:本契約|本附約)?(?:保險單上所記載之)?「?(?:保險單上所記載之|當年度|[^，。「」]{0,14}?(?:時|當時|日)之)*「?(?:當年度|總|基本)?(?:保險金額|保額)」?(?:為準)?[，,]?(?:依照本契約約定)?給付$', context):
         return '保額 × 1'
-    if re.search(r'(?:按|以)下列[^。]{0,10}(?:約定|方式|二者|二款)', context):
+    # 「按下列約定」「按保險年齡一百零四歲之保險單年度末，下列二款計算方式…」都算分情況
+    if re.search(r'(?:按|以|依)[^。]{0,30}?(?:下列|下表)', context):
         return '分情況（看原文）'
     # 身故、祝壽、滿期常見：已繳保費或保單價值準備金，數字因人而異
     if re.search(r'已繳|保單價值準備金|保險費', context):
@@ -280,6 +283,9 @@ def case_formula(value):
     # 一種情況裡又分小項或「二者取其大」：太複雜，不整理（看原文）
     if re.search(r'（一）|\(一\)|取其大|或「', value):
         return None
+    # 壽險常見第三款：保單價值準備金（依保單年度與利率而定，畫面寫「保單價值」）
+    if '保單價值準備金' in value:
+        return '保單價值'
     if '保險費' in value:
         match = re.search(r'(?:乘以([一二三四五六七八九十點零\d.]+)|(?:的|之)([一二三四五六七八九十點零\d.]+)倍)', value)
         if match:
@@ -303,7 +309,7 @@ def summarize_cases(text, start, context):
     first = segment.find('一、')
     if first == -1 or first > 220:
         return None
-    take_larger = bool(re.search(r'最大值|較大者|較高者', context + text[start:start + 60]))
+    take_larger = bool(re.search(r'最大值|較大者|較高者|之最大者', context + text[start:start + 60]))
     cases = []
     for numeral, body in re.findall(r'([一二三四五六])、([^。]{2,200}?)。', segment[first:]):
         if numeral != '一二三四五六'[len(cases)]:
@@ -363,10 +369,20 @@ def sentence_around(text, match):
 def extract_items(text):
     """每個「給付『○○保險金』」＝一個給付項目（依第一次出現排序）；
     同一項目出現好幾次時，挑寫得出算法的那一句，都沒有就挑「本公司按…給付」那句，再沒有用第一句"""
-    matches = list(re.finditer(r'給付「([^」]{2,30}?保險金)」', text))
-    # 有些條款名稱沒加「」（例：給付重大疾病保險金），找不到才用這個比較寬的寫法
-    if not matches:
-        matches = list(re.finditer(r'給付([\u4e00-\u9fff（）()]{2,20}?保險金)', text))
+    quoted_matches = list(re.finditer(r'給付「([^」]{2,30}?保險金)」', text))
+    unquoted_matches = list(re.finditer(r'給付([\u4e00-\u9fff（）()]{2,20}?保險金)', text))
+    # 有些條款名稱沒加「」（例：給付重大疾病保險金），沒有引號的寫法也收；
+    # 有引號的條款，沒引號的句子只拿來找更好的算法句，不新增項目（避免雜項）
+    if quoted_matches:
+        quoted_keys = {normalize_item_key(match.group(1)) for match in quoted_matches}
+        # 「給付『身故保險金』及『完全失能保險金』」後面那個也是項目（常出現在不給付責任那條）
+        for match in re.finditer(r'(?:及|或|、)「([^」]{2,30}?保險金)」', text):
+            if '給付' in text[max(0, match.start() - 40):match.start()]:
+                quoted_keys.add(normalize_item_key(match.group(1)))
+        extra_matches = [match for match in unquoted_matches if normalize_item_key(match.group(1)) in quoted_keys]
+        matches = sorted(quoted_matches + extra_matches, key=lambda match: match.start())
+    else:
+        matches = unquoted_matches
 
     candidates_by_key = {}
     names_by_key = {}
@@ -375,6 +391,9 @@ def extract_items(text):
         if any(word in name for word in NOT_BENEFIT_WORDS + LOOSE_REFERENCE_WORDS):
             continue
         key = normalize_item_key(name)
+        # 「該保險金」「生存保險金」這種只剩一兩個字的通常是指稱，不是項目名稱
+        if len(key) < 2 or key in ('該', '生存'):
+            continue
         names_by_key.setdefault(key, name)
         sentence_start, sentence_end = sentence_around(text, match)
         formula = find_formula(text[sentence_start:match.start() + 2])

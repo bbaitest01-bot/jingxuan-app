@@ -12,8 +12,16 @@ class BenefitTrialInput {
   final int? units;
   // 年繳保費（元）
   final int? annualPremium;
+  // 幣別：台幣「元」；外幣保單是「美元」「澳幣」…（保額、保費、理賠都用這個幣別）
+  final String currencyUnit;
 
-  const BenefitTrialInput({this.coverageAmount, this.dailyAmount, this.units, this.annualPremium});
+  const BenefitTrialInput({
+    this.coverageAmount,
+    this.dailyAmount,
+    this.units,
+    this.annualPremium,
+    this.currencyUnit = '元',
+  });
 
   static const BenefitTrialInput empty = BenefitTrialInput();
 
@@ -37,6 +45,15 @@ class BenefitTrialFields {
 class BenefitTrialCalculator {
   static final RegExp _baseMultiplierPattern = RegExp(r'(保額|日額|保費) × ([\d.]+)(%?)(?:～([\d.]+)%)?');
   static final RegExp _moneyPattern = RegExp(r'(每日|每次|每年|每月)?([\d,]+) 元');
+
+  /// 從商品名稱判斷幣別：美元、澳幣、人民幣；只寫「外幣」看不出哪一種就寫「外幣」；其他是台幣「元」
+  static String currencyUnitOf(String productName) {
+    if (productName.contains('美元') || productName.contains('美利')) return '美元';
+    if (productName.contains('澳幣') || productName.contains('澳利')) return '澳幣';
+    if (productName.contains('人民幣')) return '人民幣';
+    if (productName.contains('外幣')) return '外幣';
+    return '元';
+  }
 
   /// 看這款商品的項目用到保額、日額還是單位
   static BenefitTrialFields fieldsFor(List<InsuranceBenefitItem> items) {
@@ -73,15 +90,15 @@ class BenefitTrialCalculator {
       final String? rangeEnd = match.group(4);
       replacedAny = true;
       if (rangeEnd != null) {
-        final String low = formatMoney(baseAmount * firstMultiplier / 100);
-        final String high = formatMoney(baseAmount * double.parse(rangeEnd) / 100);
+        final String low = formatMoney(baseAmount * firstMultiplier / 100, input.currencyUnit);
+        final String high = formatMoney(baseAmount * double.parse(rangeEnd) / 100, input.currencyUnit);
         return '$low～$high';
       }
       double amount = baseAmount * firstMultiplier;
       if (isPercent) {
         amount = amount / 100;
       }
-      return formatMoney(amount);
+      return formatMoney(amount, input.currencyUnit);
     });
 
     // 每單位 X 元 × 單位數；「每單位 每日1,200 元（第91日起 每日1,800 元）」括號裡的金額也是每單位，一起乘
@@ -91,7 +108,7 @@ class BenefitTrialCalculator {
         replacedAny = true;
         final String period = match.group(1) ?? '';
         final int perUnit = int.parse(match.group(2)!.replaceAll(',', ''));
-        return '$period${formatMoney((perUnit * units).toDouble())}';
+        return '$period${formatMoney((perUnit * units).toDouble(), input.currencyUnit)}';
       });
     }
 
@@ -99,7 +116,7 @@ class BenefitTrialCalculator {
       return null;
     }
     // 「5,000 元 × 天數」讀起來改成「每天 5,000 元」
-    result = result.replaceAllMapped(RegExp(r'([\d,.萬～]+ ?元) × 天數'), (Match match) => '每天 ${match.group(1)}');
+    result = result.replaceAllMapped(RegExp(r'([\d,.萬～]+ ?(?:元|美元|澳幣|人民幣|外幣)) × 天數'), (Match match) => '每天 ${match.group(1)}');
     return result;
   }
 
@@ -115,8 +132,8 @@ class BenefitTrialCalculator {
     return null;
   }
 
-  /// 10 萬以上寫「50 萬元」「12.5 萬元」，以下寫「13,200 元」
-  static String formatMoney(double amount) {
+  /// 10 萬以上寫「50 萬元」「12.5 萬元」，以下寫「13,200 元」；外幣寫「10 萬美元」「5,000 美元」
+  static String formatMoney(double amount, [String currencyUnit = '元']) {
     final int rounded = amount.round();
     if (rounded >= 100000) {
       final double tenThousands = rounded / 10000;
@@ -124,8 +141,8 @@ class BenefitTrialCalculator {
       if (text.endsWith('.0')) {
         text = text.substring(0, text.length - 2);
       }
-      return '$text 萬元';
+      return '$text 萬$currencyUnit';
     }
-    return '${NumberFormat('#,###').format(rounded)} 元';
+    return '${NumberFormat('#,###').format(rounded)} $currencyUnit';
   }
 }
