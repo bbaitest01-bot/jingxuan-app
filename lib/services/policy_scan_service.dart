@@ -155,6 +155,7 @@ class PolicyScanService {
     List<PolicyScanImage> images, {
     bool isSplitImage = false,
     String? splitFailureReason,
+    bool allowNoItems = false,
   }) async {
     final List<Map<String, String>> imagePayload = [];
     for (final PolicyScanImage image in images) {
@@ -165,13 +166,10 @@ class PolicyScanService {
       body['layout'] = 'split';
     }
     if (splitFailureReason != null) {
-      String reason = splitFailureReason;
-      if (reason.length > 120) {
-        reason = reason.substring(0, 120);
-      }
-      body['split_failed'] = reason;
+      final int length = splitFailureReason.length;
+      body['split_failed'] = splitFailureReason.substring(0, length > 120 ? 120 : length);
     }
-    final ScannedPolicy policy = await _invokeScan(body);
+    final ScannedPolicy policy = await _invokeScan(body, allowNoItems: allowNoItems);
     policy.sentWholePhoto = splitFailureReason != null;
     // 上下兩半中間有重疊，萬一 AI 把重疊那一列列了兩次，這裡去掉
     if (isSplitImage) {
@@ -185,7 +183,8 @@ class PolicyScanService {
     return _invokeScan({'text': text});
   }
 
-  Future<ScannedPolicy> _invokeScan(Map<String, dynamic> body) async {
+  /// allowNoItems：好幾張照片分開辨識時，封面這類沒有商品的頁面不算失敗（合併後都沒有才算）
+  Future<ScannedPolicy> _invokeScan(Map<String, dynamic> body, {bool allowNoItems = false}) async {
     // 雲端函式剛啟動、連線中斷時自動再試一次；AI 本身的重試在雲端函式裡做
     Map<String, dynamic>? responseData;
     for (int attempt = 1; attempt <= 2 && responseData == null; attempt++) {
@@ -206,12 +205,13 @@ class PolicyScanService {
     }
 
     final ScannedPolicy policy = parseScanResponse(responseData ?? const {});
-    if (policy.items.isEmpty) {
-      throw const PolicyScanException('沒有讀到商品，請確認拍的是「保單首頁」（列出主約、附約那一頁）');
+    if (policy.items.isEmpty && !allowNoItems) {
+      throw const PolicyScanException(noItemsMessage);
     }
     return policy;
   }
 
+  static const String noItemsMessage = '沒有讀到商品，請確認拍的是「保單首頁」（列出主約、附約那一頁）';
   /// 伺服器還沒準備好（啟動中、逾時）才值得重試；照片格式錯、AI 失敗（502）不重試
   static bool isServerStartupProblem(int status) {
     return status == 500 || status == 503 || status == 504 || status == 546;
