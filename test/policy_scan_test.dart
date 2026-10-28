@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:insurance_helper/services/customer_policy_service.dart';
 import 'package:insurance_helper/services/insurance_product_service.dart';
+import 'package:insurance_helper/services/policy_scan_merge.dart';
 import 'package:insurance_helper/services/policy_scan_service.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_capture_panel.dart';
 import 'package:insurance_helper/widgets/scan_policy/scan_customer_picker_dialog.dart';
@@ -416,6 +417,30 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    test('兩張照片分開辨識後合併：保單資料取有寫的、同名商品留資料多的、總項數取最大', () {
+      final ScannedPolicy cover = ScannedPolicy(
+        companyCode: 'fubon',
+        policyNumber: 'A123',
+        expectedItemCount: 8,
+        items: [ScannedPolicyItem(productName: '富邦人壽美好人生終身壽險', coverageRole: 'main')],
+      );
+      final ScannedPolicy table = ScannedPolicy(
+        effectiveDate: DateTime(2024, 3, 1),
+        expectedItemCount: 8,
+        items: [
+          ScannedPolicyItem(productName: '富邦人壽美好人生終身壽險', coverageRole: 'main', planOrAmount: '100萬', premium: 30000),
+          ScannedPolicyItem(productName: '富邦人壽實支實付醫療附約', coverageRole: 'rider', planOrAmount: '計畫三', premium: 3500),
+        ],
+      );
+      final ScannedPolicy merged = PolicyScanMerge.mergePages([cover, table]);
+      expect(merged.policyNumber, 'A123');
+      expect(merged.effectiveDate, DateTime(2024, 3, 1));
+      expect(merged.expectedItemCount, 8);
+      expect(merged.items.length, 2);
+      expect(merged.items.first.premium, 30000);
+      expect(merged.sentWholePhoto, isFalse);
+    });
+
     testWidgets('確認畫面：照片沒切成兩半、整張辨識時黃色提醒核對項數', (WidgetTester tester) async {
       final ScannedPolicy policy = ScannedPolicy(
         companyCode: 'fubon',
@@ -476,7 +501,7 @@ void main() {
         ScannedPolicyItem(productName: '南山人壽 意外骨折暨傷害醫療保險附約', premium: 455),
         ScannedPolicyItem(productName: '南山人壽愛家保要保人豁免保險費附約', premium: 380),
       ]);
-      PolicyScanService.removeDuplicateItems(policy);
+      PolicyScanMerge.removeDuplicateItems(policy);
       expect(policy.items.length, 3);
     });
 
@@ -485,7 +510,7 @@ void main() {
         ScannedPolicyItem(productName: '國泰人壽新金骨力傷害暨兒童意外骨折保險附約', premium: 71),
         ScannedPolicyItem(productName: '國泰人壽新金骨力傷害暨兒童意外骨折保險附約', premium: 120),
       ]);
-      PolicyScanService.removeDuplicateItems(policy);
+      PolicyScanMerge.removeDuplicateItems(policy);
       expect(policy.items.length, 2);
     });
 
