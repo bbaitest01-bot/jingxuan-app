@@ -9,6 +9,7 @@ import 'benefit_plan_service.dart';
 import 'coverage_check_service.dart';
 import 'customer_policy_service.dart';
 import 'insurance_product_service.dart';
+import 'policy_scan_merge.dart';
 
 /// 一張要送去辨識的保單影像（照片、截圖，或 PDF 轉出來的頁面）
 class PolicyScanImage {
@@ -174,7 +175,7 @@ class PolicyScanService {
     policy.sentWholePhoto = splitFailureReason != null;
     // 上下兩半中間有重疊，萬一 AI 把重疊那一列列了兩次，這裡去掉
     if (isSplitImage) {
-      removeDuplicateItems(policy);
+      PolicyScanMerge.removeDuplicateItems(policy);
     }
     return policy;
   }
@@ -209,27 +210,6 @@ class PolicyScanService {
       throw const PolicyScanException('沒有讀到商品，請確認拍的是「保單首頁」（列出主約、附約那一頁）');
     }
     return policy;
-  }
-
-  /// 去掉名稱與保費都一樣、緊接著重複出現的商品（切兩半時重疊處可能被列兩次）
-  static void removeDuplicateItems(ScannedPolicy policy) {
-    final List<ScannedPolicyItem> keptItems = [];
-    for (final ScannedPolicyItem item in policy.items) {
-      bool isDuplicate = false;
-      for (final ScannedPolicyItem keptItem in keptItems) {
-        final bool sameName = normalizeProductName(keptItem.productName) == normalizeProductName(item.productName);
-        if (sameName && keptItem.premium == item.premium) {
-          isDuplicate = true;
-          break;
-        }
-      }
-      if (!isDuplicate) {
-        keptItems.add(item);
-      }
-    }
-    policy.items
-      ..clear()
-      ..addAll(keptItems);
   }
 
   /// 伺服器還沒準備好（啟動中、逾時）才值得重試；照片格式錯、AI 失敗（502）不重試

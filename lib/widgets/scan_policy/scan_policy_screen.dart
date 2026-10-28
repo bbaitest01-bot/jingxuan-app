@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/customer_policy_service.dart';
 import '../../services/customer_service.dart';
 import '../../services/policy_file_reader.dart';
+import '../../services/policy_scan_merge.dart';
 import '../../services/policy_scan_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
@@ -39,6 +40,8 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
   final PolicyScanService _scanService = PolicyScanService();
   // 影像只放在記憶體裡，離開這個畫面就消失，不會存到任何地方
   final List<Uint8List> _images = [];
+  // 好幾張照片分開辨識時，目前辨識到第幾張（畫面顯示「第 1／2 張」）
+  int _recognizingPhotoNumber = 0;
   // 電子保單 PDF 取出的文字（個資已遮蔽）；有文字就送文字、不送圖片（2026-10-25 B 做法）
   String? _pdfText;
   _ScanStep _step = _ScanStep.capture;
@@ -154,24 +157,35 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
     if (pdfText != null) {
       return _scanService.recognizePolicyText(pdfText);
     }
-    // 沒切成兩半的原因（一張照片才切；多張照片原樣送也記下來，方便從 Logs 判斷）
-    String splitFailureReason = 'photo_count_${_images.length}';
-    if (_images.length == 1) {
-      final PolicyFileReadResult splitResult = await PolicyFileReader.splitImage(_images.first);
-      if (splitResult.status == PolicyFileReadStatus.ok && splitResult.images.length == 2) {
-        final List<PolicyScanImage> halves = [];
-        for (final Uint8List half in splitResult.images) {
-          halves.add(PolicyScanImage(bytes: half, mimeType: 'image/jpeg'));
-        }
-        return _scanService.recognizePolicy(halves, isSplitImage: true);
+    // 每張照片各自切兩半、分開辨識，再合成一份（2026-10-29 做法 A：封面＋條款頁兩張時原本整張送，容易漏項）
+    // 一張一張依序送，不同時送，避免碰到 Groq 每分鐘上限
+    final List<ScannedPolicy> pages = [];
+    for (int index = 0; index < _images.length; index++) {
+      if (mounted) setState(() => _recognizingPhotoNumber = index + 1);
+      pages.add(await _recognizePhoto(_images[index]));
+    }
+    if (pages.length == 1) {
+      return pages.first;
+    }
+    return PolicyScanMerge.mergePages(pages);
+  }
+
+  /// 一張照片：切成上下兩半辨識；切不了就整張送，並把原因記到雲端函式 Logs
+  Future<ScannedPolicy> _recognizePhoto(Uint8List photo) async {
+    final PolicyFileReadResult splitResult = await PolicyFileReader.splitImage(photo);
+    if (splitResult.status == PolicyFileReadStatus.ok && splitResult.images.length == 2) {
+      final List<PolicyScanImage> halves = [];
+      for (final Uint8List half in splitResult.images) {
+        halves.add(PolicyScanImage(bytes: half, mimeType: 'image/jpeg'));
       }
-      splitFailureReason = 'split_${splitResult.status.name} ${splitResult.failureReason} images=${splitResult.images.length}';
+      return _scanService.recognizePolicy(halves, isSplitImage: true);
     }
-    final List<PolicyScanImage> scanImages = [];
-    for (final Uint8List image in _images) {
-      scanImages.add(PolicyScanImage(bytes: image, mimeType: 'image/jpeg'));
-    }
-    return _scanService.recognizePolicy(scanImages, splitFailureReason: splitFailureReason);
+    final String splitFailureReason =
+        'split_${splitResult.status.name} ${splitResult.failureReason} images=${splitResult.images.length}';
+    return _scanService.recognizePolicy(
+      [PolicyScanImage(bytes: photo, mimeType: 'image/jpeg')],
+      splitFailureReason: splitFailureReason,
+    );
   }
 
   Future<void> _recognize() async {
@@ -341,7 +355,11 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
       );
     }
     if (_step == _ScanStep.recognizing) {
-      return _RecognizingIndicator(colors: colors);
+      String progressText = 'AI 辨識中，通常幾秒鐘就好…';
+      if (_images.length > 1 && _pdfText == null) {
+        progressText = 'AI 辨識中（第 $_recognizingPhotoNumber／${_images.length} 張，一張一張放大看）…';
+      }
+      return _RecognizingIndicator(colors: colors, progressText: progressText);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -365,8 +383,9 @@ class _ScanPolicyScreenState extends State<ScanPolicyScreen> {
 
 class _RecognizingIndicator extends StatelessWidget {
   final AppColors colors;
+  final String progressText;
 
-  const _RecognizingIndicator({required this.colors});
+  const _RecognizingIndicator({required this.colors, required this.progressText});
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +395,7 @@ class _RecognizingIndicator extends StatelessWidget {
         children: [
           CircularProgressIndicator(color: colors.acc),
           const SizedBox(height: 16),
-          Text('AI 辨識中，通常幾秒鐘就好…', style: TextStyle(fontSize: 13, color: colors.ink2)),
+          Text(progressText, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: colors.ink2)),
           const SizedBox(height: 4),
           Text('辨識完照片就會刪除', style: TextStyle(fontSize: 12, color: colors.ink3)),
         ],
