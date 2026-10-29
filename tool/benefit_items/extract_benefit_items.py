@@ -1,7 +1,8 @@
 """從條款抓「給付項目」與「怎麼算」（第 5 階段 D 第 2 層：住院日額、手術、癌症、重大傷病、長照、意外）
 
 做法：
-1. 讀 tool/coverage_categories/coverage_categories.json，挑出 6 類有條款連結的商品
+1. 讀 tool/coverage_categories/coverage_categories.json，挑出 6 類有條款連結的商品；
+   另加 accident_targets.json 的意外傷害 22 款（2026-10-30 D22：意外傷害醫療、意外骨折、意外附加條款等原本沒抓到的）
 2. 下載條款 PDF（快取檔名 md5(url).pdf），用 pdfplumber 讀文字
 3. 每個「給付『○○保險金』」第一次出現＝一個給付項目（三家條款都用這個句型）
 4. 在那一句找「怎麼算」：保險金額的百分之 N、乘以 N、每單位新臺幣 N 元；
@@ -24,8 +25,11 @@ import pdfplumber
 TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 CATEGORY_FILE = os.path.join(TOOL_DIR, '..', 'coverage_categories', 'coverage_categories.json')
 OUTPUT_FILE = os.path.join(TOOL_DIR, 'benefit_items_auto.json')
+ACCIDENT_TARGETS_FILE = os.path.join(TOOL_DIR, 'accident_targets.json')
 TARGET_CATEGORIES = ['daily_hospital', 'surgery', 'cancer', 'critical_illness', 'long_term_care', 'accident', 'life']
 MAX_PAGES = 30
+# 附表的「計劃1／計劃2」欄（例：富邦意外無憂每個計劃的每日給付金額）
+PLAN_HEADER = re.compile(r'^計[劃畫]\d+$')
 
 CHINESE_NUMBERS = {'零': 0, '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
 # 不是給付項目的標題（限制、責任、扣除這類）
@@ -95,7 +99,7 @@ def read_clause(path):
         for page in pdf.pages[:MAX_PAGES]:
             pages.append(page.extract_text() or '')
             for table in page.extract_tables():
-                if any('給付金額' in (cell or '') for row in table for cell in row):
+                if any('給付金額' in (cell or '') or PLAN_HEADER.match(clean_cell(cell)) for row in table for cell in row):
                     tables.append(table)
     flat = re.sub(r'\s+', '', ''.join(pages))
     # 有些 PDF 的「年」「率」「金」用的是長得一樣、編碼不同的字（相容字、康熙部首），轉回一般的字
@@ -231,16 +235,24 @@ ITEM_KEY_SYNONYMS = [
     (r'^(?:身故保險金或喪葬費用|身故或喪葬費用|喪葬費用)$', '身故'),
     (r'^意外(?:傷害|事故)身故$', '意外身故'),
     (r'^意外傷害失能$', '意外失能'),
+    # 富邦意外無憂叫「一般意外傷害身故／失能」（還有大眾運輸、假日等另外的項目），一般的那項就是意外身故／失能
+    (r'^一般意外傷害(身故|失能)$', r'意外\1'),
     (r'^出院後療養$', '出院療養'),
     (r'^住院前後門診醫療$', '住院前後門診'),
+    (r'^附加條款（樣本）', ''),
+    # 意外傷害醫療：國泰叫「傷害醫療」、富邦南山叫「意外傷害醫療」，國泰超全方位叫「傷害醫療限額（實支實付）」
+    (r'^(?:意外)?傷害醫療(?:限額)?(?:（實支實付）)?$', '傷害醫療'),
 ]
+
+# 意外傷害醫療的「怎麼算」：條款只寫給付方式，金額寫在保單上（2026-10-30 D22）
+ACCIDENT_MEDICAL_KEY = '傷害醫療'
 
 
 def normalize_item_key(name):
     """對齊用的代號：去掉括號全半形差異、「保險金」字樣"""
     key = re.sub(r'[「」『』\s]', '', name)
     key = key.replace('(', '（').replace(')', '）')
-    key = re.sub(r'保險金$', '', key)
+    key = re.sub(r'保險金(?=$|（實支實付）$)', '', key)
     # 同一種給付、各家寫法不同：統一名稱，比較表才會排在同一列
     for pattern, replacement in ITEM_KEY_SYNONYMS:
         key = re.sub(pattern, replacement, key)
@@ -369,7 +381,7 @@ def sentence_around(text, match):
 def extract_items(text):
     """每個「給付『○○保險金』」＝一個給付項目（依第一次出現排序）；
     同一項目出現好幾次時，挑寫得出算法的那一句，都沒有就挑「本公司按…給付」那句，再沒有用第一句"""
-    quoted_matches = list(re.finditer(r'給付「([^」]{2,30}?保險金)」', text))
+    quoted_matches = list(re.finditer(r'給付「([^」]{2,30}?保險金(?:（實支實付）)?)」', text))
     unquoted_matches = list(re.finditer(r'給付([\u4e00-\u9fff（）()]{2,20}?保險金)', text))
     # 有些條款名稱沒加「」（例：給付重大疾病保險金），沒有引號的寫法也收；
     # 有引號的條款，沒引號的句子只拿來找更好的算法句，不新增項目（避免雜項）
@@ -432,6 +444,95 @@ def extract_items(text):
     return items
 
 
+def accident_medical_formula(text, allow_choose=True):
+    """傷害醫療保險金是實支實付、日額，還是兩種擇一；條款有寫每單位金額就帶上"""
+    is_reimbursement = bool(re.search(r'實支實付|實際醫療費用', text))
+    is_daily = bool(re.search(r'醫療保險金日額|乘以實際住院日數', text))
+    unit_amounts = []
+    for match in re.finditer(r'每一?投保單位(?:新臺幣)?([一二三四五六七八九十百千仟萬\d,]+)元', text):
+        amount = chinese_to_number(match.group(1).replace('仟', '千'))
+        if amount:
+            unit_amounts.append(format_number(amount))
+    if allow_choose and is_reimbursement and is_daily and re.search(r'自行選擇|擇一', text):
+        if len(unit_amounts) >= 2:
+            return f'實支實付（每單位 {unit_amounts[0]} 元）或日額（每單位 {unit_amounts[1]} 元）擇一'
+        return '實支實付或日額擇一（金額看保單）'
+    if is_reimbursement:
+        return '實支實付，每次以保單限額為限'
+    if is_daily:
+        return '日額 × 天數'
+    return None
+
+
+def read_plan_tables(tables):
+    """附表「計劃1／計劃2／計劃3」：回傳 {項目代號: [(條件, [(計劃, 金額), ...]), ...]}；
+    條件是同一項分好幾列時的那一格（例：住院 3日(含)以上），沒有就是空字串"""
+    amounts_by_key = {}
+    for table in tables:
+        plan_columns = []
+        current_key = None
+        for row in table:
+            cells = [clean_cell(cell) for cell in row]
+            if not plan_columns:
+                plan_columns = [(index, cell) for index, cell in enumerate(cells) if PLAN_HEADER.match(cell)]
+                continue
+            first_plan_index = plan_columns[0][0]
+            labels = [cell for cell in cells[:first_plan_index] if cell]
+            values = [(plan, cells[index]) for index, plan in plan_columns if index < len(cells) and cells[index]]
+            if not values:
+                continue
+            names = [label for label in labels if label.endswith('保險金')]
+            if names:
+                current_key = normalize_item_key(names[-1])
+                condition = ''.join(labels[labels.index(names[-1]) + 1:])
+            elif current_key and len(labels) == 1:
+                # 沒有名稱、只有條件：上一項的下一段
+                condition = labels[0]
+            else:
+                current_key = None
+                continue
+            amounts_by_key.setdefault(current_key, []).append((condition, values))
+    return amounts_by_key
+
+
+def plan_values_text(values):
+    if len({amount for _, amount in values}) == 1:
+        return values[0][1]
+    return '｜'.join(f'{plan} {amount}' for plan, amount in values)
+
+
+def fill_from_plan_tables(items, plan_amounts):
+    for item in items:
+        if item['formula']:
+            continue
+        rows = plan_amounts.get(item['item_key'])
+        if not rows:
+            continue
+        parts = []
+        for condition, values in rows:
+            parts.append((condition + ' ' if condition else '') + plan_values_text(values))
+        item['formula'] = '；'.join(parts)
+
+
+def fill_accident_medical(items, text):
+    has_separate_daily = any(item['item_key'] == '傷害醫療日額' for item in items)
+    for item in items:
+        if item['item_key'] == ACCIDENT_MEDICAL_KEY and (not item['formula'] or '看原文' in item['formula']):
+            # 只看這一條附近（整份條款可能別條有日額、有「擇一」）
+            start = max(0, text.find(item['excerpt']))
+            context = text[start:start + 900]
+            if has_separate_daily:
+                # 另外有「傷害醫療日額」那一項（例：國泰超全方位），這一項就是實支實付
+                context = re.sub(r'醫療保險金日額|乘以實際住院日數', '', context)
+            item['formula'] = accident_medical_formula(context)
+            if item['formula'] is None:
+                # 這一句附近看不出來（出處句子太短）：看整份，但不判斷擇一
+                item['formula'] = accident_medical_formula(text, allow_choose=False)
+        # 「按『傷害醫療保險金日額』給付」＝ 給一天的日額（例：安鑫護門診手術）
+        elif not item['formula'] and re.search(r'按「[^」]*日額」給付「' + re.escape(item['item_name']), item['excerpt']):
+            item['formula'] = '日額 × 1'
+
+
 def fill_from_unit_tables(items, unit_amounts):
     """條款寫「乘以附表的每單位給付金額」、文字找不到算法的項目，用附表的金額補上"""
     for item in items:
@@ -446,10 +547,17 @@ def main():
     cache_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(TOOL_DIR, '.cache')
     with open(CATEGORY_FILE, encoding='utf-8') as file:
         products = json.load(file)
+    with open(ACCIDENT_TARGETS_FILE, encoding='utf-8') as file:
+        accident_products = json.load(file)
+    # 已經在 6 類裡的（例：超全方位、e心守護）不重複加
+    existing_names = {product['product_name'] for product in products if product['coverage_category'] in TARGET_CATEGORIES}
+    for product in accident_products:
+        if product['product_name'] not in existing_names:
+            products.append({**product, 'coverage_category': 'accident_extra'})
 
     results = []
     for product in products:
-        if product['coverage_category'] not in TARGET_CATEGORIES or not product.get('clause_url'):
+        if product['coverage_category'] not in TARGET_CATEGORIES + ['accident_extra'] or not product.get('clause_url'):
             continue
         record = {
             'company_code': product['company_code'],
@@ -462,7 +570,10 @@ def main():
         try:
             text, tables = read_clause(download_clause(product['clause_url'], cache_dir))
             record['items'] = extract_items(text)
-            fill_from_unit_tables(record['items'], read_unit_amount_tables(tables))
+            fill_from_plan_tables(record['items'], read_plan_tables(tables))
+            unit_tables = [table for table in tables if any('給付金額' in (cell or '') for row in table for cell in row)]
+            fill_from_unit_tables(record['items'], read_unit_amount_tables(unit_tables))
+            fill_accident_medical(record['items'], text)
             if not record['items']:
                 record['error'] = '找不到「給付『○○保險金』」'
         except Exception as error:  # 下載或讀檔失敗：記下來，人工補

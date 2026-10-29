@@ -1,0 +1,117 @@
+[
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽微型個人傷害醫療保險附約",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/0KD.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽超全方位傷害暨兒童傷害失能保險附約",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/XB7.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽超愛寶貝一年定期傷害醫療保險附約(無身故給付)",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/XN5XN6.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽自由配一年定期意外住院日額傷害保險附約",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/CFJ.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽享保障微型個人傷害醫療保險附約",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/DC3.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽 e心守護網路投保傷害保險",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/12467/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BDe%E5%BF%83%E5%AE%88%E8%AD%B7%E7%B6%B2%E8%B7%AF%E6%8A%95%E4%BF%9D%E5%82%B7%E5%AE%B3%E4%BF%9D%E9%9A%AA.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽網投微型意外傷害醫療保險附約",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/12710/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E7%B6%B2%E6%8A%95%E5%BE%AE%E5%9E%8B%E6%84%8F%E5%A4%96%E5%82%B7%E5%AE%B3%E9%86%AB%E7%99%82%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽享安寶意外傷害醫療保險給付附加條款",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/12479/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E4%BA%AB%E5%AE%89%E5%AF%B6%E6%84%8F%E5%A4%96%E5%82%B7%E5%AE%B3%E9%86%AB%E7%99%82%E4%BF%9D%E9%9A%AA%E7%B5%A6%E4%BB%98%E9%99%84%E5%8A%A0%E6%A2%9D%E6%AC%BE.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽意外無憂傷害保險",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/13162/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E6%84%8F%E5%A4%96%E7%84%A1%E6%86%82%E5%82%B7%E5%AE%B3%E4%BF%9D%E9%9A%AA.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽安鑫護意外傷害住院醫療保險附約",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/12587/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E5%AE%89%E9%91%AB%E8%AD%B7%E6%84%8F%E5%A4%96%E5%82%B7%E5%AE%B3%E4%BD%8F%E9%99%A2%E9%86%AB%E7%99%82%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽Full樂微型傷害醫療保險附約",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/FRMMR.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽成意實足意外傷害醫療保險附約",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/PAMR.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽意外骨折暨傷害醫療保險附約",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/BBMR.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽意外傷害醫療日額給付附加條款",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/IDHI_DHI.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽意外骨折及特定手術傷害醫療保險",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/SBB.pdf"
+ },
+ {
+  "company_code": "nanshan",
+  "product_name": "南山人壽意外骨折及特定手術傷害醫療保險附約",
+  "clause_url": "https://www.nanshanlife.com.tw/nanshanlife/nanshanlife-info/Products/rule/SBBR.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽溢起馬拉松傷害保險",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/13304/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E6%BA%A2%E8%B5%B7%E9%A6%AC%E6%8B%89%E6%9D%BE%E5%82%B7%E5%AE%B3%E4%BF%9D%E9%9A%AA.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽新意外傷害事故骨折保險金附加條款",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/NI6.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽新意外傷害重大燒燙傷保險金附加條款",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/OI5.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽新行人或大眾交通工具意外傷害事故保險金附加條款",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/OI3.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽新駕乘汽車意外傷害事故保險金附加條款",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/OI4.pdf"
+ },
+ {
+  "company_code": "cathay",
+  "product_name": "國泰人壽新騎乘機車或自行車意外傷害事故保險金附加條款",
+  "clause_url": "https://www.cathaylife.com.tw/official/content/dam/cathaylife-official/files/laws-policies/public-info/insurance/accessory-contract/OI2.pdf"
+ },
+ {
+  "company_code": "fubon",
+  "product_name": "富邦人壽享安寶意外傷害暨兒童傷害失能保險附約",
+  "clause_url": "https://www.fubon.com/life/api/v1/files/1329/download/%E5%AF%8C%E9%82%A6%E4%BA%BA%E5%A3%BD%E4%BA%AB%E5%AE%89%E5%AF%B6%E6%84%8F%E5%A4%96%E5%82%B7%E5%AE%B3%E6%9A%A8%E5%85%92%E7%AB%A5%E5%82%B7%E5%AE%B3%E5%A4%B1%E8%83%BD%E4%BF%9D%E9%9A%AA%E9%99%84%E7%B4%84.pdf"
+ }
+]

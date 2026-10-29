@@ -68,3 +68,4 @@ tool/product_catalog/output/
 tool/product_catalog/.venv/
 __pycache__/
 tool/benefit_plans/.cache/
+tool/benefit_items/.cache/
