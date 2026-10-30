@@ -101,24 +101,24 @@ BEGIN
         -- 保戶
         ('王大明', '大明哥', 'male',   '0900-000-101', 'daming@example.com',  ARRAY['中年(36-60)','醫療險','壽險','意外險','定期聯繫'], '45 歲，科技公司工程師，已婚有兩個小孩。重視家庭保障，每年一起做保單健檢。', 'positive', 400, NULL::int),
         ('王美華', NULL,     'female', '0900-000-102', 'meihua@example.com',  ARRAY['中年(36-60)','醫療險','壽險'],                      '43 歲，國小老師，王大明的太太。想了解實支實付夠不夠。', 'considering', 380, NULL),
-        ('陳志豪', '陳醫師', 'male',   '0900-000-103', 'drchen@example.com',  ARRAY['中年(36-60)','醫療從業','高資產','高爾夫','轉介紹'], '38 歲，家醫科醫師。人脈很廣，介紹過好幾位朋友。', 'positive', 360, NULL),
+        ('陳志豪', '陳醫師', 'male',   '0900-000-103', 'drchen@example.com',  ARRAY['中年(36-60)','醫療從業','高資產','高爾夫','轉介紹'], '38 歲，家醫科診所醫師，吳雅婷在同一間診所。人脈很廣，介紹過好幾位朋友，也是王大明的高爾夫球友。', 'positive', 360, NULL),
         ('李淑芬', NULL,     'female', '0900-000-104', 'shufen@example.com',  ARRAY['中年(36-60)','長照險','爬山'],                      '52 歲，高中老師，開始規劃退休與長照。', 'negative', 300, NULL),
-        ('張家瑋', NULL,     'male',   '0900-000-105', 'jiawei@example.com',  ARRAY['青年(18-35)','意外險','露營'],                      '30 歲，業務，常騎車跑客戶，先買了意外險。', 'positive', 240, NULL),
+        ('張家瑋', NULL,     'male',   '0900-000-105', 'jiawei@example.com',  ARRAY['青年(18-35)','意外險','露營'],                      '30 歲，業務，王大明介紹。常騎車跑客戶，先買了意外險。', 'positive', 240, NULL),
         ('吳雅婷', '雅婷',   'female', '0900-000-106', 'yating@example.com',  ARRAY['青年(18-35)','新手爸媽','防癌險'],                  '34 歲，護理師，今年剛生寶寶，想幫小孩規劃。', 'positive', 200, NULL),
         ('吳建宏', NULL,     'male',   '0900-000-107', 'jianhong@example.com',ARRAY['樂齡(60+)','醫療險','高血壓'],                      '60 歲，剛退休，吳雅婷的爸爸。有高血壓，關心手術與住院。', 'positive', 500, NULL),
         -- 跟進中
         ('林佳穎', NULL,     'female', '0900-000-108', 'jiaying@example.com', ARRAY['青年(18-35)','咖啡','高意願'],                      '29 歲，平面設計師，陳醫師介紹。今天約咖啡廳談醫療險。', 'considering', 30, NULL),
-        ('劉俊傑', NULL,     'male',   '0900-000-109', 'junjie@example.com',  ARRAY['中年(36-60)','觀望中'],                            '41 歲，連鎖餐飲店長，陳醫師的同事介紹。', 'considering', 25, NULL),
+        ('劉俊傑', NULL,     'male',   '0900-000-109', 'junjie@example.com',  ARRAY['中年(36-60)','觀望中'],                            '41 歲，連鎖餐飲店長，陳醫師介紹（以前在醫院餐廳認識）。', 'considering', 25, NULL),
         ('蔡宜君', NULL,     'female', '0900-000-110', 'yijun@example.com',   ARRAY['中年(36-60)','高意願'],                            '36 歲，會計，林佳穎的同事。昨天拜訪過，對實支實付有興趣。', 'considering', 20, NULL),
-        ('許文彬', '許董',   'male',   '0900-000-111', 'wenbin@example.com',  ARRAY['中年(36-60)','公司負責人','高資產','高爾夫'],       '48 歲，貿易公司老闆，獅子會社友，陳醫師介紹。想談員工團保與個人資產傳承。', 'considering', 15, NULL),
-        ('鄭雅文', NULL,     'female', '0900-000-112', 'yawen@example.com',   ARRAY['青年(18-35)','定期聯繫'],                          '27 歲，研究生，預算有限，先從意外險開始。', NULL, 12, NULL),
+        ('許文彬', '許董',   'male',   '0900-000-111', 'wenbin@example.com',  ARRAY['中年(36-60)','公司負責人','高資產','高爾夫'],       '48 歲，貿易公司老闆，和陳醫師是獅子會社友。想談員工團保與個人資產傳承。', 'considering', 15, NULL),
+        ('鄭雅文', NULL,     'female', '0900-000-112', 'yawen@example.com',   ARRAY['青年(18-35)','定期聯繫'],                          '27 歲，研究生，蔡宜君的表妹介紹來的。預算有限，先從意外險開始。', NULL, 12, NULL),
         ('楊志明', NULL,     'male',   '0900-000-113', 'zhiming@example.com', ARRAY['中年(36-60)','觀望中'],                            '55 歲，公務員，李淑芬的同事。目前覺得公保就夠。', 'negative', 40, NULL),
         -- 未開發
         ('周怡君', NULL,     'female', '0900-000-114', 'yijun.chou@example.com', ARRAY['青年(18-35)'],                                  '31 歲，在活動上交換名片，還沒聯絡。', NULL, 10, NULL),
         ('謝承恩', NULL,     'male',   '0900-000-115', 'chengen@example.com',    ARRAY['青年(18-35)','露營'],                           '26 歲，張家瑋的露營朋友。', NULL, 8, NULL),
         ('洪麗玲', NULL,     'female', '0900-000-116', 'liling@example.com',     ARRAY['中年(36-60)'],                                  '47 歲，家庭主婦，社區媽媽群認識。', NULL, 6, NULL),
         ('郭建志', NULL,     'male',   '0900-000-117', 'jianzhi@example.com',    ARRAY['中年(36-60)','轉介紹'],                         '39 歲，陳醫師介紹的牙醫師朋友，下週再聯絡。', NULL, 3, NULL),
-        ('曾美玲', '曾媽媽', 'female', '0900-000-118', 'meiling@example.com',    ARRAY['樂齡(60+)','健康'],                             '65 歲，王美華的媽媽，身體健康，想了解長照。', NULL, 5, NULL),
+        ('曾美玲', '曾媽媽', 'female', '0900-000-118', 'meiling@example.com',    ARRAY['樂齡(60+)','健康'],                             '65 歲，王美華的媽媽，吳建宏在社區長青班的同學，經他介紹。身體健康，想了解長照。', NULL, 5, NULL),
         -- 垃圾桶（示範可以還原）
         ('黃小測', NULL,     'male',   '0900-000-119', NULL,                     ARRAY[]::text[],                                       '重複建立的客戶，已移到垃圾桶。', NULL, 50, 2),
         ('范假名', NULL,     'female', '0900-000-120', NULL,                     ARRAY[]::text[],                                       '電話打錯的名單，已移到垃圾桶。', NULL, 45, 4)
@@ -127,23 +127,40 @@ BEGIN
     )
     INSERT INTO demo_customer_ids (customer_name, id) SELECT name, id FROM inserted;
 
-    -- 5. 人脈關係：兩個家庭、一條轉介紹鏈、陳醫師是人脈王
+    -- 5. 人脈關係：三個家庭、陳醫師是人脈王，用球友、同診所、讀書會把各群串起來（人脈拓撲才好看）
+    --    周怡君、洪麗玲故意沒有任何關係（示範「沒有關係的客戶」在外圈）
     INSERT INTO public.customer_relationships (user_id, source_customer_id, target_customer_id, relationship_type, relationship_detail)
     SELECT demo_user_id, s.id, t.id, v.relationship_type, v.detail
     FROM (VALUES
       ('王大明', '王美華', 'family', '夫妻'),
       ('曾美玲', '王美華', 'family', '母女'),
       ('吳建宏', '吳雅婷', 'family', '父女'),
-      ('陳志豪', '林佳穎', 'social', '朋友轉介紹'),
-      ('陳志豪', '劉俊傑', 'workplace', '同事轉介紹'),
       ('陳志豪', '許文彬', 'social', '獅子會社友'),
-      ('陳志豪', '郭建志', 'social', '大學同學'),
+      ('陳志豪', '王大明', 'social', '高爾夫球友'),
+      ('陳志豪', '吳雅婷', 'workplace', '同診所'),
       ('林佳穎', '蔡宜君', 'workplace', '同事'),
       ('李淑芬', '楊志明', 'workplace', '同校老師'),
+      ('李淑芬', '王美華', 'social', '教師讀書會'),
       ('張家瑋', '謝承恩', 'social', '露營朋友')
     ) AS v(source_name, target_name, relationship_type, detail)
     JOIN demo_customer_ids s ON s.customer_name = v.source_name
     JOIN demo_customer_ids t ON t.customer_name = v.target_name;
+
+    -- 5b. 轉介紹來源（人脈拓撲畫成有箭頭的線，點客戶時顯示「由誰介紹、介紹了誰」）
+    --     介紹人和被介紹的人之間不另外建上面的關係，箭頭才看得到
+    UPDATE public.customers c
+    SET referral_source_id = referrer.id
+    FROM (VALUES
+      ('林佳穎', '陳志豪'),
+      ('劉俊傑', '陳志豪'),
+      ('郭建志', '陳志豪'),
+      ('張家瑋', '王大明'),
+      ('鄭雅文', '蔡宜君'),
+      ('曾美玲', '吳建宏')
+    ) AS v(customer_name, referrer_name)
+    JOIN demo_customer_ids referred ON referred.customer_name = v.customer_name
+    JOIN demo_customer_ids referrer ON referrer.customer_name = v.referrer_name
+    WHERE c.id = referred.id;
 
     -- 6. 保單（用資料庫裡真的國泰、富邦、南山商品；同一張保單的主約、附約用同一個保單編號）
     INSERT INTO public.customer_policies (
