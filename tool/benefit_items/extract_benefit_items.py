@@ -105,7 +105,10 @@ def read_clause(path):
     # 有些 PDF 的「年」「率」「金」用的是長得一樣、編碼不同的字（相容字、康熙部首），轉回一般的字
     flat = re.sub(r'[\u2F00-\u2FDF\uF900-\uFAFF]', lambda match: unicodedata.normalize('NFKC', match.group(0)), flat)
     # 去掉頁首頁尾「第 6 頁，共 35 頁」
-    return re.sub(r'第\d+頁[，,]?共\d+頁', '', flat), tables
+    flat = re.sub(r'第\d+頁[，,]?共\d+頁', '', flat)
+    # 南山每頁頁首「商品名稱_商品代碼」會插在字中間（例：癌症放射線治療保險＿頁首＿金），先拿掉
+    flat = re.sub(r'南山人壽[\u4e00-\u9fffA-Za-z0-9（）()]{2,40}_[A-Z0-9]{2,10}', '', flat)
+    return flat, tables
 
 
 def clean_cell(cell):
@@ -175,8 +178,11 @@ def find_formula(context):
         candidates.append((match.start(), base_label(match.group(1)), '× {}', match.group(2)))
     for match in re.finditer(BASE_PATTERN + r'[，,]?乘以(\d+(?:\.\d+)?)[%％]', context):
         candidates.append((match.start(), base_label(match.group(1)), '× {}%', match.group(2)))
+    # 「乘以百分之一」＝ × 1%（不是 × 100）
+    for match in re.finditer(BASE_PATTERN + r'」?[，,]?乘以百分之' + NUMBER_PATTERN, context):
+        candidates.append((match.start(), base_label(match.group(1)), '× {}%', match.group(2)))
     # 後面緊接 % 的不算（上一條處理），避免「乘以115%」被讀成 115 倍
-    for match in re.finditer(BASE_PATTERN + r'[，,]?乘以' + NUMBER_PATTERN + r'(?![\d.%％])(?![^，。]{0,4}(?:日數|天數))', context):
+    for match in re.finditer(BASE_PATTERN + r'[，,]?乘以' + NUMBER_PATTERN + r'(?![\d.%％]|分之)(?![^，。]{0,4}(?:日數|天數))', context):
         candidates.append((match.start(), base_label(match.group(1)), '× {}', match.group(2)))
     for match in re.finditer(BASE_PATTERN + r'[^。]{0,30}?附表[一二三四五六\d]*[^。]{0,12}?倍數', context):
         candidates.append((match.start(), base_label(match.group(1)), '× 附表倍數', None))
@@ -190,15 +196,30 @@ def find_formula(context):
     for match in re.finditer(r'日數乘以「?' + BASE_PATTERN, context):
         candidates.append((match.start(), base_label(match.group(1)), '× 天數', None))
     # 失能、骨折、脫臼、處置：保額乘以附表的比例或倍數
-    for match in re.finditer(BASE_PATTERN + r'[^。]{0,40}?(?:該表|附表|別表)[^。]{0,16}?(?:比例|倍數)', context):
-        candidates.append((match.start(), base_label(match.group(1)), '× 附表比例', None))
+    for match in re.finditer(BASE_PATTERN + r'([^。]{0,40}?)(?:該表|附表|別表)[^。]{0,16}?(?:比例|倍數)', context):
+        # 「保險金額的二倍為準，依附表比例」「保險金額的百分之二十，乘以附表比例」：前面的倍數也要算進去
+        between = match.group(2)
+        times = re.search(r'^的?' + NUMBER_PATTERN + '倍', between)
+        percent = re.search(r'^的?百分之' + NUMBER_PATTERN, between)
+        if times:
+            candidates.append((match.start(), base_label(match.group(1)), '× {} × 附表比例', times.group(1)))
+        elif percent:
+            candidates.append((match.start(), base_label(match.group(1)), '× {}% × 附表比例', percent.group(1)))
+        else:
+            candidates.append((match.start(), base_label(match.group(1)), '× 附表比例', None))
     for match in re.finditer(BASE_PATTERN + r'[^。]{0,40}?給付倍數', context):
         candidates.append((match.start(), base_label(match.group(1)), '× 附表倍數', None))
     # 「日額乘以入院日當年度之增額係數，給付」：就是日額 × 1（後面再註明乘增額係數）
     for match in re.finditer(BASE_PATTERN + r'[，,]?乘以[^。，]{0,16}增額係數」?[，,]給付$', context):
         candidates.append((match.start(), base_label(match.group(1)), '× {}', '1'))
+    # 「保險金額乘以…適用之『健康促進係數』，給付」：保額 × 1（再乘健康促進係數）
+    for match in re.finditer(BASE_PATTERN + r'[，,]?乘以[^。，]{0,30}健康促進係數」?(?:後之金額)?[，,]?給付$', context):
+        candidates.append((match.start(), base_label(match.group(1)), '× {}', '1'))
 
     text = None
+    # 「按下表約定」而且表裡有好幾種比例（例：二年期 2%、六年期 4%）：分情況，不挑其中一個
+    if '下表' in context and len({candidate[3] for candidate in candidates}) > 1:
+        return '分情況（看原文）'
     if candidates:
         candidates.sort(key=lambda candidate: candidate[0])
         position, label, template, number_text = candidates[-1]
@@ -217,8 +238,13 @@ def find_formula(context):
                 text += ' × 天數'
             if '增額係數' in tail:
                 text += '（再乘增額係數）'
+            elif '健康促進係數' in tail:
+                text += '（再乘健康促進係數）'
             return text
-    if re.search(r'(?:按|依)(?:本契約|本附約)?(?:保險單上所記載之)?「?(?:保險單上所記載之|當年度|[^，。「」]{0,14}?(?:時|當時|日)之)*「?(?:當年度|總|基本)?(?:保險金額|保額)」?(?:為準)?[，,]?(?:依照本契約約定)?給付$', context):
+    # 「按『滿期保險金額』給付」：金額寫在保單上
+    if re.search(r'按「?滿期保險金額」?給付$', context):
+        return '依保單上的滿期保險金額'
+    if re.search(r'(?:按|依)(?:本契約|本附約)?(?:保險單上所記載之)?「?(?:保險單上所記載之|當年度|[^，。「」]{0,14}?(?:時|當時|日)之)*「?(?:壽險當年度|當年度|總|基本)?(?:保險金額|保額)」?(?:為準)?[，,]?(?:依照本契約約定)?給付$', context):
         return '保額 × 1'
     # 「按下列約定」「按保險年齡一百零四歲之保險單年度末，下列二款計算方式…」都算分情況
     if re.search(r'(?:按|以|依)[^。]{0,30}?(?:下列|下表)', context):
@@ -234,6 +260,7 @@ ITEM_KEY_SYNONYMS = [
     (r'^首次', '初次'),
     (r'^(?:身故保險金或喪葬費用|身故或喪葬費用|喪葬費用)$', '身故'),
     (r'^意外(?:傷害|事故)身故$', '意外身故'),
+    (r'^意外(?:傷害|事故)?身故或喪葬費用$', '意外身故'),
     (r'^意外傷害失能$', '意外失能'),
     # 富邦意外無憂叫「一般意外傷害身故／失能」（還有大眾運輸、假日等另外的項目），一般的那項就是意外身故／失能
     (r'^一般意外傷害(身故|失能)$', r'意外\1'),
@@ -318,6 +345,11 @@ def summarize_cases(text, start, context):
     → 「第2年起：保額 × 1（第1年內：保額 × 50%）」；最後一種情況通常是主要的金額。
     「按下列二者之最大值給付：一、保險金額。二、保費總和 1.06 倍」→「取較高：保額 × 1／保費 × 1.06」。整理不出來回傳 None"""
     segment = text[start:start + 700]
+    # 只看到下一條（第 X 條）之前，避免把下一個項目的「一、二、」當成這一項的情況
+    # 句號後面開頭的「第 X 條」才是下一條；句子中間的「依第十五條約定」不算
+    next_article = re.search(r'(?<=。)第[一二三四五六七八九十百]+條', segment)
+    if next_article:
+        segment = segment[:next_article.start()]
     first = segment.find('一、')
     if first == -1 or first > 220:
         return None
@@ -378,15 +410,64 @@ def sentence_around(text, match):
     return sentence_start, sentence_end
 
 
+def extract_summary_table_items(text):
+    """國泰表格式附加條款：開頭「主要給付項目：給付項目 給付金額 ○○保險金 保險金額╳1 …※」直接列出項目與算法"""
+    summary = re.search(r'主要給付項目：給付項目給付金額(.{0,400}?)※', text)
+    if not summary:
+        return []
+    items = []
+    # 算法只有兩種：「保險金額╳1」（數字）或「保險金額╳骨折別表所定給付比例」
+    pattern = r'([\u4e00-\u9fff\d]{2,40}?保險金)保險金額╳(\d+(?:\.\d+)?|[\u4e00-\u9fff]{0,12}?(?:別表|附表)[\u4e00-\u9fff]{0,10}?比例)'
+    for match in re.finditer(pattern, summary.group(1)):
+        amount = match.group(2)
+        if re.search(r'別表|附表', amount):
+            formula = '保額 × 附表比例'
+        elif re.fullmatch(r'\d+(?:\.\d+)?', amount):
+            formula = f'保額 × {amount}'
+        else:
+            formula = None
+        items.append({
+            'item_key': normalize_item_key(match.group(1)),
+            'item_name': match.group(1),
+            'formula': formula,
+            'excerpt': summary.group(0),
+        })
+    return items
+
+
+def in_own_article(text, name, position):
+    """position 是不是在「name的給付」那一條裡（標題到下一個句號後的「第 X 條」）"""
+    # 只認真的條文標題（前面是「第十條」或「保險範圍：」），不認目錄裡同樣的字
+    title = None
+    for match in re.finditer(re.escape(name) + r'[」』]?[的之]給付', text):
+        if re.search(r'(?:第[一二三四五六七八九十百]+條|保險範圍：)「?$', text[max(0, match.start() - 12):match.start()]):
+            title = match
+            break
+    if not title:
+        return False
+    next_article = re.search(r'(?<=。)第[一二三四五六七八九十百]+條', text[title.end():])
+    article_end = len(text) if next_article is None else title.end() + next_article.start()
+    return title.start() <= position < article_end
+
+
 def extract_items(text):
     """每個「給付『○○保險金』」＝一個給付項目（依第一次出現排序）；
     同一項目出現好幾次時，挑寫得出算法的那一句，都沒有就挑「本公司按…給付」那句，再沒有用第一句"""
-    quoted_matches = list(re.finditer(r'給付「([^」]{2,30}?保險金(?:（實支實付）)?)」', text))
+    # 「給付第一次『重度退化疾病分期保險金』」中間多了「第一次」也算
+    quoted_matches = list(re.finditer(r'給付(?:第?[一二三]次)?「([^」]{2,30}?保險金(?:（實支實付）)?)」', text))
     unquoted_matches = list(re.finditer(r'給付([\u4e00-\u9fff（）()]{2,20}?保險金)', text))
     # 有些條款名稱沒加「」（例：給付重大疾病保險金），沒有引號的寫法也收；
     # 有引號的條款，沒引號的句子只拿來找更好的算法句，不新增項目（避免雜項）
+    # 條款標題「第十條滿期保險金的給付」裡的名稱一定是項目（有些條款只有部分名稱加「」，其他沒加的會漏）
+    title_keys = set()
+    for title in re.finditer(r'第[一二三四五六七八九十百]+條【?(?:保險範圍：)?([^第】。，]{2,40}?)的給付', text):
+        # 「或」連接的是同一項的另一種說法（身故保險金或喪葬費用保險金），只取前面
+        for name in re.split(r'[、及與和]', title.group(1).split('或')[0]):
+            name = name.strip('「」『』')
+            if name.endswith('保險金'):
+                title_keys.add(normalize_item_key(name))
     if quoted_matches:
-        quoted_keys = {normalize_item_key(match.group(1)) for match in quoted_matches}
+        quoted_keys = {normalize_item_key(match.group(1)) for match in quoted_matches} | title_keys
         # 「給付『身故保險金』及『完全失能保險金』」後面那個也是項目（常出現在不給付責任那條）
         for match in re.finditer(r'(?:及|或|、)「([^」]{2,30}?保險金)」', text):
             if '給付' in text[max(0, match.start() - 40):match.start()]:
@@ -400,11 +481,15 @@ def extract_items(text):
     names_by_key = {}
     for match in matches:
         name = match.group(1)
+        # 「僅給付一次意外骨折保險金」「協議給付百分比核付意外骨折保險金」不是新的項目
+        if name.startswith('一次') or '核付' in name:
+            continue
         if any(word in name for word in NOT_BENEFIT_WORDS + LOOSE_REFERENCE_WORDS):
             continue
         key = normalize_item_key(name)
         # 「該保險金」「生存保險金」這種只剩一兩個字的通常是指稱，不是項目名稱
-        if len(key) < 2 or key in ('該', '生存'):
+        # 還本型商品標題有「生存保險金的給付」時，「生存」就是真的項目
+        if len(key) < 2 or (key in ('該', '生存') and key not in title_keys):
             continue
         names_by_key.setdefault(key, name)
         sentence_start, sentence_end = sentence_around(text, match)
@@ -426,10 +511,13 @@ def extract_items(text):
             if summary:
                 formula = summary
                 excerpt = text[sentence_start:min(len(text), match.end() + 260)]
-        candidates_by_key.setdefault(key, []).append((formula, excerpt))
+        candidates_by_key.setdefault(key, []).append((formula, excerpt, match.start()))
 
     items = []
-    for key, candidates in candidates_by_key.items():
+    for key, all_candidates in candidates_by_key.items():
+        # 先用這一項自己那一條（標題「○○保險金的給付」到下一條）裡的句子；別條提到它時的數字常常是別項的
+        own_candidates = [candidate for candidate in all_candidates if in_own_article(text, names_by_key[key], candidate[2])]
+        candidates = [(formula, excerpt) for formula, excerpt, _ in (own_candidates or all_candidates)]
         chosen = candidates[0]
         for formula, excerpt in candidates:
             if formula and '看原文' not in formula:
@@ -441,6 +529,10 @@ def extract_items(text):
                     chosen = (formula, excerpt)
                     break
         items.append({'item_key': key, 'item_name': names_by_key[key], 'formula': chosen[0], 'excerpt': chosen[1]})
+    # 意外險的「喪葬費用保險金」是意外身故的另一種說法，已經有「意外身故」就不另列「身故」
+    keys = {item['item_key'] for item in items}
+    if '意外身故' in keys:
+        items = [item for item in items if not (item['item_key'] == '身故' and '意外' in item['excerpt'])]
     return items
 
 
@@ -570,6 +662,8 @@ def main():
         try:
             text, tables = read_clause(download_clause(product['clause_url'], cache_dir))
             record['items'] = extract_items(text)
+            if not record['items']:
+                record['items'] = extract_summary_table_items(text)
             fill_from_plan_tables(record['items'], read_plan_tables(tables))
             unit_tables = [table for table in tables if any('給付金額' in (cell or '') for row in table for cell in row)]
             fill_from_unit_tables(record['items'], read_unit_amount_tables(unit_tables))

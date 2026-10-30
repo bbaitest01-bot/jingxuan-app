@@ -1,6 +1,6 @@
 """把 benefit_items_auto.json 轉成 SQL 匯入檔
 
-用法：
+用法（會先跑 check_benefit_items.py 固定檢查，約 5 分鐘；沒通過就不產生）：
     python3 tool/benefit_items/build_seed_sql.py
 
 輸出 supabase/seed/benefit_items_1.sql～_3.sql（太大一次貼會卡，分三份）：
@@ -84,6 +84,11 @@ def write_accident_only(products):
 
 
 def main():
+    # 固定檢查（2026-10-30 D23）：沒通過就不產生匯入檔，錯的資料不會進資料庫
+    import check_benefit_items
+    if check_benefit_items.main() != 0:
+        print('\n檢查沒通過，不產生匯入檔。')
+        sys.exit(1)
     with open(INPUT_PATH, encoding='utf-8') as file:
         products = [product for product in json.load(file) if product['items']]
     if len(sys.argv) > 1 and sys.argv[1] == 'accident':

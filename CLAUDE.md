@@ -64,6 +64,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 - [ ] 工具包同步：`pubspec.yaml` 異動已更新 `../jingxuan-vault/工具包.md`
 - [ ] Null-Safety：核心流程有例外捕獲與空值防護
 - [ ] `flutter analyze` 0 error 且未新增 warning；`flutter test` 全過
+- [ ] 給付項目資料：`tool/benefit_items/` 有改動時，`check_benefit_items.py` 固定檢查通過（`build_seed_sql.py` 會自動跑）；抽查確認正確的項目加進 `benefit_items_verified.json`
 - [ ] 檔案行數：本次新增或修改的 `.dart` 檔不超過 500 行（用 `wc -l` 實測）；既有超標檔若本次有修改，列出行數並說明是否已順手拆分
 - [ ] 學習筆記：本次改動影響的功能導讀與語法小抄已更新（見第 7 節）
 - [ ] 問題修復紀錄：今天新增的問題都有「發現標記」；今天的測試結果都已新增到測試總表「紀錄」分頁（見第 9 節）
