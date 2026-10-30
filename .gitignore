@@ -65,6 +65,9 @@ ios/Runner/GoogleService-Info.plist
 
 # 商品目錄抓取（tool/product_catalog）：試跑結果與 Python 暫存
 tool/product_catalog/output/
+tool/product_catalog/monthly_output/
+tool/product_catalog/monthly_backup/
+tool/coverage_categories/.cache/
 tool/product_catalog/.venv/
 __pycache__/
 tool/benefit_plans/.cache/

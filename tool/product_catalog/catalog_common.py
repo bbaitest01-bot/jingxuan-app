@@ -290,4 +290,35 @@ def finish_products(products: List[Product]) -> List[Product]:
         product.product_kind = classify_product_kind(product.product_name)
         product.insurance_type = classify_insurance_type(product.product_name)
         unique_products.append(product)
+    resolve_shared_clause_links(unique_products)
     return unique_products
+
+
+def _comparable_name(text: str) -> str:
+    """比對名稱用：去空白、全形半形括號統一"""
+    return re.sub(r'\s', '', text).replace('(', '（').replace(')', '）')
+
+
+def resolve_shared_clause_links(products: List[Product]) -> None:
+    """兩款以上商品拿到同一個條款連結時（清單某一列沒有連結、借到隔壁列的），
+    下載那份條款看封面是哪一款，只留給名稱對得上的；其他的清空，寧可沒有也不要給錯（2026-10-30 D24）"""
+    products_by_url = {}
+    for product in products:
+        if product.clause_url:
+            products_by_url.setdefault(product.clause_url, []).append(product)
+    for url, sharing_products in products_by_url.items():
+        if len(sharing_products) < 2:
+            continue
+        try:
+            with pdfplumber.open(io.BytesIO(download(url))) as pdf:
+                cover_text = _comparable_name(pdf.pages[0].extract_text() or '')
+        except Exception as error:  # 下載不到就全部清空，下次再抓
+            print(f'  ⚠️ 條款連結重複又下載不到，先清空：{url}（{error}）')
+            cover_text = ''
+        for product in sharing_products:
+            name_key = _comparable_name(product.product_name)
+            if name_key and name_key in cover_text:
+                continue
+            print(f'  ⚠️ 條款連結和別款重複且封面不是這款，清空：{product.product_name}')
+            product.clause_url = None
+            product.product_code = None

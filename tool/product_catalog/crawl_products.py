@@ -111,6 +111,8 @@ def main() -> int:
     )
     parser.add_argument("--dry-run", action="store_true", help="只抓不送出，結果存成 JSON 檔")
     parser.add_argument("--output", default="output", help="--dry-run 時 JSON 檔放哪個資料夾")
+    # 正式寫入時也順便存一份 JSON（每週提醒、每月一鍵更新要拿來比對新商品；2026-10-30 D24）
+    parser.add_argument("--save-json", help="正式寫入時，另外把結果存成 JSON 到這個資料夾")
     arguments = parser.parse_args()
 
     function_url = os.environ.get("PRODUCT_CATALOG_FUNCTION_URL", "")
@@ -134,6 +136,10 @@ def main() -> int:
             print("  已存檔：", output_file)
         else:
             send_to_function(payload, function_url, secret)
+            if arguments.save_json:
+                save_folder = Path(arguments.save_json)
+                save_folder.mkdir(parents=True, exist_ok=True)
+                (save_folder / f"{company_code}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 有任何一家失敗，就讓 GitHub 顯示紅燈，方便發現
     return 1 if has_failure else 0
