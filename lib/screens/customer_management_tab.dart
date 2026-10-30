@@ -4,16 +4,17 @@ import '../main.dart';
 import '../router/app_routes.dart';
 import '../services/app_localizations.dart';
 import '../services/app_settings.dart';
+import '../services/customer_card_summary_service.dart';
 import '../services/customer_service.dart';
 import '../services/customer_stage_service.dart';
 import 'customers/customer_stage_filter_banner.dart';
 import '../widgets/custom_toast.dart';
-import '../widgets/customer_detail_side_sheet.dart';
 import '../widgets/customer_share_export_dialog.dart';
 import 'customers/create_project_dialog.dart';
 import 'customers/customer_batch_selection_bar.dart';
 import 'customers/customer_confirm_dialogs.dart';
 import 'customers/customer_form_dialog.dart';
+import 'customers/customer_detail_opener.dart';
 import 'customers/customer_collection_view.dart';
 import 'customers/customer_grid_view.dart';
 import 'customers/customer_import_dialog.dart';
@@ -131,6 +132,8 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
       final String? userId = CustomerService.instance.currentUserId;
       if (userId != null) _currentUserId = userId;
 
+      // 卡片上的保單、下次行程摘要另外讀（不等它，讀到卡片會自己更新）
+      CustomerCardSummaryService.instance.refresh();
       final List<Map<String, dynamic>> customers = await CustomerService.instance.fetchActiveCustomers();
       if (!mounted) return;
       setState(() {
@@ -186,33 +189,15 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     }
 
     setState(() => _isLoading = true);
-
-    final String finalAvatarUrl;
     try {
-      finalAvatarUrl = await CustomerService.instance.resolveAvatarUrl(form, existingAvatarUrl);
-    } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '頭像上傳失敗: $e', ToastType.error);
-      }
-      setState(() => _isLoading = false);
-      return;
-    }
-
-    try {
-      if (isEdit) {
-        await CustomerService.instance.updateCustomer(customerId, form, finalAvatarUrl);
-      } else {
-        await CustomerService.instance.createCustomer(form, finalAvatarUrl);
-      }
-
+      await CustomerService.instance.saveCustomerForm(form, customerId: customerId, existingAvatarUrl: existingAvatarUrl);
       await _fetchCustomers();
-      if (mounted) {
-        CustomToast.show(context, '成功$action客戶 ${form.name} 檔案', ToastType.success);
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomToast.show(context, '$action失敗: $e', ToastType.error);
-      }
+      if (mounted) CustomToast.show(context, '成功$action客戶 ${form.name} 檔案', ToastType.success);
+    } on CustomerAvatarException catch (error) {
+      if (mounted) CustomToast.show(context, '頭像上傳失敗: $error', ToastType.error);
+      setState(() => _isLoading = false);
+    } catch (error) {
+      if (mounted) CustomToast.show(context, '$action失敗: $error', ToastType.error);
       setState(() => _isLoading = false);
     }
   }
@@ -341,20 +326,32 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     CustomerShareExportDialog.show(context, customers: customers, scopeDescription: scopeDescription);
   }
 
-  // 讀寫合一全景側邊抽屜 (Side Sheet)；抽屜裡改了資料就同步回列表
-  void _openCustomerDetails(Map<String, dynamic> customer) {
-    CustomerDetailSideSheet.show(
+  // 打開側邊欄（卡片模式會把卡片飛到左邊，見 customer_detail_opener.dart）
+  Future<void> _openCustomerDetails(Map<String, dynamic> customer, {Rect? originRect}) async {
+    await openCustomerDetail(
       context,
       customer: customer,
-      onCustomerUpdated: (updated) {
-        final int index = _allCustomers.indexWhere((c) => c['id'] == updated['id']);
-        if (index != -1) {
-          setState(() {
-            _allCustomers[index] = updated;
-          });
-          _filterCustomers();
-        }
-      },
+      originRect: originRect,
+      onCustomerUpdated: _replaceUpdatedCustomer,
+      onEdit: () => _openCustomerForm(customer: customer),
+      onDelete: () => _confirmDeleteCustomer(customer),
+      onManageRelationships: () => _openRelationshipsDialog(customer),
+    );
+  }
+
+  // 側邊欄裡改了資料就同步回列表
+  void _replaceUpdatedCustomer(Map<String, dynamic> updated) {
+    final int index = _allCustomers.indexWhere((c) => c['id'] == updated['id']);
+    if (index == -1) return;
+    setState(() => _allCustomers[index] = updated);
+    _filterCustomers();
+  }
+
+  void _confirmDeleteCustomer(Map<String, dynamic> customer) {
+    showDeleteCustomerConfirm(
+      context,
+      name: customer['name'] ?? '',
+      onConfirm: () => _deleteCustomer(customer['id']),
     );
   }
 
@@ -478,11 +475,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
               selectedCustomerIds: _selectedCustomerIds,
               actions: CustomerCardActions(
                 onEdit: (customer) => _openCustomerForm(customer: customer),
-                onDelete: (customer) => showDeleteCustomerConfirm(
-                  context,
-                  name: customer['name'] ?? '',
-                  onConfirm: () => _deleteCustomer(customer['id']),
-                ),
+                onDelete: _confirmDeleteCustomer,
                 onZoom: _openCustomerDetails,
                 onManageRelationships: _openRelationshipsDialog,
                 onSelectionChanged: _setCustomerSelected,

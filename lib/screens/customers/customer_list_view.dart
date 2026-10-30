@@ -4,7 +4,6 @@ import '../../services/tag_categorizer.dart';
 import '../../widgets/animations.dart';
 import 'customer_grid_view.dart';
 import 'customer_shimmers.dart';
-import 'flipping_customer_card.dart';
 import 'customer_status_widgets.dart';
 import '../../theme/app_theme.dart';
 

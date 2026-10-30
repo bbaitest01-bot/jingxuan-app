@@ -3,7 +3,7 @@ import '../../services/app_settings.dart';
 import 'customer_grid_view.dart';
 import 'customer_list_view.dart';
 
-/// 客戶列表區：載入中顯示骨架、沒有客戶顯示空白提示，否則依檢視模式顯示 3D 卡片或條列
+/// 客戶列表區：載入中顯示骨架、沒有客戶顯示空白提示，否則依檢視模式顯示卡片或條列
 class CustomerCollectionView extends StatelessWidget {
   final List<Map<String, dynamic>> customers;
   final bool isLoading;
