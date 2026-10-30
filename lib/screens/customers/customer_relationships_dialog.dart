@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 
 /// 管理一位客戶的人脈：轉介紹來源（維度 1）與社交角色關係（維度 2）。
 /// 轉介紹來源改變時呼叫 [onReferralSourceChanged]，讓外框同步畫面上的客戶資料。
+/// 視窗關閉後才結束，人脈拓撲用這點在關閉後重新讀資料（2026-10-30 拓撲頁改用這個視窗，不再各寫一份）。
 Future<void> showCustomerRelationshipsDialog(
   BuildContext outerContext, {
   required Map<String, dynamic> customer,
@@ -18,7 +19,7 @@ Future<void> showCustomerRelationshipsDialog(
 
   if (!outerContext.mounted) return;
 
-  showDialog(
+  await showDialog<void>(
     context: outerContext,
     builder: (dialogCtx) {
       return StatefulBuilder(
