@@ -6,6 +6,10 @@
 輸出 supabase/seed/benefit_items_1.sql～_3.sql（太大一次貼會卡，分三份）：
 在 Supabase SQL Editor 依序各執行一次即可匯入。
 
+只更新有變動的商品（每月一鍵更新用，2026-10-30 D24）：
+    python3 tool/benefit_items/build_seed_sql.py changed 舊的benefit_items_auto.json
+輸出 supabase/seed/benefit_items_update.sql，只含新商品或項目有變的商品。
+
 只更新意外傷害補齊的商品（2026-10-30 D22）：
     python3 tool/benefit_items/build_seed_sql.py accident
 輸出 supabase/seed/benefit_items_accident.sql，只要貼這一份。
@@ -60,7 +64,7 @@ def build_part_sql(products, part_number, title=None):
         'FROM benefit_items_import v\n'
         'JOIN public.insurance_products p ON p.company_code = v.company_code AND p.product_name = v.product_name;\n\n'
         'DROP TABLE benefit_items_import;\n\n'
-        '-- 檢查：全部匯入後應該是 433 款商品\n'
+        '-- 檢查：目前資料表一共幾款商品、幾個項目（數字應該和工具印出的一樣）\n'
         'SELECT count(DISTINCT product_id) AS product_count, count(*) AS item_count, count(formula) AS with_formula\n'
         'FROM public.insurance_product_benefit_items;\n'
     )
@@ -83,14 +87,53 @@ def write_accident_only(products):
     print(f'寫入 {output_path}：{len(accident_products)} 款商品、{item_count} 個項目')
 
 
+def find_changed_products(products, old_path):
+    """和上次的 benefit_items_auto.json 比，找出新商品或項目有變的商品"""
+    with open(old_path, encoding='utf-8') as file:
+        old_items_by_name = {product['product_name']: product['items'] for product in json.load(file)}
+    changed_products = []
+    for product in products:
+        if old_items_by_name.get(product['product_name']) != product['items']:
+            changed_products.append(product)
+    return changed_products
+
+
+def write_changed_only(changed_products):
+    """只把新商品或項目有變的商品寫進匯入檔；回傳寫了幾款"""
+    output_path = os.path.join(OUTPUT_DIR, 'benefit_items_update.sql')
+    if not changed_products:
+        print('沒有新商品或變動，不用匯入。')
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return 0
+    sql, item_count = build_part_sql(changed_products, 1, title=f'給付項目更新（新商品或有變動，{len(changed_products)} 款）')
+    with open(output_path, 'w', encoding='utf-8') as file:
+        file.write(sql)
+    print(f'寫入 {output_path}：{len(changed_products)} 款商品、{item_count} 個項目')
+    for product in changed_products:
+        print(f"  - {product['product_name']}")
+    return len(changed_products)
+
+
 def main():
     # 固定檢查（2026-10-30 D23）：沒通過就不產生匯入檔，錯的資料不會進資料庫
     import check_benefit_items
-    if check_benefit_items.main() != 0:
-        print('\n檢查沒通過，不產生匯入檔。')
-        sys.exit(1)
     with open(INPUT_PATH, encoding='utf-8') as file:
         products = [product for product in json.load(file) if product['items']]
+    is_changed_mode = len(sys.argv) > 2 and sys.argv[1] == 'changed'
+    changed_products = []
+    only_product_names = None
+    if is_changed_mode:
+        changed_products = find_changed_products(products, sys.argv[2])
+        # 規則沒改過：只要檢查這次新的或有變動的商品；規則改過就全部檢查
+        if check_benefit_items.rules_unchanged_since_full_check():
+            only_product_names = {product['product_name'] for product in changed_products}
+    if check_benefit_items.main(only_product_names) != 0:
+        print('\n檢查沒通過，不產生匯入檔。')
+        sys.exit(1)
+    if is_changed_mode:
+        write_changed_only(changed_products)
+        return
     if len(sys.argv) > 1 and sys.argv[1] == 'accident':
         write_accident_only(products)
         return

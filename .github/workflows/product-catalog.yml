@@ -36,4 +36,12 @@ jobs:
             echo "❌ Error: GitHub Secret PRODUCT_CATALOG_SECRET 尚未設定"
             exit 1
           fi
-          python crawl_products.py --company cathay --company fubon
+          python crawl_products.py --company cathay --company fubon --save-json weekly_output
+
+      # 每週提醒（2026-10-30 D24）：列出還沒有給付項目的新商品，顯示在這次執行的結果頁面
+      - name: 🆕 List new products without benefit items
+        if: always()
+        run: |
+          if [ -d tool/product_catalog/weekly_output ]; then
+            python tool/benefit_items/list_new_products.py tool/product_catalog/weekly_output
+          fi

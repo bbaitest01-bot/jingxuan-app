@@ -410,6 +410,14 @@ def sentence_around(text, match):
     return sentence_start, sentence_end
 
 
+def clause_matches_product(text, product_name):
+    """條款開頭有沒有這款商品的名稱（去掉公司名，比前 10 個字，括號全半形統一）"""
+    def comparable(value):
+        return re.sub(r'[\s「」]', '', value).replace('(', '（').replace(')', '）')
+    core = re.sub(r'^(?:國泰人壽|富邦人壽|南山人壽)', '', comparable(product_name))[:10]
+    return core in comparable(text[:1500])
+
+
 def extract_summary_table_items(text):
     """國泰表格式附加條款：開頭「主要給付項目：給付項目 給付金額 ○○保險金 保險金額╳1 …※」直接列出項目與算法"""
     summary = re.search(r'主要給付項目：給付項目給付金額(.{0,400}?)※', text)
@@ -661,6 +669,12 @@ def main():
         }
         try:
             text, tables = read_clause(download_clause(product['clause_url'], cache_dir))
+            # 條款封面不是這款商品（目錄把別款的條款連結對到這款）：不整理，寧可沒有也不要給錯（2026-10-30 D24）
+            if not clause_matches_product(text, product['product_name']):
+                record['error'] = '條款封面不是這款商品，可能對錯條款連結'
+                results.append(record)
+                print(f"   0 項  {record['product_name']}  {record['error']}", flush=True)
+                continue
             record['items'] = extract_items(text)
             if not record['items']:
                 record['items'] = extract_summary_table_items(text)

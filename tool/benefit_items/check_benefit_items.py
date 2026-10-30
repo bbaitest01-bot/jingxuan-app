@@ -5,15 +5,20 @@
 2. 數字：算法裡的數字（10%、2 倍、5 萬元）要在那一條條文或附表裡找得到
 3. 標準答案：benefit_items_verified.json 裡人工核對過的項目，算法要一模一樣（改規則時不會把對的改壞）
 
+快速檢查：讀條款的規則（extract_benefit_items.py）從上次全部檢查後沒改過，
+每月一鍵更新只檢查新的或有變動的商品＋標準答案（幾十秒）；規則改過就自動全部檢查（約 5 分鐘）。
+
 確定不是錯的（例：「喪葬費用保險金」就是身故的另一種說法），寫進 check_exceptions.json 並寫理由。
 
 執行：python3 tool/benefit_items/check_benefit_items.py
 全部通過回傳 0；有問題列出清單並回傳 1。
 """
+import hashlib
 import json
 import os
 import re
 import sys
+from datetime import date
 
 import extract_benefit_items as extractor
 
@@ -22,6 +27,8 @@ ITEMS_FILE = os.path.join(TOOL_DIR, 'benefit_items_auto.json')
 VERIFIED_FILE = os.path.join(TOOL_DIR, 'benefit_items_verified.json')
 EXCEPTIONS_FILE = os.path.join(TOOL_DIR, 'check_exceptions.json')
 CACHE_DIR = os.path.join(TOOL_DIR, '.cache')
+# 上次「全部檢查」通過時的規則指紋（2026-10-30 D24：規則沒改時，每月只查新的或有變動的商品）
+FULL_CHECK_FILE = os.path.join(TOOL_DIR, 'last_full_check.json')
 
 # 算法裡不用比對的數字：1 倍（保額 × 1）太常見，條款也常寫成「保險金額」不寫一
 IGNORED_NUMBERS = {1.0}
@@ -116,9 +123,30 @@ def load_json(path, default):
         return json.load(file)
 
 
-def run_checks():
-    """回傳 (檢查的商品數, 問題清單)；問題是 (商品名稱, 說明)"""
-    products = [product for product in load_json(ITEMS_FILE, []) if product['items']]
+def rules_fingerprint():
+    """讀條款規則（extract_benefit_items.py）的指紋：程式一改，指紋就變"""
+    with open(extractor.__file__, 'rb') as file:
+        return hashlib.sha256(file.read()).hexdigest()
+
+
+def rules_unchanged_since_full_check():
+    """上次「全部檢查」通過之後，規則有沒有被改過"""
+    return load_json(FULL_CHECK_FILE, {}).get('rules_fingerprint') == rules_fingerprint()
+
+
+def record_full_check(product_count):
+    with open(FULL_CHECK_FILE, 'w', encoding='utf-8') as file:
+        json.dump({'rules_fingerprint': rules_fingerprint(), 'checked_at': date.today().isoformat(),
+                   'product_count': product_count}, file, ensure_ascii=False, indent=1)
+
+
+def run_checks(only_product_names=None):
+    """回傳 (檢查的商品數, 問題清單)；問題是 (商品名稱, 說明)
+    only_product_names：只檢查這些商品（規則沒改時的快速檢查）；標準答案一律全部檢查"""
+    all_products = [product for product in load_json(ITEMS_FILE, []) if product['items']]
+    products = all_products
+    if only_product_names is not None:
+        products = [product for product in all_products if product['product_name'] in only_product_names]
     exceptions = {(entry['product_name'], entry['problem']) for entry in load_json(EXCEPTIONS_FILE, [])}
     problems = []
     for product in products:
@@ -133,7 +161,7 @@ def run_checks():
         for problem in found:
             problems.append((product['product_name'], problem))
 
-    products_by_name = {product['product_name']: product for product in products}
+    products_by_name = {product['product_name']: product for product in all_products}
     for problem in check_verified(products_by_name, load_json(VERIFIED_FILE, [])):
         problems.append(('（標準答案）', problem))
 
@@ -141,10 +169,14 @@ def run_checks():
     return len(products), remaining
 
 
-def main():
-    product_count, problems = run_checks()
+def main(only_product_names=None):
+    product_count, problems = run_checks(only_product_names)
     if not problems:
-        print(f'✅ 給付項目檢查通過：{product_count} 款商品')
+        if only_product_names is None:
+            record_full_check(product_count)
+            print(f'✅ 給付項目檢查通過（全部）：{product_count} 款商品')
+        else:
+            print(f'✅ 給付項目檢查通過（快速：規則沒改，只查新的或有變動的 {product_count} 款＋標準答案）')
         return 0
     print(f'❌ 給付項目檢查：{len(problems)} 個問題（{product_count} 款商品）')
     for name, problem in problems:

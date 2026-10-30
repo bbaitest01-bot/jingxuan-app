@@ -37,7 +37,7 @@ python3 -m venv .venv
 | 公司 | 誰來跑 | 頻率 |
 |---|---|---|
 | 國泰、富邦 | GitHub Actions「Weekly Insurance Product Catalog」自動執行（也可在 Actions 頁面按 Run workflow） | 每週一台灣時間 03:00 |
-| 南山 | 沛沛在自己的電腦手動執行（見下一節） | 每月一次 |
+| 南山 | 沛沛在自己的電腦執行「每月一鍵更新」（見下一節，順便補新商品的給付項目） | 每月一次 |
 
 為什麼南山不給 GitHub 跑：南山網站會拒絕 GitHub 伺服器（在國外）的連線，台灣網路就可以（2026-10-23 實測）。
 南山的資料不會錯，只是停在上次更新的日期；保險商品不常變動，每月更新一次就夠。
@@ -48,19 +48,26 @@ python3 -m venv .venv
 - Supabase Secret `PRODUCT_CATALOG_SECRET`（同一把密碼）
 - 雲端函式 `import-product-catalog` 已部署，且 **Verify JWT 關閉**（函式自己比對排程密碼）
 
-## 每月更新南山（Mac，約 3 分鐘）
+## 每月一鍵更新（Mac，約 20 分鐘，2026-10-30 起取代「每月更新南山」）
+
+每月最後一個週末跑一次。會依序：抓南山目錄寫進資料庫 → 抓三家最新目錄找新商品 → 分類保障類別、整理給付項目 → 固定檢查 → 產生只含新商品的 SQL（程式在 `tool/monthly_update.py`）。
 
 1. 確認電腦連的是台灣的網路（家裡或學校都可以；開著國外 VPN 會被擋）
-2. 打開「終端機」App，第一次使用時先準備環境（之後每個月不用再做）：
+2. 第一次使用先準備環境（之後每個月不用再做）：
    ```bash
    cd ~/Documents/GitHub/jingxuan-app/tool/product_catalog && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
    ```
 3. 每個月執行這一行，看到「請貼上排程密碼」時貼上 `PRODUCT_CATALOG_SECRET` 的值（畫面不會顯示）再按 Enter：
    ```bash
-   cd ~/Documents/GitHub/jingxuan-app/tool/product_catalog && read -s "PRODUCT_CATALOG_SECRET?請貼上排程密碼後按 Enter（畫面不會顯示）: " && echo && export PRODUCT_CATALOG_SECRET && PRODUCT_CATALOG_FUNCTION_URL=https://algufuoxkeizxwkofmmp.supabase.co/functions/v1/import-product-catalog .venv/bin/python crawl_products.py --company nanshan
+   cd ~/Documents/GitHub/jingxuan-app && tool/product_catalog/.venv/bin/python tool/monthly_update.py
    ```
-4. 看到 `=== 南山人壽（nanshan）：success` 和 `寫入結果： 200 {"success":true…}` 就完成了
-5. 如果出現 `failed`：多半是南山網站維修中（官網會先公告停機時間），隔天再跑一次；連續失敗再找人看
+4. 跑完會自動用文字編輯打開 `supabase/seed/benefit_items_update.sql`，貼到 Supabase SQL Editor 執行；印出「沒有新商品或變動」就不用貼
+5. 最後把有變動的檔案提交（可以請 Claude「收工」）
+6. 如果出現「沒有成功」：
+   - 抓目錄失敗：多半是南山網站維修中，隔天再跑
+   - 固定檢查沒通過：把畫面上的清單給 Claude 看，修好再跑
+
+平常不用等到月底：每週一 GitHub 抓完國泰、富邦後，Actions 頁面「Weekly Insurance Product Catalog」那次執行的結果會列出「還沒有給付項目的新商品」，急的話可以提早跑一鍵更新。
 
 ## 官網改版時
 
