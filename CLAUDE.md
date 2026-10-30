@@ -24,7 +24,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 
 | 動作 | Windows（puro） | Mac |
 |---|---|---|
-| 本機預覽 | 雙擊 `run_local_web.bat`（release build + http-server，port 8080） | 雙擊 `run_local_web.command`（`flutter run -d web-server`，port 8080） |
+| 本機預覽 | 雙擊 `run_local_web.bat`（release build + http-server，port 8080） | 雙擊 `run_local_web.command`（release build + `tool/serve_spa.py`，port 8080；改完程式在視窗按 Enter 重新編譯） |
 | 工具包校對 | 雙擊 `verify_toolpack.bat` | 雙擊 `verify_toolpack.command` |
 | 指令列 | `puro flutter analyze` / `puro flutter test` | `flutter analyze` / `flutter test` |
 
