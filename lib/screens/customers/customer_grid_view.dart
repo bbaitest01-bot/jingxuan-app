@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
 import '../../widgets/animations.dart';
 import 'customer_shimmers.dart';
-import 'flipping_customer_card.dart';
+import 'customer_card.dart';
 import '../../theme/app_theme.dart';
 
 /// 客戶卡片／清單上的按鈕要做的事，由外框（CustomerManagementTab）提供
 class CustomerCardActions {
   final void Function(Map<String, dynamic> customer) onEdit;
   final void Function(Map<String, dynamic> customer) onDelete;
-  final void Function(Map<String, dynamic> customer) onZoom;
+  /// 打開側邊欄；卡片模式會帶卡片在畫面上的位置，讓卡片飛到左邊
+  final void Function(Map<String, dynamic> customer, {Rect? originRect}) onZoom;
   final void Function(Map<String, dynamic> customer) onManageRelationships;
 
   /// 多選模式下勾選或取消某位客戶：[selected] 為 true 代表選取
@@ -24,7 +25,7 @@ class CustomerCardActions {
   });
 }
 
-/// 3D 卡片模式：依螢幕寬度決定一列幾張卡片；多選模式下點卡片是勾選
+/// 卡片模式：依螢幕寬度決定一列幾張卡片；點卡片打開側邊欄，多選模式下點卡片是勾選
 class CustomerGridView extends StatelessWidget {
   final List<Map<String, dynamic>> customers;
   final bool isWideScreen;
@@ -55,7 +56,8 @@ class CustomerGridView extends StatelessWidget {
     if (isWideScreen) {
       if (screenWidth > 1200) {
         crossAxisCount = 3;
-        childAspectRatio = 1.6;
+        // 卡片 C（2026-10-30）：多兩行摘要、拿掉信箱，比原本稍矮一點也不擠
+        childAspectRatio = 1.75;
       } else {
         crossAxisCount = 2;
         childAspectRatio = 1.5;
@@ -79,12 +81,9 @@ class CustomerGridView extends StatelessWidget {
         final isSelected = selectedCustomerIds.contains(id);
 
         Widget cardWidget = HoverAnimatedCard(
-          child: FlippingCustomerCard(
+          child: CustomerCard(
             customer: customer,
-            onEdit: () => actions.onEdit(customer),
-            onDelete: () => actions.onDelete(customer),
-            onZoom: () => actions.onZoom(customer),
-            onManageRelationships: () => actions.onManageRelationships(customer),
+            onOpen: (Rect cardRect) => actions.onZoom(customer, originRect: cardRect),
           ),
         );
 
@@ -162,7 +161,8 @@ class CustomerShimmerGrid extends StatelessWidget {
     if (isWideScreen) {
       if (screenWidth > 1200) {
         crossAxisCount = 3;
-        childAspectRatio = 1.6;
+        // 卡片 C（2026-10-30）：多兩行摘要、拿掉信箱，比原本稍矮一點也不擠
+        childAspectRatio = 1.75;
       } else {
         crossAxisCount = 2;
         childAspectRatio = 1.5;

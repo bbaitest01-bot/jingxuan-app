@@ -10,7 +10,6 @@ import '../../widgets/custom_toast.dart';
 import 'customer_status_widgets.dart';
 import '../../widgets/voice_recorder_widget.dart';
 import '../tag_manager_screen.dart';
-import 'flipping_customer_card.dart';
 import '../../theme/app_theme.dart';
 
 /// 新增／編輯客戶的表單視窗。[customer] 是 null 代表新增。

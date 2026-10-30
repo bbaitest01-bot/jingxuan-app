@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/visit_result.dart';
@@ -166,3 +168,29 @@ class _CustomerStatusSourceTextState extends State<CustomerStatusSourceText> {
     );
   }
 }
+
+/// 把大頭貼網址（一般網址或 Base64 資料）轉成圖片來源；空字串回傳 null
+/// （2026-10-30 從已刪除的 flipping_customer_card.dart 搬過來）
+ImageProvider? customerAvatarProvider(String avatarUrl) {
+  if (avatarUrl.isEmpty) return null;
+  // 同一張照片只解碼一次：每次重畫都重新解碼會讓列表、動畫變卡（2026-10-30）
+  final ImageProvider? cached = _avatarProviderCache[avatarUrl];
+  if (cached != null) return cached;
+  ImageProvider? provider;
+  if (avatarUrl.startsWith('data:image/') || avatarUrl.startsWith('data:application/')) {
+    try {
+      final String base64String = avatarUrl.split(',').last;
+      provider = MemoryImage(base64Decode(base64String));
+    } catch (error) {
+      return null;
+    }
+  } else {
+    provider = NetworkImage(avatarUrl);
+  }
+  // 最多記 200 張，太多就清掉重來
+  if (_avatarProviderCache.length >= 200) _avatarProviderCache.clear();
+  _avatarProviderCache[avatarUrl] = provider;
+  return provider;
+}
+
+final Map<String, ImageProvider> _avatarProviderCache = {};

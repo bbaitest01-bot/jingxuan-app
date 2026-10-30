@@ -69,7 +69,8 @@ class HomeSidebar extends StatelessWidget {
           color: colors.surface,
           border: Border(right: BorderSide(color: borderColor, width: 1)),
         ),
-        width: isCollapsed ? 80 : 260,
+        // 展開寬度 200：只放名字不放信箱，剛好放得下圖示＋4 個字的選單，右邊不會空一大塊（2026-10-30 沛沛）
+        width: isCollapsed ? 80 : 200,
         child: Column(
           children: [
             _SidebarProfileCard(
@@ -84,17 +85,20 @@ class HomeSidebar extends StatelessWidget {
               onReturnToDevView: onReturnToDevView,
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: _buildMenuItems(context),
-              ),
-            ),
+            Expanded(child: _buildMenuList(context)),
             if (isWideScreen) _buildCollapseButton(colors),
             _buildSignOutArea(context, borderColor),
           ],
         ),
       ),
+    );
+  }
+
+  // 選單靠左；圖示和上面的大頭貼、下面的登出都對齊在離左邊 16 的地方（2026-10-30 沛沛）
+  Widget _buildMenuList(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      children: _buildMenuItems(context),
     );
   }
 
@@ -180,7 +184,8 @@ class HomeSidebar extends StatelessWidget {
             color: itemBackground,
             borderRadius: BorderRadius.circular(AppRadius.control),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          // 外面已經留 8，這裡再 8＝圖示離左邊 16，和大頭貼、登出對齊
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           child: Row(
             mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
@@ -294,7 +299,7 @@ class _SidebarProfileCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: borderColor, width: 1)),
         ),
@@ -347,12 +352,11 @@ class _SidebarProfileCard extends StatelessWidget {
           style: TextStyle(color: colors.ink, fontWeight: FontWeight.bold, fontSize: 14),
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 2),
-        Text(
-          emailText,
-          style: TextStyle(color: emailColor, fontSize: 11),
-          overflow: TextOverflow.ellipsis,
-        ),
+        // 信箱不顯示（每個人長度不同，長的會被截掉）；離線模式時才在名字下面提醒
+        if (isOfflineMode) ...[
+          const SizedBox(height: 2),
+          Text(emailText, style: TextStyle(color: emailColor, fontSize: 11), overflow: TextOverflow.ellipsis),
+        ],
         if (isSimulatingOtherRole) ...[
           const SizedBox(height: 6),
           _buildReturnToDevButton(context),

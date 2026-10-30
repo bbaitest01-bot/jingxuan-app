@@ -15,6 +15,8 @@ import 'scan_policy/scan_policy_flow.dart';
 import '../widgets/categorized_tag_accordion_selector.dart';
 import '../widgets/voice_recorder_widget.dart';
 import 'customer_share_export_dialog.dart';
+import 'customer_detail_sheet_route.dart';
+import 'customer_sheet_header.dart';
 import '../screens/customers/customer_form_dialog.dart';
 import '../screens/customers/customer_status_widgets.dart';
 import '../theme/app_theme.dart';
@@ -23,73 +25,50 @@ class CustomerDetailSideSheet extends StatefulWidget {
   final Map<String, dynamic> customer;
   final Function(Map<String, dynamic> updated) onCustomerUpdated;
   final VoidCallback onClose;
+  // 原本卡片翻面才有的按鈕（2026-10-30 移到側邊欄上方）；沒傳就不顯示
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback? onManageRelationships;
 
   const CustomerDetailSideSheet({
     super.key,
     required this.customer,
     required this.onCustomerUpdated,
     required this.onClose,
+    this.onEdit,
+    this.onDelete,
+    this.onManageRelationships,
   });
 
-  static void show(
+  static const double desktopSheetWidth = 520;
+
+  /// 打開客戶側邊欄（電腦版右邊滑出、可帶卡片飛入；手機從下方打開）。實作在 customer_detail_sheet_route.dart
+  static Future<void> show(
     BuildContext context, {
     required Map<String, dynamic> customer,
     required Function(Map<String, dynamic>) onCustomerUpdated,
+    Rect? originRect,
+    Widget? flyingCard,
+    Rect? Function()? currentOriginRect,
+    EdgeInsets contentPadding = EdgeInsets.zero,
+    ValueChanged<bool>? onFitChanged,
+    VoidCallback? onEdit,
+    VoidCallback? onDelete,
+    VoidCallback? onManageRelationships,
   }) {
-    final isDesktop = MediaQuery.of(context).size.width >= 768;
-
-    if (isDesktop) {
-      // Desktop Right-side Sheet
-      showGeneralDialog(
-        context: context,
-        barrierDismissible: true,
-        barrierLabel: 'CustomerDetailSideSheet',
-        barrierColor: Colors.black.withValues(alpha: 0.35),
-        transitionDuration: const Duration(milliseconds: 250),
-        pageBuilder: (ctx, _, __) {
-          return Align(
-            alignment: Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: SizedBox(
-                width: 520,
-                height: double.infinity,
-                child: CustomerDetailSideSheet(
-                  customer: customer,
-                  onCustomerUpdated: onCustomerUpdated,
-                  onClose: () => Navigator.of(ctx).pop(),
-                ),
-              ),
-            ),
-          );
-        },
-        transitionBuilder: (ctx, anim, _, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero).animate(
-              CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
-            ),
-            child: child,
-          );
-        },
-      );
-    } else {
-      // Mobile Bottom Sheet
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) {
-          return FractionallySizedBox(
-            heightFactor: 0.9,
-            child: CustomerDetailSideSheet(
-              customer: customer,
-              onCustomerUpdated: onCustomerUpdated,
-              onClose: () => Navigator.of(ctx).pop(),
-            ),
-          );
-        },
-      );
-    }
+    return showCustomerDetailSheet(
+      context,
+      customer: customer,
+      onCustomerUpdated: onCustomerUpdated,
+      originRect: originRect,
+      flyingCard: flyingCard,
+      currentOriginRect: currentOriginRect,
+      contentPadding: contentPadding,
+      onFitChanged: onFitChanged,
+      onEdit: onEdit,
+      onDelete: onDelete,
+      onManageRelationships: onManageRelationships,
+    );
   }
 
   @override
@@ -373,97 +352,29 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
       ),
       child: Column(
         children: [
-          // Header Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: context.appColors.surface,
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(24)),
-              border: Border(bottom: BorderSide(color: borderColor)),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: context.appColors.accSoft,
-                  child: Text(
-                    name.isNotEmpty ? name.substring(0, 1) : '客',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.appColors.acc),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(name, style: AppTextStyles.serif(fontSize: 18, color: textColor)),
-                          if (nickname.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Text('($nickname)', style: TextStyle(fontSize: 12, color: subTextColor)),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text('讀寫合一沉浸式檔案 • 本地 0 成本精算', style: TextStyle(fontSize: 11, color: subTextColor)),
-                    ],
-                  ),
-                ),
-                // 開啟客戶細節整頁（C3）：先關掉抽屜，再前往 /customers/:id
-                IconButton(
-                  icon: const Icon(Icons.open_in_full_rounded, size: 20),
-                  tooltip: '開啟完整頁面',
-                  onPressed: () {
-                    final GoRouter router = GoRouter.of(context);
-                    final String customerId = widget.customer['id'].toString();
-                    widget.onClose();
-                    router.go(AppRoutes.customerPath(customerId));
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.ios_share_rounded, size: 20),
-                  tooltip: '匯出/分享此客戶檔案 (Excel/vCard/PDF)',
-                  onPressed: () {
-                    CustomerShareExportDialog.show(
-                      context,
-                      customers: [_getCurrentCustomerData()],
-                      scopeDescription: '客戶 ${_nameController.text.trim().isNotEmpty ? _nameController.text.trim() : '此客戶'} 個人檔案',
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: widget.onClose,
-                ),
-              ],
-            ),
+          CustomerSheetHeader(
+            name: name,
+            nickname: nickname,
+            avatarUrl: widget.customer['avatar_url']?.toString() ?? '',
+            onManageRelationships: widget.onManageRelationships,
+            onEdit: widget.onEdit,
+            onDelete: widget.onDelete,
+            onClose: widget.onClose,
+            // 客戶細節整頁（C3）：先關掉側邊欄，再前往 /customers/:id
+            onFullScreen: () {
+              final GoRouter router = GoRouter.of(context);
+              final String customerId = widget.customer['id'].toString();
+              widget.onClose();
+              router.go(AppRoutes.customerPath(customerId));
+            },
+            onShare: () {
+              CustomerShareExportDialog.show(
+                context,
+                customers: [_getCurrentCustomerData()],
+                scopeDescription: '客戶 ${_nameController.text.trim().isNotEmpty ? _nameController.text.trim() : '此客戶'} 個人檔案',
+              );
+            },
           ),
-
-          // 👑 建檔業務員資訊欄 (Live Data from profiles table)
-          if (widget.customer['agent_name'] != null && widget.customer['agent_name'].toString().isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: context.appColors.acc.withValues(alpha: 0.08),
-                border: Border(bottom: BorderSide(color: context.appColors.acc.withValues(alpha: 0.25))),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.badge_outlined, size: 16, color: context.appColors.acc),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '👤 建檔業務員: ${widget.customer['agent_name']} (${widget.customer['agent_email'] ?? '無信箱'}) • 團隊: ${widget.customer['agent_team'] ?? 'TAIPEI-01'}',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.appColors.acc),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
           // Tab Bar
           Container(

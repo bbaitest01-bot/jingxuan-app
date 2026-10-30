@@ -307,6 +307,22 @@ class CustomerService {
   }
 
   /// 掃描保單時當場新增客戶：只填姓名，其他資料之後到客戶頁補；回傳新客戶的 id
+  /// 存客戶表單（2026-10-30 從客戶管理畫面搬過來）：先處理頭像，再新增或修改。
+  /// 頭像失敗丟出 [CustomerAvatarException]，讓畫面顯示「頭像上傳失敗」
+  Future<void> saveCustomerForm(CustomerFormData form, {String? customerId, String existingAvatarUrl = ''}) async {
+    final String avatarUrl;
+    try {
+      avatarUrl = await resolveAvatarUrl(form, existingAvatarUrl);
+    } catch (error) {
+      throw CustomerAvatarException(error.toString());
+    }
+    if (customerId != null) {
+      await updateCustomer(customerId, form, avatarUrl);
+    } else {
+      await createCustomer(form, avatarUrl);
+    }
+  }
+
   Future<String> createCustomerWithName(String name) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('使用者未登入');
@@ -395,4 +411,13 @@ class CustomerService {
       'deleted_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('id', id);
   }
+}
+
+/// 客戶頭像上傳失敗（saveCustomerForm 用）
+class CustomerAvatarException implements Exception {
+  final String message;
+  const CustomerAvatarException(this.message);
+
+  @override
+  String toString() => message;
 }
