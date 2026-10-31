@@ -3,18 +3,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import 'customer_stage_service.dart';
 
-/// 客戶卡片上的兩行摘要：保單狀況、下次行程（2026-10-30 沛沛選卡片 C：卡片不空也不擠）
+/// 客戶卡片上的兩行摘要：保單狀況、下次行程（2026-10-30 沛沛選卡片 C：卡片不空也不擠）；
+/// 2026-11-01 點開後飛出來的放大卡片，名字下面多一行介紹人
 class CustomerCardSummary {
   final String stage;
   final int activePolicyCount;
   final DateTime? nextEventAt;
   final String? nextEventTitle;
 
+  /// 介紹這位客戶的人（客戶資料的「轉介紹來源」）
+  final String? referrerName;
+
   const CustomerCardSummary({
     required this.stage,
     required this.activePolicyCount,
     this.nextEventAt,
     this.nextEventTitle,
+    this.referrerName,
   });
 
   /// 「保戶・3 張有效保單」「跟進中・尚無有效保單」「未開發」
@@ -70,7 +75,9 @@ class CustomerCardSummaryService {
           .isFilter('deleted_at', null)
           .not('customer_id', 'is', null)
           .order('start_at');
-      summaries.value = _buildSummaries(policyRows, visitResultRows, scheduleRows, DateTime.now());
+      final List<dynamic> customerRows =
+          await _supabase.from('customers').select('id, name, referral_source_id').eq('profile_id', user.id);
+      summaries.value = _buildSummaries(policyRows, visitResultRows, scheduleRows, customerRows, DateTime.now());
     } catch (error) {
       if (kDebugMode) print('讀客戶卡片摘要失敗: $error');
     }
@@ -80,6 +87,7 @@ class CustomerCardSummaryService {
     List<dynamic> policyRows,
     List<dynamic> visitResultRows,
     List<dynamic> scheduleRows,
+    List<dynamic> customerRows,
     DateTime now,
   ) {
     final Map<String, int> policyCountByCustomer = {};
@@ -104,7 +112,13 @@ class CustomerCardSummaryService {
       }
     }
 
-    final Set<String> allCustomerIds = {...policyCountByCustomer.keys, ...followedCustomerIds};
+    final Map<String, String> referrerByCustomer = _referrerNames(customerRows);
+
+    final Set<String> allCustomerIds = {
+      ...policyCountByCustomer.keys,
+      ...followedCustomerIds,
+      ...referrerByCustomer.keys,
+    };
     final Map<String, CustomerCardSummary> result = {};
     for (final String customerId in allCustomerIds) {
       final int policyCount = policyCountByCustomer[customerId] ?? 0;
@@ -117,14 +131,29 @@ class CustomerCardSummaryService {
         activePolicyCount: policyCount,
         nextEventAt: DateTime.tryParse(nextEvent['start_at']?.toString() ?? ''),
         nextEventTitle: nextEvent['title']?.toString(),
+        referrerName: referrerByCustomer[customerId],
       );
+    }
+    return result;
+  }
+
+  // 客戶編號 → 介紹人名字（介紹人要是自己名下的客戶才找得到）
+  static Map<String, String> _referrerNames(List<dynamic> customerRows) {
+    final Map<String, String> nameById = {};
+    for (final dynamic row in customerRows) {
+      nameById[row['id'].toString()] = row['name']?.toString() ?? '';
+    }
+    final Map<String, String> result = {};
+    for (final dynamic row in customerRows) {
+      final String? referrerId = row['referral_source_id']?.toString();
+      final String referrerName = nameById[referrerId] ?? '';
+      if (referrerName.isNotEmpty) result[row['id'].toString()] = referrerName;
     }
     return result;
   }
 
   /// 沒有任何保單、拜訪、行程的客戶＝未開發
   CustomerCardSummary summaryOf(String customerId) {
-    return summaries.value[customerId] ??
-        const CustomerCardSummary(stage: CustomerStage.lead, activePolicyCount: 0);
+    return summaries.value[customerId] ?? const CustomerCardSummary(stage: CustomerStage.lead, activePolicyCount: 0);
   }
 }

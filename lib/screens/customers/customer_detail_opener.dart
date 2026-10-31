@@ -30,7 +30,7 @@ Future<void> openCustomerDetail(
   Widget? flyingCard;
   final Rect? cardRect = originRect;
   if (cardRect != null) {
-    flyingCard = CustomerCard(customer: customer, onOpen: (_) {}, hideWhenFlying: false);
+    flyingCard = CustomerCard(customer: customer, onOpen: (_) {}, hideWhenFlying: false, showExtraDetails: true);
     showFlyingCard(CustomerCardFlight.fitsLanding(
       MediaQuery.sizeOf(context),
       cardRect.size,
