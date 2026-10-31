@@ -24,7 +24,7 @@ void main() {
       expect(syncService.isSyncEnabled, isTrue);
     });
 
-    test('2. ScheduleEvent to Google Calendar Event conversion', () {
+    test('2. ScheduleEvent to Google Calendar Event conversion with sync notice', () {
       final syncService = GoogleCalendarSyncService.instance;
       final now = DateTime.now();
       final event = ScheduleEvent(
@@ -40,12 +40,29 @@ void main() {
       final googleEvent = syncService.toGoogleEvent(event);
 
       expect(googleEvent.summary, equals('保單健診與拜訪'));
-      expect(googleEvent.description, equals('拜訪張先生討論美金保單'));
+      expect(googleEvent.description, contains('拜訪張先生討論美金保單'));
+      expect(googleEvent.description, contains(GoogleCalendarSyncService.syncNotice));
       expect(googleEvent.location, equals('台北市信義區松壽路 1 號'));
       expect(googleEvent.extendedProperties?.private?['insurance_helper_id'], equals('test-event-123'));
+      expect(googleEvent.extendedProperties?.private?['jingxuan_event_id'], equals('test-event-123'));
     });
 
-    test('3. ScheduleEvent JSON serialization with Google fields', () {
+    test('3. buildEventDescription handles empty, normal, and duplicate notice', () {
+      // 空白或 null
+      expect(GoogleCalendarSyncService.buildEventDescription(null), equals(GoogleCalendarSyncService.syncNotice));
+      expect(GoogleCalendarSyncService.buildEventDescription(''), equals(GoogleCalendarSyncService.syncNotice));
+
+      // 正常備註
+      final normal = GoogleCalendarSyncService.buildEventDescription('客戶帶小孩');
+      expect(normal, contains('客戶帶小孩'));
+      expect(normal, contains(GoogleCalendarSyncService.syncNotice));
+
+      // 已有警語時不重複疊加
+      const alreadyHas = '備註\n\n${GoogleCalendarSyncService.syncNotice}';
+      expect(GoogleCalendarSyncService.buildEventDescription(alreadyHas), equals(alreadyHas));
+    });
+
+    test('4. ScheduleEvent JSON serialization with Google fields', () {
       final now = DateTime.now();
       final event = ScheduleEvent(
         id: 'evt-001',
@@ -74,7 +91,7 @@ void main() {
       expect(reconstructed.syncStatus, equals('synced'));
     });
 
-    test('4. Graceful offline fallback simulation for pushLocalToRemote', () async {
+    test('5. Graceful offline fallback simulation for pushLocalToRemote', () async {
       final syncService = GoogleCalendarSyncService.instance;
       await syncService.setSyncEnabled(true);
 
@@ -89,6 +106,14 @@ void main() {
       // Without network/OAuth login, push should gracefully return event with pending_push
       final result = await syncService.pushLocalToRemote(event);
       expect(result.syncStatus, equals('pending_push'));
+    });
+
+    test('6. resyncAllEvents gracefully returns 0 when disabled or unauthenticated', () async {
+      final syncService = GoogleCalendarSyncService.instance;
+      await syncService.setSyncEnabled(false);
+
+      final countWhenDisabled = await syncService.resyncAllEvents([]);
+      expect(countWhenDisabled, equals(0));
     });
   });
 }

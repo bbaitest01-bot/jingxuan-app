@@ -108,12 +108,7 @@ class ScheduleService {
           .toList();
 
       _cachedEvents = list;
-      if (GoogleCalendarSyncService.instance.isSyncEnabled) {
-        try {
-          final aligned = await GoogleCalendarSyncService.instance.pullAndAlignEvents(list);
-          _cachedEvents = aligned;
-        } catch (_) {}
-      }
+      // 單向推送模式：App 本身為正本，不再從 Google 日曆拉取覆蓋或匯入其他行程
       // 同步一份至 OfflineDataStore 做本地快取備份
       OfflineDataStore.scheduleEvents = _cachedEvents.map((e) => e.toJson()).toList();
       _notifyChange();

@@ -6,14 +6,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/schedule_event.dart';
 
-/// Google 日曆雙向自動同步服務 (Singleton)
+/// Google 日曆單向推送服務 (Singleton)
+/// 規則：經選助手 App 為正本、Google 日曆為副本；僅單向推送到 Google，不拉取 Google 私人行程
 class GoogleCalendarSyncService {
   static final GoogleCalendarSyncService instance = GoogleCalendarSyncService._internal();
   GoogleCalendarSyncService._internal();
 
-  static const String _secondaryCalendarName = '保險助手 (Insurance Helper)';
+  /// Google 日曆名稱（改為經選助手）
+  static const String _secondaryCalendarName = '經選助手';
   static const String _prefSyncEnabledKey = 'google_calendar_sync_enabled';
   static const String _prefCalendarIdKey = 'google_calendar_secondary_id';
+
+  /// 行程說明欄自動加註警語，防手滑在 Google 端修改
+  static const String syncNotice = '【此行程由經選助手建立，請至經選助手 App 修改】';
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: [
@@ -53,6 +58,17 @@ class GoogleCalendarSyncService {
     }
   }
 
+  /// 組合行程說明文字（自動附上經選助手警語）
+  static String buildEventDescription(String? originalDescription) {
+    if (originalDescription == null || originalDescription.trim().isEmpty) {
+      return syncNotice;
+    }
+    if (originalDescription.contains('此行程由經選助手建立')) {
+      return originalDescription;
+    }
+    return '$originalDescription\n\n$syncNotice';
+  }
+
   /// 取得授權的 CalendarApi 客戶端
   Future<calendar.CalendarApi?> _getCalendarApi() async {
     if (mockHttpClient != null) {
@@ -81,29 +97,36 @@ class GoogleCalendarSyncService {
     }
   }
 
-  /// 取得或創建專屬次日曆「保險助手 (Insurance Helper)」
+  /// 取得或創建專屬次日曆「經選助手」
+  /// 注意：若失敗絕不降級推送到使用者的私人主日曆 (primary)
   Future<String?> getOrCreateSecondaryCalendar(calendar.CalendarApi api) async {
     if (_secondaryCalendarId != null && _secondaryCalendarId!.isNotEmpty) {
       return _secondaryCalendarId;
     }
 
     try {
-      // 1. 搜尋現有日曆列表
+      // 1. 搜尋現有日曆列表（相容舊名「保險助手」，避免重複建立）
       final calendarList = await api.calendarList.list();
       if (calendarList.items != null) {
         for (final cal in calendarList.items!) {
-          if (cal.summary == _secondaryCalendarName || cal.summary == '保險助手') {
+          final summary = cal.summary ?? '';
+          if (summary == _secondaryCalendarName ||
+              summary == '經選助手' ||
+              summary == '保險助手' ||
+              summary == '保險助手 (Insurance Helper)') {
             _secondaryCalendarId = cal.id;
-            await _saveCalendarId(cal.id!);
+            if (cal.id != null) {
+              await _saveCalendarId(cal.id!);
+            }
             return cal.id;
           }
         }
       }
 
-      // 2. 若不存在則建立次日曆
+      // 2. 若不存在則建立「經選助手」次日曆
       final newCalendar = calendar.Calendar()
         ..summary = _secondaryCalendarName
-        ..description = 'insurance_helper 專案自動同步之專屬行程日曆'
+        ..description = '經選助手專案自動同步之專屬行程日曆（App 為正本，請至 App 修改）'
         ..timeZone = 'Asia/Taipei';
 
       final createdCal = await api.calendars.insert(newCalendar);
@@ -113,8 +136,9 @@ class GoogleCalendarSyncService {
       }
       return createdCal.id;
     } catch (e) {
-      debugPrint('⚠️ [GoogleCalendarSyncService] 取得/建立次日曆失敗，降級使用 primary: $e');
-      return 'primary';
+      debugPrint('⚠️ [GoogleCalendarSyncService] 取得/建立「經選助手」次日曆失敗: $e');
+      // 失敗時回傳 null，絕不污染使用者的私人日曆
+      return null;
     }
   }
 
@@ -125,7 +149,7 @@ class GoogleCalendarSyncService {
     } catch (_) {}
   }
 
-  /// 推送單筆本地行程至 Google 日曆
+  /// 推送單筆本地行程至 Google 日曆（單向新增或更新）
   Future<ScheduleEvent> pushLocalToRemote(ScheduleEvent event) async {
     if (!_isSyncEnabled) return event;
 
@@ -135,16 +159,23 @@ class GoogleCalendarSyncService {
     }
 
     try {
-      final calendarId = await getOrCreateSecondaryCalendar(api) ?? 'primary';
+      final calendarId = await getOrCreateSecondaryCalendar(api);
+      if (calendarId == null) {
+        debugPrint('⚠️ [GoogleCalendarSyncService] 無法取得次日曆 ID，取消推送');
+        return event.copyWith(syncStatus: 'pending_push');
+      }
 
       final googleEvent = calendar.Event()
         ..summary = event.title
-        ..description = event.description
+        ..description = buildEventDescription(event.description)
         ..location = event.location
         ..start = calendar.EventDateTime(dateTime: event.startAt.toUtc())
         ..end = calendar.EventDateTime(dateTime: event.endAt.toUtc())
         ..extendedProperties = calendar.EventExtendedProperties(
-          private: {'insurance_helper_id': event.id},
+          private: {
+            'jingxuan_event_id': event.id,
+            'insurance_helper_id': event.id,
+          },
         );
 
       calendar.Event resultEvent;
@@ -154,11 +185,11 @@ class GoogleCalendarSyncService {
         try {
           resultEvent = await api.events.update(googleEvent, calendarId, event.googleEventId!);
         } catch (_) {
-          // 若遠端找不到則改為 insert
+          // 若遠端已被手動刪除，改為重新新增
           resultEvent = await api.events.insert(googleEvent, calendarId);
         }
       } else {
-        // 新增 Google 行程
+        // 全新新增 Google 行程
         resultEvent = await api.events.insert(googleEvent, calendarId);
       }
 
@@ -174,7 +205,7 @@ class GoogleCalendarSyncService {
     }
   }
 
-  /// 從 Google 日曆刪除行程
+  /// 從 Google 日曆刪除行程（當 App 刪除行程時連動刪除 Google 副本）
   Future<bool> deleteRemoteEvent(String? googleCalendarId, String? googleEventId) async {
     if (!_isSyncEnabled || googleEventId == null || googleEventId.isEmpty) {
       return true;
@@ -184,7 +215,9 @@ class GoogleCalendarSyncService {
     if (api == null) return false;
 
     try {
-      final calId = googleCalendarId ?? _secondaryCalendarId ?? 'primary';
+      final calId = googleCalendarId ?? _secondaryCalendarId;
+      if (calId == null) return false;
+
       await api.events.delete(calId, googleEventId);
       return true;
     } catch (e) {
@@ -193,79 +226,42 @@ class GoogleCalendarSyncService {
     }
   }
 
-  /// 從 Google 日曆雙向拉取並對齊行程 (LWW 衝突解決)
-  Future<List<ScheduleEvent>> pullAndAlignEvents(List<ScheduleEvent> localEvents) async {
-    if (!_isSyncEnabled) return localEvents;
+  /// 一鍵重新同步所有行程（單向推送補回）
+  /// 萬一使用者在 Google 日曆誤刪，在 App 點此功能可將未來的行程重新推送
+  Future<int> resyncAllEvents(List<ScheduleEvent> events) async {
+    if (!_isSyncEnabled) return 0;
 
     final api = await _getCalendarApi();
-    if (api == null) return localEvents;
+    if (api == null) return 0;
 
-    try {
-      final calendarId = await getOrCreateSecondaryCalendar(api) ?? 'primary';
-      final remoteEventsList = await api.events.list(calendarId);
-      final remoteItems = remoteEventsList.items ?? [];
+    int syncedCount = 0;
+    for (final event in events) {
+      // 已在 App 被軟刪除的行程不推送
+      if (event.deletedAt != null) continue;
 
-      final resultMap = {for (var e in localEvents) e.id: e};
-
-      for (final remote in remoteItems) {
-        if (remote.status == 'cancelled') continue;
-
-        final localId = remote.extendedProperties?.private?['insurance_helper_id'];
-        final remoteUpdated = remote.updated ?? DateTime.now();
-
-        if (localId != null && resultMap.containsKey(localId)) {
-          // 本地已存在：依據 LWW (Last-Write-Wins) 比對時間戳
-          final local = resultMap[localId]!;
-          if (local.lastSyncedAt == null || remoteUpdated.isAfter(local.lastSyncedAt!)) {
-            resultMap[localId] = local.copyWith(
-              title: remote.summary ?? local.title,
-              description: remote.description ?? local.description,
-              location: remote.location ?? local.location,
-              startAt: remote.start?.dateTime?.toLocal() ?? local.startAt,
-              endAt: remote.end?.dateTime?.toLocal() ?? local.endAt,
-              googleEventId: remote.id,
-              googleCalendarId: calendarId,
-              syncStatus: 'synced',
-              lastSyncedAt: DateTime.now(),
-            );
-          }
-        } else {
-          // 遠端新增行程：加入 App 本地
-          final newEventId = localId ?? remote.id ?? '';
-          final newLocalEvent = ScheduleEvent(
-            id: newEventId,
-            profileId: 'google-sync-user',
-            title: remote.summary ?? 'Google 同步行程',
-            description: remote.description,
-            location: remote.location,
-            startAt: remote.start?.dateTime?.toLocal() ?? DateTime.now(),
-            endAt: remote.end?.dateTime?.toLocal() ?? DateTime.now().add(const Duration(hours: 1)),
-            googleEventId: remote.id,
-            googleCalendarId: calendarId,
-            syncStatus: 'synced',
-            lastSyncedAt: DateTime.now(),
-          );
-          resultMap[newEventId] = newLocalEvent;
-        }
+      final updated = await pushLocalToRemote(event);
+      if (updated.syncStatus == 'synced') {
+        syncedCount++;
       }
-
-      return resultMap.values.toList();
-    } catch (e) {
-      debugPrint('⚠️ [GoogleCalendarSyncService] 拉取 Google 日曆行程失敗: $e');
-      return localEvents;
     }
+
+    debugPrint('✅ [GoogleCalendarSyncService] 重新同步完成，成功推送 $syncedCount 筆行程');
+    return syncedCount;
   }
 
-  /// 將 ScheduleEvent 物件轉為 googleapis.Event 物件（單元測試用）
+  /// 將 ScheduleEvent 物件轉為 googleapis.Event 物件（單元測試與輔助用）
   calendar.Event toGoogleEvent(ScheduleEvent event) {
     return calendar.Event()
       ..summary = event.title
-      ..description = event.description
+      ..description = buildEventDescription(event.description)
       ..location = event.location
       ..start = calendar.EventDateTime(dateTime: event.startAt.toUtc())
       ..end = calendar.EventDateTime(dateTime: event.endAt.toUtc())
       ..extendedProperties = calendar.EventExtendedProperties(
-        private: {'insurance_helper_id': event.id},
+        private: {
+          'jingxuan_event_id': event.id,
+          'insurance_helper_id': event.id,
+        },
       );
   }
 }
