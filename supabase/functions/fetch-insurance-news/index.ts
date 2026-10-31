@@ -6,6 +6,52 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 // 排程專用密碼：只有帶著這把密碼的請求（GitHub Actions 每日排程）才能觸發新聞更新
 const NEWS_CRON_SECRET = Deno.env.get('NEWS_CRON_SECRET') ?? '';
+// AI 插圖（2026-10-31）：Cloudflare Workers AI 免費額度（每天約 10,000 點，一張圖約 58 點）
+const CLOUDFLARE_ACCOUNT_ID = Deno.env.get('CLOUDFLARE_ACCOUNT_ID') ?? '';
+const CLOUDFLARE_AI_TOKEN = Deno.env.get('CLOUDFLARE_AI_TOKEN') ?? '';
+const NEWS_IMAGE_BUCKET = 'news-images';
+// 插畫風格（2026-10-31 沛沛：要像第一張西洋棋那樣精緻）：整張畫滿、有光影與景深、深藍灰色調、
+// 背景用和報紙一樣的淺灰，圖像印在報紙上；只寫想要的東西（FLUX 看到「不要有字」反而會畫字）
+const NEWS_IMAGE_STYLE =
+  'refined editorial illustration, full-frame composition with depth and soft dramatic lighting, ' +
+  'rich deep navy blue and cool gray tones, light cool gray background like newsprint, fine paper grain, ' +
+  'elegant and calm, stylized silhouettes without facial detail, wordless';
+
+// 插畫畫面只從這份清單挑：都是不會帶字的完整場景（自由描述時盾牌、報紙、車子上會長出亂碼字）
+// 由 Groq 依主題挑最貼切的一個編號
+const NEWS_IMAGE_SCENES: string[] = [
+  'a giant umbrella sheltering a row of small houses during heavy rain',
+  'a paper airplane gliding above layers of soft clouds toward a distant sunrise',
+  'a heavy padlock resting on a smooth stone in a quiet garden',
+  'a chessboard in perspective with a lone king standing among fallen pieces',
+  'a large magnifying glass hovering over a miniature town at dusk',
+  'a lighthouse beam cutting through a stormy night sea',
+  'two cupped hands holding a young green sprout in warm light',
+  'an antique compass on a wooden table beside a folded blank map',
+  'a stone arch bridge connecting two cliffs above misty water',
+  'stacks of round coins growing like steps toward a small tree',
+  'a glowing heart shape cradled by a coiled stethoscope',
+  'a ship anchor resting on rippled sand under calm shallow water',
+  'a golden key floating before an open door filled with light',
+  'hot air balloons drifting over rolling hills at golden hour',
+  'paper airplanes circling a large globe in a soft sky',
+  'a small car parked safely under a huge umbrella in a rainstorm',
+  'dark storm clouds gathering over a farm field with a lone barn',
+  'a long ladder leaning against the night sky reaching toward a bright star',
+  'two large puzzle pieces sliding together in soft light',
+  'a brass balance scale holding two smooth spheres in equilibrium',
+];
+
+// 編號（1 開始）換成畫面；編號不對時用標題算一個固定的編號，同一個話題每次都一樣
+function sceneFor(sceneNumber: unknown, title: string): string {
+  const parsed = parseInt(String(sceneNumber ?? ''), 10);
+  if (!isNaN(parsed) && parsed >= 1 && parsed <= NEWS_IMAGE_SCENES.length) return NEWS_IMAGE_SCENES[parsed - 1];
+  let hash = 0;
+  for (const char of title) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return NEWS_IMAGE_SCENES[hash % NEWS_IMAGE_SCENES.length];
+}
+
+const NEWS_IMAGE_SCENE_LIST_TEXT = NEWS_IMAGE_SCENES.map((scene, index) => `${index + 1}. ${scene}`).join('\n');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,12 +113,151 @@ function parseRSSXml(xmlText: string): RSSItem[] {
   return items;
 }
 
+// 空字串、只有空白都當成沒有
+function cleanText(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text.length > 0 ? text : null;
+}
+
+// 3. 用 Cloudflare Workers AI（FLUX schnell）畫一張插圖，存到 Storage，再把網址寫回話題
+//    沒設定 Cloudflare 金鑰或任何一步失敗都只記錄、回傳 false，不讓整個新聞更新失敗
+async function generateTopicImage(
+  supabaseClient: any,
+  topicId: string,
+  todayDate: string,
+  imagePrompt: string,
+): Promise<boolean> {
+  if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_AI_TOKEN) {
+    console.log('[news image] 沒有設定 Cloudflare 金鑰，跳過插圖');
+    return false;
+  }
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID.trim()}/ai/run/@cf/black-forest-labs/flux-1-schnell`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN.trim()}`,
+        },
+        body: JSON.stringify({ prompt: `${imagePrompt}. ${NEWS_IMAGE_STYLE}`, steps: 4 }),
+      },
+    );
+    if (!res.ok) {
+      console.error('[news image] Cloudflare 畫圖失敗:', res.status, await res.text());
+      return false;
+    }
+    const data = await res.json();
+    const base64Image: string = data?.result?.image ?? '';
+    if (!base64Image) {
+      console.error('[news image] Cloudflare 沒有回傳圖片');
+      return false;
+    }
+    // base64 文字轉回圖片的位元組
+    const binary = atob(base64Image);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    // 每次畫都用新檔名，瀏覽器和 CDN 才不會一直顯示舊圖
+    const path = `${todayDate}/${topicId}-${Date.now()}.jpg`;
+    const { error: uploadError } = await supabaseClient.storage
+      .from(NEWS_IMAGE_BUCKET)
+      .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+    if (uploadError) {
+      console.error('[news image] 上傳 Storage 失敗:', uploadError);
+      return false;
+    }
+    const { data: publicUrlData } = supabaseClient.storage.from(NEWS_IMAGE_BUCKET).getPublicUrl(path);
+    const { error: updateError } = await supabaseClient
+      .from('insurance_news_topics')
+      .update({ main_image_url: publicUrlData.publicUrl })
+      .eq('id', topicId);
+    if (updateError) {
+      console.error('[news image] 寫回圖片網址失敗:', updateError);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[news image] 例外:', err);
+    return false;
+  }
+}
+
+// 4. 補畫插圖：今天和昨天還沒有圖的話題（例如插圖功能上線前抓的、或上次畫圖失敗的），每次最多補 8 張
+//    舊話題沒有存畫面編號，先請 Groq 依標題與重點從清單挑一個，再交給 Cloudflare 畫
+const MAX_BACKFILL_IMAGES = 8;
+
+async function chooseSceneNumber(title: string, summary: string): Promise<number | null> {
+  if (!GROQ_API_KEY) return null;
+  for (const model of ['openai/gpt-oss-20b', 'llama-3.3-70b-versatile']) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY.trim()}` },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 20,
+          messages: [
+            {
+              role: 'system',
+              content: 'Pick the ONE illustration scene number that best symbolizes this insurance news topic. ' +
+                `Reply with the number only.\n${NEWS_IMAGE_SCENE_LIST_TEXT}`,
+            },
+            { role: 'user', content: `Topic: ${title}\nSummary: ${summary}` },
+          ],
+        }),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const number = parseInt(String(data.choices?.[0]?.message?.content ?? '').replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(number)) return number;
+    } catch (_) {
+      // 換下一個模型
+    }
+  }
+  return null;
+}
+
+async function backfillMissingImages(supabaseClient: any): Promise<number> {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' });
+  const today = formatter.format(now);
+  const yesterday = formatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  const { data: topics, error } = await supabaseClient
+    .from('insurance_news_topics')
+    .select('id, topic_title, ai_summary, publish_date, insurance_news_articles(count)')
+    .is('main_image_url', null)
+    .in('publish_date', [today, yesterday])
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error || !topics) {
+    console.error('[news image] 讀取缺圖的話題失敗:', error);
+    return 0;
+  }
+  let count = 0;
+  for (const topic of topics) {
+    if (count >= MAX_BACKFILL_IMAGES) break;
+    // 沒有任何報導的話題畫面上不會出現，不幫它畫
+    const articleCount = topic.insurance_news_articles?.[0]?.count ?? 0;
+    if (articleCount === 0) continue;
+    const sceneNumber = await chooseSceneNumber(topic.topic_title, topic.ai_summary || '');
+    const scene = sceneFor(sceneNumber, topic.topic_title);
+    if (await generateTopicImage(supabaseClient, topic.id, topic.publish_date, scene)) count++;
+  }
+  return count;
+}
+
 interface ClusteringOutput {
   daily_trend: string;      // 今日新聞展現的第一句總體產業趨勢
   daily_overview: string;   // 今日新聞整合摘要文章
   topics: {
     topic_title: string;
     ai_summary: string;
+    short_summary?: string;    // 一句 35 字以內的重點
+    key_number?: string;       // 關鍵數字（含單位）
+    key_number_label?: string; // 這個數字代表什麼
+    image_scene?: number;      // 插畫畫面編號（NEWS_IMAGE_SCENES）
     articles: {
       rss_index?: number;    // 對應原始 RSS 列表編號
       title: string;
@@ -102,8 +287,15 @@ async function clusterNewsWithGroq(rssItems: RSSItem[]): Promise<ClusteringOutpu
 3. topics: 篩選出 3 至 5 個當日最核心的『保險主題/事件』。
    - 每個主題底下包含 2~4 篇報導（標示 1 篇主要主頭條 is_primary=true，其餘為次要媒體報導 is_primary=false）。
    - ai_summary: 為該主題撰寫一段約 80~150 字的單一段落重點摘要。
+   - short_summary: 用【一句話、35 字以內】寫出業務員可以直接跟客戶聊的重點（不要寫「此趨勢凸顯」這類空話）。
+   - key_number: 新聞裡最關鍵的一個數字，連單位一起寫（例如「8,100 萬」「3.19 億」「2 倍」「15%」）；沒有明確數字就填空字串，不可自己編。
+   - key_number_label: 這個數字代表什麼，10 字以內（例如「農業保險理賠」）；沒有數字就填空字串。
+   - image_scene: 從下面的「插畫畫面清單」挑一個最能象徵這個主題的編號（數字）；同一批話題盡量不要重複。
    - 針對其中的每一篇新聞報導 (article)，皆撰寫 2~3 句的「單篇新聞重點摘要 (article_summary)」。
    - rss_index: 請務必填入該篇新聞在「今日熱門保險 RSS 新聞列表」中對應的 [ID] 數字（例如: 1, 2, 3）。
+
+插畫畫面清單（image_scene 填編號）：
+${NEWS_IMAGE_SCENE_LIST_TEXT}
 
 請務必輸出嚴格 JSON 格式：
 {
@@ -113,6 +305,10 @@ async function clusterNewsWithGroq(rssItems: RSSItem[]): Promise<ClusteringOutpu
     {
       "topic_title": "主題名稱",
       "ai_summary": "主題單段摘要",
+      "short_summary": "一句 35 字以內的重點",
+      "key_number": "8,100 萬",
+      "key_number_label": "農業保險理賠",
+      "image_scene": 3,
       "articles": [
         {
           "rss_index": 1,
@@ -330,9 +526,13 @@ serve(async (req) => {
     console.log(`[fetch-insurance-news] 成功抓取並去重出 ${uniqueItems.length} 條 RSS 新聞`);
 
     if (uniqueItems.length === 0) {
+      // 沒抓到新新聞時，照樣幫今天和昨天缺圖的話題補畫（2026-10-31：連續手動重跑時 RSS 可能暫時抓不到）
+      const backfillClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const backfilledOnly = await backfillMissingImages(backfillClient);
       return new Response(
-        JSON.stringify({ success: false, message: '未找到任何有效 RSS 新聞' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        // 沒有新新聞不算失敗（舊新聞照常顯示、插圖照常補），回 200 讓排程顯示成功
+        JSON.stringify({ success: true, message: '這次沒有新的新聞，只補畫插圖', topics_count: 0, backfilled_images_count: backfilledOnly }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
 
@@ -357,6 +557,7 @@ serve(async (req) => {
 
     let insertedTopicCount = 0;
     let insertedArticleCount = 0;
+    let insertedImageCount = 0;
     let lastError = null;
 
     for (const topic of result.topics) {
@@ -371,6 +572,9 @@ serve(async (req) => {
         .insert({
           topic_title: topic.topic_title,
           ai_summary: topic.ai_summary,
+          short_summary: cleanText(topic.short_summary),
+          key_number: cleanText(topic.key_number),
+          key_number_label: cleanText(topic.key_number_label),
           daily_trend: result.daily_trend,
           daily_overview: result.daily_overview,
           publish_date: todayDate,
@@ -446,7 +650,8 @@ serve(async (req) => {
 
         const { error: artErr } = await supabaseClient
           .from('insurance_news_articles')
-          .insert(articleRows);
+          // 同一篇報導（同網址）之前抓過就跳過，不讓整個話題的報導都寫入失敗（2026-10-31 紀錄看到 23505）
+          .upsert(articleRows, { onConflict: 'source_url', ignoreDuplicates: true });
 
         if (artErr) {
           console.error(`寫入 topic (${topicId}) 的報導失敗:`, artErr);
@@ -455,7 +660,27 @@ serve(async (req) => {
           insertedArticleCount += articleRows.length;
         }
       }
+
+      // 報導都是之前抓過的（全部被跳過）＝這個話題沒有新內容：刪掉，不留「0 家報導」的空話題、也不浪費畫圖額度
+      const { count: articleCount } = await supabaseClient
+        .from('insurance_news_articles')
+        .select('id', { count: 'exact', head: true })
+        .eq('topic_id', topicId);
+      if (!articleCount) {
+        console.log(`[fetch-insurance-news] 話題沒有新報導，刪除: ${topic.topic_title}`);
+        await supabaseClient.from('insurance_news_topics').delete().eq('id', topicId);
+        insertedTopicCount--;
+        continue;
+      }
+
+      // 畫插圖；失敗不影響新聞本身
+      if (await generateTopicImage(supabaseClient, topicId, todayDate, sceneFor(topic.image_scene, topic.topic_title))) {
+        insertedImageCount++;
+      }
     }
+
+    // 新話題畫完後，補畫今天和昨天還沒有圖的話題
+    const backfilledImageCount = await backfillMissingImages(supabaseClient);
 
     return new Response(
       JSON.stringify({
@@ -465,6 +690,8 @@ serve(async (req) => {
         daily_trend: result.daily_trend,
         topics_count: insertedTopicCount,
         articles_count: insertedArticleCount,
+        images_count: insertedImageCount,
+        backfilled_images_count: backfilledImageCount,
         last_error: lastError,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
