@@ -91,10 +91,11 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
           ToastType.success,
         );
       } else {
+        final String? error = GoogleCalendarSyncService.instance.lastErrorMessage;
         CustomToast.show(
           context,
-          '尚未取得 Google 日曆存取權限，請點擊上方的「重新授權」按鈕允許日曆存取！',
-          ToastType.warning,
+          error != null ? '同步未成功：$error' : '未成功同步任何行程',
+          ToastType.error,
         );
       }
     } catch (e) {

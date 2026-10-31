@@ -38,6 +38,7 @@ class GoogleCalendarSyncService {
   static const String _secondaryCalendarName = '經選助手';
   static const String _prefSyncEnabledKey = 'google_calendar_sync_enabled';
   static const String _prefCalendarIdKey = 'google_calendar_secondary_id';
+  static const String _prefProviderTokenKey = 'google_oauth_provider_token';
 
   /// 行程說明欄自動加註警語，防手滑在 Google 端修改
   static const String syncNotice = '【此行程由經選助手建立，請至經選助手 App 修改】';
@@ -54,6 +55,9 @@ class GoogleCalendarSyncService {
 
   String? _secondaryCalendarId;
   String? get secondaryCalendarId => _secondaryCalendarId;
+
+  String? _lastErrorMessage;
+  String? get lastErrorMessage => _lastErrorMessage;
 
   // 允許測試時注入 Mock Client
   http.Client? mockHttpClient;
@@ -103,12 +107,22 @@ class GoogleCalendarSyncService {
         final session = Supabase.instance.client.auth.currentSession;
         final providerToken = session?.providerToken;
         if (providerToken != null && providerToken.isNotEmpty) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_prefProviderTokenKey, providerToken);
           debugPrint('✅ [GoogleCalendarSyncService] 使用 Supabase Google Provider Token 連線');
           return calendar.CalendarApi(_GoogleOAuthClient(providerToken));
         }
-      } catch (_) {
-        // 單元測試或離線未初始化 Supabase 時安全跳過
-      }
+      } catch (_) {}
+
+      // 1.5 若 session 的 providerToken 在跳轉後遺失，嘗試從本地快取讀取
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cachedToken = prefs.getString(_prefProviderTokenKey);
+        if (cachedToken != null && cachedToken.isNotEmpty) {
+          debugPrint('✅ [GoogleCalendarSyncService] 使用快取 Google Provider Token 連線');
+          return calendar.CalendarApi(_GoogleOAuthClient(cachedToken));
+        }
+      } catch (_) {}
 
       // 2. 備案：嘗試從 GoogleSignIn 取得（若為原生端或手動登入）
       var currentUser = _googleSignIn.currentUser;
@@ -121,9 +135,11 @@ class GoogleCalendarSyncService {
         }
       }
 
-      debugPrint('⚠️ [GoogleCalendarSyncService] 尚未取得 Google 日曆授權憑證');
+      _lastErrorMessage = '尚未取得 Google 憑證（請點擊「重新授權」並允許日曆存取）';
+      debugPrint('⚠️ [GoogleCalendarSyncService] $_lastErrorMessage');
       return null;
     } catch (e) {
+      _lastErrorMessage = '取得授權失敗: $e';
       debugPrint('⚠️ [GoogleCalendarSyncService] 取得 CalendarApi 失敗: $e');
       return null;
     }
@@ -168,8 +184,8 @@ class GoogleCalendarSyncService {
       }
       return createdCal.id;
     } catch (e) {
+      _lastErrorMessage = 'Google 日曆建立/搜尋失敗: $e';
       debugPrint('⚠️ [GoogleCalendarSyncService] 取得/建立「經選助手」次日曆失敗: $e');
-      // 失敗時回傳 null，絕不污染使用者的私人日曆
       return null;
     }
   }
@@ -232,6 +248,7 @@ class GoogleCalendarSyncService {
         lastSyncedAt: DateTime.now(),
       );
     } catch (e) {
+      _lastErrorMessage = '推送行程失敗: $e';
       debugPrint('⚠️ [GoogleCalendarSyncService] 推送行程至 Google 日曆失敗: $e');
       return event.copyWith(syncStatus: 'pending_push');
     }
@@ -261,7 +278,11 @@ class GoogleCalendarSyncService {
   /// 一鍵重新同步所有行程（單向推送補回）
   /// 萬一使用者在 Google 日曆誤刪，在 App 點此功能可將未來的行程重新推送
   Future<int> resyncAllEvents(List<ScheduleEvent> events) async {
-    if (!_isSyncEnabled) return 0;
+    _lastErrorMessage = null;
+    if (!_isSyncEnabled) {
+      _lastErrorMessage = '同步開關未開啟';
+      return 0;
+    }
 
     final api = await _getCalendarApi();
     if (api == null) return 0;
