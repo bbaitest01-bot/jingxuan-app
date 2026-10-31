@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import 'storage_file_cleanup.dart';
 
 /// 垃圾桶裡的客戶：讀取、還原、永久刪除。
 /// 2026-10-14（4-D）從 trash_bin_screen.dart 搬出來，畫面只負責顯示（CLAUDE.md：業務邏輯寫在 services）。
@@ -59,6 +60,12 @@ class CustomerTrashService {
       OfflineDataStore.customers.removeWhere((customer) => customer['id'] == id);
       return;
     }
-    await _supabase.from('customers').delete().eq('id', id);
+    // 刪除時順便取回照片網址，刪除成功後再用 Storage API 刪照片（全景地圖 4-O）
+    final List<Map<String, dynamic>> deletedRows =
+        await _supabase.from('customers').delete().eq('id', id).select('avatar_url');
+    for (final Map<String, dynamic> deletedRow in deletedRows) {
+      final String avatarUrl = deletedRow['avatar_url']?.toString() ?? '';
+      await StorageFileCleanup.removeFile(publicUrl: avatarUrl, bucket: StorageFileCleanup.customerPhotoBucket);
+    }
   }
 }

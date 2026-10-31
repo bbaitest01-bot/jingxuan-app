@@ -9,6 +9,7 @@ import '../main.dart';
 import '../services/spotlight_tour_service.dart';
 import 'tag_manager_screen.dart';
 import 'settings/accent_color_picker.dart';
+import 'settings/delete_account_dialog.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -539,7 +540,7 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '提出刪除申請後，您的帳號將會被自動登出，並交由管理員進行實體資料清理。',
+                          '帳號與底下所有資料（客戶、保單、行程、拜訪紀錄、照片）會立即永久刪除，無法復原。',
                           style: TextStyle(
                             fontSize: 12,
                             color: context.appColors.ink2,
@@ -548,7 +549,7 @@ class SettingsScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                            backgroundColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
                             foregroundColor: Theme.of(context).colorScheme.error,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -557,7 +558,7 @@ class SettingsScreen extends StatelessWidget {
                               side: BorderSide(color: Theme.of(context).colorScheme.error),
                             ),
                           ),
-                          onPressed: () => _confirmDeleteAccountDialog(context, primaryColor),
+                          onPressed: () => DeleteAccountDialog.show(context),
                           icon: const Icon(Icons.delete_forever, size: 18),
                           label: const Text('刪除帳號'),
                         ),
@@ -765,59 +766,6 @@ class SettingsScreen extends StatelessWidget {
                 }
               },
               child: Text(context.l10n('confirm')),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Delete Account Confirmation Dialog
-  void _confirmDeleteAccountDialog(BuildContext context, Color primaryColor) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Theme.of(context).colorScheme.error),
-              const SizedBox(width: 8),
-              const Text('刪除帳號'),
-            ],
-          ),
-          content: const Text('確定要刪除您的帳號嗎？您的帳號將會被標記為刪除並登出系統，等待管理員進行實體清除。此操作無法復原！'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.l10n('cancel')),
-            ),
-            ElevatedButton(
-              style: AppButtonStyles.danger(context),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                try {
-                  final user = Supabase.instance.client.auth.currentUser;
-                  if (user != null) {
-                    await Supabase.instance.client
-                        .from('profiles')
-                        .update({'status': 'deleted'})
-                        .eq('id', user.id);
-                  }
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('已送出刪除申請，系統將於稍後完成清理。')),
-                    );
-                    await Supabase.instance.client.auth.signOut();
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('申請失敗: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('確認刪除'),
             ),
           ],
         );
