@@ -1,9 +1,8 @@
 name: 📰 Daily Insurance News Crawler & AI Summarizer
 
 on:
-  schedule:
-    # 台灣時間 一天兩更：早上 06:00 (UTC 22:00) 晨報 與 傍晚 18:00 (UTC 10:00) 夕報
-    - cron: '0 10,22 * * *'
+  # 2026-10-31 起每天 06:00、18:00 改由 Supabase pg_cron 準時呼叫（GitHub 定時常延後好幾小時）
+  # 見 supabase/migrations/20261031_news_cron_schedule.sql；這裡只保留手動按鈕，測試或補抓時用
   workflow_dispatch: # 支援手動於 GitHub 點擊 Trigger 測試
 
 jobs:
