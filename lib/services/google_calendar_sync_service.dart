@@ -62,7 +62,7 @@ class GoogleCalendarSyncService {
   // 允許測試時注入 Mock Client
   http.Client? mockHttpClient;
 
-  /// 初始化同步服務設定
+  /// 初始化同步服務設定（優先載入本地快取）
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -73,15 +73,96 @@ class GoogleCalendarSyncService {
     }
   }
 
+  /// 登入後套用帳號（user_metadata）存的同步設定，換裝置或清除快取時自動恢復
+  Future<void> applyCloudSettings() async {
+    if (isOfflineMode) return;
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null && user.userMetadata != null && user.userMetadata!['calendar_sync'] != null) {
+        final Map<String, dynamic> cloudData = Map<String, dynamic>.from(user.userMetadata!['calendar_sync']);
+        bool hasChanges = false;
+        if (cloudData.containsKey('is_sync_enabled')) {
+          final bool cloudEnabled = cloudData['is_sync_enabled'] == true;
+          if (_isSyncEnabled != cloudEnabled) {
+            _isSyncEnabled = cloudEnabled;
+            hasChanges = true;
+          }
+        }
+        if (cloudData.containsKey('secondary_calendar_id')) {
+          final String? cloudCalId = cloudData['secondary_calendar_id'] as String?;
+          if (_secondaryCalendarId != cloudCalId) {
+            _secondaryCalendarId = cloudCalId;
+            hasChanges = true;
+          }
+        }
+        if (hasChanges) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_prefSyncEnabledKey, _isSyncEnabled);
+          if (_secondaryCalendarId != null) {
+            await prefs.setString(_prefCalendarIdKey, _secondaryCalendarId!);
+          } else {
+            await prefs.remove(_prefCalendarIdKey);
+          }
+        }
+      } else if (user != null && (_isSyncEnabled || _secondaryCalendarId != null)) {
+        // 若雲端帳號尚無紀錄，但本機已開啟同步，自動將本機設定同步至帳號
+        await _syncToCloud();
+      }
+    } catch (e) {
+      if (e is! AssertionError) {
+        debugPrint('⚠️ [GoogleCalendarSyncService] 套用雲端同步設定失敗: $e');
+      }
+    }
+  }
+
+  /// 儲存至本機 SharedPreferences 與 Supabase 帳號（跟隨帳號走）
+  Future<void> _saveToLocalAndCloud() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefSyncEnabledKey, _isSyncEnabled);
+      if (_secondaryCalendarId != null) {
+        await prefs.setString(_prefCalendarIdKey, _secondaryCalendarId!);
+      } else {
+        await prefs.remove(_prefCalendarIdKey);
+      }
+    } catch (e) {
+      debugPrint('⚠️ [GoogleCalendarSyncService] 儲存本機設定失敗: $e');
+    }
+
+    await _syncToCloud();
+  }
+
+  /// 同步至 Supabase 帳號 metadata
+  Future<void> _syncToCloud() async {
+    if (isOfflineMode) return;
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        await supabase.auth.updateUser(
+          UserAttributes(
+            data: {
+              ...?user.userMetadata,
+              'calendar_sync': {
+                'is_sync_enabled': _isSyncEnabled,
+                'secondary_calendar_id': _secondaryCalendarId,
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+            },
+          ),
+        );
+      }
+    } catch (e) {
+      if (e is! AssertionError) {
+        debugPrint('⚠️ [GoogleCalendarSyncService] 同步日曆設定至帳號失敗: $e');
+      }
+    }
+  }
+
   /// 設定是否啟用 Google 日曆同步
   Future<void> setSyncEnabled(bool enabled) async {
     _isSyncEnabled = enabled;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_prefSyncEnabledKey, enabled);
-    } catch (e) {
-      debugPrint('⚠️ [GoogleCalendarSyncService] 儲存同步狀態失敗: $e');
-    }
+    await _saveToLocalAndCloud();
   }
 
   /// 組合行程說明文字（自動附上經選助手警語）
@@ -191,10 +272,8 @@ class GoogleCalendarSyncService {
   }
 
   Future<void> _saveCalendarId(String calId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefCalendarIdKey, calId);
-    } catch (_) {}
+    _secondaryCalendarId = calId;
+    await _saveToLocalAndCloud();
   }
 
   /// 推送單筆本地行程至 Google 日曆（單向新增或更新）

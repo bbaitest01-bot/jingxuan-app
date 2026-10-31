@@ -22,6 +22,17 @@ class SettingsGoogleSection extends StatefulWidget {
 class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
   bool _isResyncing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _loadSyncSettings();
+  }
+
+  Future<void> _loadSyncSettings() async {
+    await GoogleCalendarSyncService.instance.applyCloudSettings();
+    if (mounted) setState(() {});
+  }
+
   // 有沒有用 Google 登入或連結過 Google（離線預覽沒有 Supabase，直接當作沒連）
   bool _isGoogleConnected() {
     if (isOfflineMode) return false;

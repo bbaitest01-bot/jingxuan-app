@@ -115,5 +115,11 @@ void main() {
       final countWhenDisabled = await syncService.resyncAllEvents([]);
       expect(countWhenDisabled, equals(0));
     });
+
+    test('7. applyCloudSettings handles uninitialized Supabase safely', () async {
+      final syncService = GoogleCalendarSyncService.instance;
+      // Should execute without throwing any exception in unit test environment
+      await syncService.applyCloudSettings();
+    });
   });
 }

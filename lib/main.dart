@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'router/app_router.dart';
 import 'services/app_settings.dart';
 import 'services/auth_status_service.dart';
+import 'services/google_calendar_sync_service.dart';
 import 'services/app_localizations.dart';
 import 'theme/app_theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -23,8 +24,9 @@ void main() async {
   await initializeDateFormatting('zh_TW', null);
   await initializeDateFormatting('en_US', null);
 
-  // Load AppSettings
+  // Load AppSettings & Calendar Sync Settings
   await AppSettings.instance.loadSettings();
+  await GoogleCalendarSyncService.instance.init();
 
   // Try loading dotenv
   try {
