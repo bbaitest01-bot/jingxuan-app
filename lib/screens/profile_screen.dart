@@ -11,6 +11,7 @@ import '../utils/platform_file_helper.dart';
 import '../main.dart';
 import '../services/app_localizations.dart';
 import '../services/profile_service.dart';
+import '../services/storage_file_cleanup.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/reset_password_dialog.dart';
 import '../models/user_role.dart';
@@ -419,6 +420,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         'card_custom_color': ProfileService.colorToHex(_customCardColor),
         'qr_code_url': finalQrCodeUrl.isEmpty ? null : finalQrCodeUrl,
       }).eq('id', user.id);
+
+      // 資料存成功後才刪舊大頭照（Supabase 不准用 SQL 刪照片，全景地圖 4-O）
+      await StorageFileCleanup.removeReplacedFile(
+        oldPublicUrl: _currentAvatarUrl,
+        newPublicUrl: finalAvatarUrl,
+        bucket: StorageFileCleanup.avatarBucket,
+      );
 
       if (mounted) {
         setState(() {
@@ -2399,13 +2407,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('危險區域：帳號註銷申請',
+                    Text('危險區域：刪除帳號',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).colorScheme.error,
                             fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('為避免資料被誤刪，永久清除必須由管理端完成並確認結果。',
+                    Text('刪除帳號會永久刪除所有資料，請到「系統設定」最下方操作。',
                         style: TextStyle(color: subTextColor, fontSize: 11)),
                   ],
                 ),
@@ -2444,7 +2452,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             Icon(Icons.warning_amber_rounded,
                 color: Theme.of(context).colorScheme.error, size: 28),
             SizedBox(width: 8),
-            Text('⚠️ 帳號註銷申請',
+            Text('⚠️ 刪除帳號',
                 style: TextStyle(
                     color: Theme.of(context).colorScheme.error,
                     fontWeight: FontWeight.bold,
@@ -2456,7 +2464,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '為避免前端誤判成功，這裡不會直接刪除任何資料。\n\n請聯絡管理員由受控後端流程處理帳號註銷；完成前，您的資料不會被聲稱已永久刪除。',
+              '請到左側選單「系統設定」，在最下方「刪除帳號」操作。\n\n刪除前會列出會被刪掉的資料，並需要輸入「刪除帳號」四個字確認。',
               style: TextStyle(fontSize: 13, height: 1.5),
             ),
           ],

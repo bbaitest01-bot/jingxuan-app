@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import 'storage_file_cleanup.dart';
 
 /// 客戶表單送出的資料（新增與編輯共用）
 class CustomerFormData {
@@ -318,6 +319,12 @@ class CustomerService {
     }
     if (customerId != null) {
       await updateCustomer(customerId, form, avatarUrl);
+      // 資料存成功後才刪舊照片（Supabase 不准用 SQL 刪照片，全景地圖 4-O）
+      await StorageFileCleanup.removeReplacedFile(
+        oldPublicUrl: existingAvatarUrl,
+        newPublicUrl: avatarUrl,
+        bucket: StorageFileCleanup.customerPhotoBucket,
+      );
     } else {
       await createCustomer(form, avatarUrl);
     }
