@@ -4,6 +4,7 @@ import '../../widgets/animations.dart';
 import 'customer_shimmers.dart';
 import 'customer_card.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/tour_target.dart';
 
 /// 客戶卡片／清單上的按鈕要做的事，由外框（CustomerManagementTab）提供
 class CustomerCardActions {
@@ -86,6 +87,8 @@ class CustomerGridView extends StatelessWidget {
             onOpen: (Rect cardRect) => actions.onZoom(customer, originRect: cardRect),
           ),
         );
+        // 新手導覽第 5 步亮第一張卡片，並記下客戶編號給第 6 步打開
+        if (index == 0) cardWidget = TourTarget(id: 'customers.first', payload: id, child: cardWidget);
 
         if (isSelectionMode) {
           cardWidget = Stack(

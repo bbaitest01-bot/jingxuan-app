@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
 import 'customer_top_panels.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/tour_target.dart';
 
 /// 客戶管理頂部的搜尋列與按鈕列：搜尋、切換卡片／條列、匯出、批次匯入、批量管理、新增客戶。
 /// 電腦版（寬度 ≥ 768）排成一列；手機版搜尋列在上、按鈕在下。
@@ -158,7 +159,10 @@ class CustomerToolbar extends StatelessWidget {
                 label: Text(isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 12),
-              ElevatedButton.icon(
+              // 新手導覽第 4 步亮這顆
+              TourTarget(
+                id: 'customers.add',
+                child: ElevatedButton.icon(
                 onPressed: onAddCustomer,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
@@ -169,6 +173,7 @@ class CustomerToolbar extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.add, size: 20),
                 label: Text(context.l10n('customer_add_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
               ),
             ],
           )
@@ -280,7 +285,10 @@ class CustomerToolbar extends StatelessWidget {
                     icon: Icon(isSelectionMode ? Icons.check_box_outlined : Icons.checklist_outlined, size: 18),
                     label: Text(isSelectionMode ? '結束多選 ✖' : '批量管理 📋', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
-                  ElevatedButton.icon(
+                  // 新手導覽第 4 步亮這顆
+                  TourTarget(
+                    id: 'customers.add',
+                    child: ElevatedButton.icon(
                     onPressed: onAddCustomer,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
@@ -291,6 +299,7 @@ class CustomerToolbar extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.add, size: 18),
                     label: Text(context.l10n('customer_add_btn'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  ),
                   ),
                 ],
               ),
