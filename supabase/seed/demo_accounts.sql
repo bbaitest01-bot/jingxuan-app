@@ -52,6 +52,10 @@ BEGIN
     DELETE FROM public.user_tag_categories WHERE profile_id = demo_user_id;
     TRUNCATE demo_customer_ids;
     TRUNCATE demo_record_ids;
+    -- 新手導覽「看過了」的紀錄清掉，主管第一次登入會自動跳出導覽（2026-11-01）
+    UPDATE auth.users
+    SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) - 'onboarding_tour_seen'
+    WHERE id = demo_user_id;
 
     -- 2. 業務員本人（個人帳號、名片）；權限一律是一般業務員
     UPDATE public.profiles SET

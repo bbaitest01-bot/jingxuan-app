@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/onboarding_tour_service.dart';
 import '../../theme/app_theme.dart';
 import 'settings_parts.dart';
 
@@ -16,8 +17,7 @@ class _TutorialPage {
 ///
 /// - 大教學：「開始導覽」在真的畫面上一步步標出來
 /// - 每一頁：「畫面帶看」只看那一頁；「影片」是截圖做的示範影片（垃圾桶、設定只有畫面帶看）
-/// 導覽、每頁的帶看與影片都還在製作，先顯示「製作中」、不能按
-/// （2026-11-01 沛沛：「開始導覽」之後就是第一次登入時的大功能導覽，同一套；舊導覽內容過時先不開放）
+/// 「開始導覽」＝第一次登入時的大導覽（同一套，2026-11-01 完成）；每頁的帶看與影片還在製作，先顯示「製作中」、不能按
 class SettingsTutorialSection extends StatelessWidget {
   const SettingsTutorialSection({super.key});
 
@@ -53,17 +53,10 @@ class SettingsTutorialSection extends StatelessWidget {
                 icon: Icons.explore_outlined,
                 title: '第一次用？從頭帶你走一遍',
                 description: '在真的畫面上一步一步標出來',
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const _MakingBadge(),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: null,
-                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                      label: const Text('開始導覽'),
-                    ),
-                  ],
+                trailing: FilledButton.icon(
+                  onPressed: OnboardingTourService.instance.start,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                  label: const Text('開始導覽'),
                 ),
               ),
               const SettingsDivider(),

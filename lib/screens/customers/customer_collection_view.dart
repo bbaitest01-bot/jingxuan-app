@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/app_settings.dart';
 import 'customer_grid_view.dart';
 import 'customer_list_view.dart';
+import '../../widgets/tour_target.dart';
 
 /// 客戶列表區：載入中顯示骨架、沒有客戶顯示空白提示，否則依檢視模式顯示卡片或條列
 class CustomerCollectionView extends StatelessWidget {
@@ -40,7 +41,8 @@ class CustomerCollectionView extends StatelessWidget {
       return CustomerShimmerGrid(isWideScreen: isWideScreen, screenWidth: screenWidth);
     }
     if (customers.isEmpty) {
-      return CustomerEmptyState(isDark: isDark, primaryColor: primaryColor);
+      // 新手導覽：沒有客戶時亮這塊空白提示，不用等卡片出現
+      return TourTarget(id: 'customers.empty', child: CustomerEmptyState(isDark: isDark, primaryColor: primaryColor));
     }
     if (isListMode) {
       return CustomerListView(

@@ -6,6 +6,7 @@ import '../../services/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_toast.dart';
 import 'home_menu.dart';
+import '../../widgets/tour_target.dart';
 
 /// 首頁左側的側邊欄：上方是登入者小卡，中間依角色顯示選單（工作頁面與管理類之間有一條細分隔線），下方是收合與登出按鈕。
 /// 電腦版直接放在畫面左邊；手機版放在抽屜（Drawer）裡。
@@ -173,6 +174,22 @@ class HomeSidebar extends StatelessWidget {
       itemBackground = colors.accSoft;
     }
 
+    // 新手導覽會亮選單項目（例：menu.個人帳號）
+    return TourTarget(
+      id: 'menu.$menu',
+      child: _buildMenuItemBody(context, icon, menu, itemColor, itemBackground, isActive),
+    );
+  }
+
+  Widget _buildMenuItemBody(
+    BuildContext context,
+    IconData icon,
+    String menu,
+    Color itemColor,
+    Color itemBackground,
+    bool isActive,
+  ) {
+    final AppColors colors = context.appColors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: InkWell(

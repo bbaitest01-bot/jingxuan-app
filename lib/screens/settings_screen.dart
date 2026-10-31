@@ -9,6 +9,7 @@ import 'settings/settings_google_section.dart';
 import 'settings/settings_reminder_section.dart';
 import 'settings/settings_tutorial_section.dart';
 import 'settings/settings_work_section.dart';
+import '../widgets/tour_target.dart';
 
 /// 系統設定頁（2026-11-01 改版：一條直排，順序 外觀 → 使用習慣 → 教學中心 → Google 連線 → 帳號）
 ///
@@ -36,7 +37,7 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 28),
                   SettingsWorkSection(settings: settings),
                   const SizedBox(height: 28),
-                  const SettingsTutorialSection(),
+                  const TourTarget(id: 'settings.tutorial', child: SettingsTutorialSection()),
                   const SizedBox(height: 28),
                   const SettingsGoogleSection(),
                   const SizedBox(height: 28),

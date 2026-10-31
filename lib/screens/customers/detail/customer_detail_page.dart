@@ -15,6 +15,7 @@ import '../customer_form_dialog.dart';
 import '../customer_status_widgets.dart';
 import '../../../theme/app_theme.dart';
 import 'customer_detail_sections.dart';
+import '../../../widgets/tour_target.dart';
 
 /// 客戶細節整頁（/customers/:id，問題 C3）：由上到下 基本資料、保單、拜訪紀錄（C7）
 /// 「編輯」打開客戶表單（含性別，4-3b 沛沛決定）；快速預覽抽屜仍可從客戶列表打開
@@ -164,10 +165,14 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               const SizedBox(height: 16),
               CustomerBasicInfoSection(customer: customer),
               const SizedBox(height: 16),
-              CustomerCoverageCheckSection(
-                customerId: widget.customerId,
-                customerName: customer['name']?.toString() ?? '',
-                policies: _policies,
+              // 新手導覽第 6 步亮保障健檢
+              TourTarget(
+                id: 'customerDetail.policies',
+                child: CustomerCoverageCheckSection(
+                  customerId: widget.customerId,
+                  customerName: customer['name']?.toString() ?? '',
+                  policies: _policies,
+                ),
               ),
               const SizedBox(height: 16),
               CustomerPoliciesSection(

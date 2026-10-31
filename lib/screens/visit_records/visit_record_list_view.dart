@@ -6,6 +6,7 @@ import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import 'visit_record_widgets.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/tour_target.dart';
 
 /// 拜訪紀錄列表（/visit-records）：新到舊，點一篇打開單篇頁
 class VisitRecordListView extends StatefulWidget {
@@ -96,6 +97,26 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              // 新手導覽第 7 步亮這兩顆按鈕
+              TourTarget(
+                id: 'visitRecords.add',
+                child: Wrap(spacing: 8, runSpacing: 8, children: _buildAddButtons(primaryColor)),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: '重新整理',
+          onPressed: _isLoading ? null : _loadRecords,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+
+  // 錄音新增、新增紀錄兩顆按鈕
+  List<Widget> _buildAddButtons(Color primaryColor) {
+    return [
               OutlinedButton.icon(
                 onPressed: _recordNewRecord,
                 icon: const Icon(Icons.mic_none, size: 18),
@@ -114,16 +135,7 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-            ],
-          ),
-        ),
-        IconButton(
-          tooltip: '重新整理',
-          onPressed: _isLoading ? null : _loadRecords,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    );
+    ];
   }
 
   Widget _buildBody() {
@@ -132,17 +144,21 @@ class _VisitRecordListViewState extends State<VisitRecordListView> {
     if (errorMessage != null) {
       return Center(child: Text(errorMessage, style: TextStyle(color: Theme.of(context).colorScheme.error)));
     }
-    if (_records.isEmpty) return const _VisitRecordEmptyState();
+    // 新手導覽：沒有紀錄時亮這塊空白提示，不用等第一篇出現
+    if (_records.isEmpty) return const TourTarget(id: 'visitRecords.empty', child: _VisitRecordEmptyState());
 
     return ListView.separated(
       itemCount: _records.length,
       separatorBuilder: (BuildContext context, int index) => const SizedBox(height: 12),
       itemBuilder: (BuildContext context, int index) {
         final VisitRecord record = _records[index];
-        return _VisitRecordCard(
+        final Widget card = _VisitRecordCard(
           record: record,
           onTap: () => context.go(AppRoutes.visitRecordPath(record.id)),
         );
+        // 新手導覽第 8 步亮第一篇
+        if (index == 0) return TourTarget(id: 'visitRecords.first', child: card);
+        return card;
       },
     );
   }

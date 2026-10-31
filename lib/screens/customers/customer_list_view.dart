@@ -6,6 +6,7 @@ import 'customer_grid_view.dart';
 import 'customer_shimmers.dart';
 import 'customer_status_widgets.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/tour_target.dart';
 
 /// 條列模式：每位客戶一列
 class CustomerListView extends StatelessWidget {
@@ -35,17 +36,16 @@ class CustomerListView extends StatelessWidget {
       itemCount: customers.length,
       itemBuilder: (context, index) {
         final customer = customers[index];
-        return StaggeredFadeIn(
-          index: index,
-          animate: animateEntrance,
-          child: CustomerListRow(
-            customer: customer,
-            isWideScreen: isWideScreen,
-            isSelectionMode: isSelectionMode,
-            selectedCustomerIds: selectedCustomerIds,
-            actions: actions,
-          ),
+        Widget row = CustomerListRow(
+          customer: customer,
+          isWideScreen: isWideScreen,
+          isSelectionMode: isSelectionMode,
+          selectedCustomerIds: selectedCustomerIds,
+          actions: actions,
         );
+        // 新手導覽第 5 步亮第一位客戶，並記下客戶編號給第 6 步打開
+        if (index == 0) row = TourTarget(id: 'customers.first', payload: customer['id'].toString(), child: row);
+        return StaggeredFadeIn(index: index, animate: animateEntrance, child: row);
       },
     );
   }

@@ -13,7 +13,9 @@ import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'trash_bin_screen.dart';
 import 'insurance_news_tab.dart';
-import '../widgets/spotlight_tour_overlay.dart';
+import '../widgets/onboarding_tour_overlay.dart';
+import '../widgets/tour_target.dart';
+import '../services/onboarding_tour_service.dart';
 import '../models/user_role.dart';
 import '../router/app_router.dart';
 import '../router/app_routes.dart';
@@ -289,6 +291,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _activeViewRole = fetchedRole;
       }
     });
+    // 業務員第一次登入（或網址有 ?tour=first）自動開始新手導覽
+    if (_userRole == UserRole.agent) OnboardingTourService.instance.startIfFirstTime();
   }
 
   // Sign out handler
@@ -385,10 +389,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           floatingActionButton: _activeMenu == '今日行程'
-              ? VoiceSchedulerFab(onPressed: _openVoiceSchedulerDialog)
+              ? TourTarget(id: 'schedule.voice', child: VoiceSchedulerFab(onPressed: _openVoiceSchedulerDialog))
               : null,
         ),
-        const SpotlightTourOverlay(),
+        const OnboardingTourOverlay(),
         // 接收通知、新通知跳出提示（4-E3a）
         const NotificationArrivalWatcher(),
       ],
