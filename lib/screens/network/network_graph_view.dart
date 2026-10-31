@@ -19,6 +19,9 @@ class NetworkGraphView extends StatefulWidget {
   final NetworkGraph graph;
   final NetworkViewport viewport;
   final String? selectedNodeId;
+
+  /// 搜尋找到的人；沒有在搜尋時是 null
+  final Set<String>? searchMatchIds;
   final ValueChanged<String?> onSelectNode;
   final Set<String> hiddenTypes;
   final bool hideLoneNodes;
@@ -28,6 +31,7 @@ class NetworkGraphView extends StatefulWidget {
     required this.graph,
     required this.viewport,
     required this.selectedNodeId,
+    this.searchMatchIds,
     required this.onSelectNode,
     required this.hiddenTypes,
     required this.hideLoneNodes,
@@ -130,9 +134,8 @@ class _NetworkGraphViewState extends State<NetworkGraphView> with SingleTickerPr
       return;
     }
     // 手指／滑鼠下面那一點保持在原位，畫面跟著移動或縮放
-    final double newScale = (_gestureStartScale * details.scale)
-        .clamp(NetworkViewport.minScale, NetworkViewport.maxScale)
-        .toDouble();
+    final double newScale =
+        (_gestureStartScale * details.scale).clamp(NetworkViewport.minScale, NetworkViewport.maxScale).toDouble();
     widget.viewport.update(details.localFocalPoint - _gestureStartGraphPoint * newScale, newScale);
   }
 
@@ -206,6 +209,7 @@ class _NetworkGraphViewState extends State<NetworkGraphView> with SingleTickerPr
                       viewport: widget.viewport,
                       focusedNodeId: hoveredNodeId ?? widget.selectedNodeId,
                       selectedNodeId: widget.selectedNodeId,
+                      searchMatchIds: widget.searchMatchIds,
                       hiddenTypes: widget.hiddenTypes,
                       hideLoneNodes: widget.hideLoneNodes,
                       edgeColors: edgeColors,

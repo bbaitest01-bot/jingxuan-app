@@ -11,6 +11,7 @@ import 'customers/customer_relationships_dialog.dart';
 import 'network/network_graph_painter.dart';
 import 'network/network_graph_panels.dart';
 import 'network/network_graph_view.dart';
+import 'network/network_search_results.dart';
 
 /// 人脈拓撲（網址 `/network`）：黑曜石風格的網狀人脈關係圖
 ///
@@ -32,6 +33,9 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
   final NetworkViewport _viewport = NetworkViewport();
 
   String? _selectedNodeId;
+
+  /// 搜尋框裡的字；空字串＝沒在搜尋
+  String _searchKeyword = '';
   final Set<String> _hiddenTypes = {};
   bool _hideLoneNodes = false;
 
@@ -104,18 +108,49 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
     });
   }
 
-  // 找人：名字有包含輸入的字就選取他，並移到畫面正中間
+  // 找人：名字（或綽號）有輸入的字的人全部找出來，圖上一起亮（2026-11-01 沛沛：原本只選第一個，其他同姓的沒標到）
   void _search(String keyword) {
+    setState(() {
+      _searchKeyword = keyword.trim();
+      _selectedNodeId = null;
+    });
+    _showSearchMatches();
+  }
+
+  /// 搜尋找到的人（看不到的沒有關係客戶不算）
+  List<NetworkGraphNode> _searchMatches() {
     final NetworkGraph? graph = _graph;
-    final String trimmedKeyword = keyword.trim();
-    if (graph == null || trimmedKeyword.isEmpty) return;
+    if (graph == null || _searchKeyword.isEmpty) return const [];
+    final List<NetworkGraphNode> matches = [];
     for (final NetworkGraphNode node in graph.nodes) {
-      if (!node.name.contains(trimmedKeyword)) continue;
-      setState(() => _selectedNodeId = node.id);
-      _viewport.userHasMoved = true;
-      _viewport.centerOn(node.position, scale: 1.4);
+      if (_hideLoneNodes && node.isLone) continue;
+      final String nickname = node.customer['nickname']?.toString() ?? '';
+      if (node.name.contains(_searchKeyword) || nickname.contains(_searchKeyword)) matches.add(node);
+    }
+    return matches;
+  }
+
+  // 把找到的人都移進畫面：一位就放大到中間，好幾位就縮放到全部看得到
+  void _showSearchMatches() {
+    final List<NetworkGraphNode> matches = _searchMatches();
+    if (matches.isEmpty) return;
+    _viewport.userHasMoved = true;
+    if (matches.length == 1) {
+      _viewport.centerOn(matches.first.position, scale: 1.4);
       return;
     }
+    Rect area = Rect.fromCircle(center: matches.first.position, radius: matches.first.radius + 30);
+    for (final NetworkGraphNode node in matches) {
+      area = area.expandToInclude(Rect.fromCircle(center: node.position, radius: node.radius + 30));
+    }
+    _viewport.fit(area, maxFitScale: 1.4);
+  }
+
+  // 點清單裡的名字：選取他、移到中間（和點圓點一樣）
+  void _selectSearchResult(NetworkGraphNode node) {
+    setState(() => _selectedNodeId = node.id);
+    _viewport.userHasMoved = true;
+    _viewport.centerOn(node.position, scale: 1.4);
   }
 
   void _fitAll() {
@@ -188,6 +223,14 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
   Widget _buildGraphArea(NetworkGraph graph) {
     final AppColors colors = context.appColors;
     final NetworkGraphNode? selectedNode = graph.nodeById[_selectedNodeId];
+    final List<NetworkGraphNode> searchMatches = _searchMatches();
+    Set<String>? searchMatchIds;
+    if (_searchKeyword.isNotEmpty) {
+      searchMatchIds = {};
+      for (final NetworkGraphNode node in searchMatches) {
+        searchMatchIds.add(node.id);
+      }
+    }
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -202,11 +245,23 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
               graph: graph,
               viewport: _viewport,
               selectedNodeId: _selectedNodeId,
+              searchMatchIds: searchMatchIds,
               onSelectNode: (String? nodeId) => setState(() => _selectedNodeId = nodeId),
               hiddenTypes: _hiddenTypes,
               hideLoneNodes: _hideLoneNodes,
             ),
           ),
+          // 在搜尋、還沒選人時：左上角是找到的人清單
+          if (selectedNode == null && _searchKeyword.isNotEmpty)
+            Positioned(
+              top: 12,
+              left: 12,
+              child: NetworkSearchResults(
+                keyword: _searchKeyword,
+                matches: searchMatches,
+                onSelect: _selectSearchResult,
+              ),
+            ),
           if (selectedNode != null)
             Positioned(
               top: 12,
