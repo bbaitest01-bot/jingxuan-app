@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'customer_card_flight.dart';
 import 'customer_detail_side_sheet.dart';
+import 'tour_target.dart';
 
 /// 打開客戶側邊欄（2026-10-30 從 customer_detail_side_sheet.dart 拆出，維持檔案行數）
 ///
@@ -54,13 +55,16 @@ Future<void> showCustomerDetailSheet(
                 child: ShowAfterAnimation(
                   animation: animation,
                   placeholder: const _SheetPlaceholder(),
-                  child: CustomerDetailSideSheet(
-                    customer: customer,
-                    onCustomerUpdated: onCustomerUpdated,
-                    onClose: () => Navigator.of(ctx).pop(),
-                    onEdit: closeThen(ctx, onEdit),
-                    onDelete: closeThen(ctx, onDelete),
-                    onManageRelationships: onManageRelationships,
+                  child: TourTarget(
+                    id: 'customerDetail.sideSheet',
+                    child: CustomerDetailSideSheet(
+                      customer: customer,
+                      onCustomerUpdated: onCustomerUpdated,
+                      onClose: () => Navigator.of(ctx).pop(),
+                      onEdit: closeThen(ctx, onEdit),
+                      onDelete: closeThen(ctx, onDelete),
+                      onManageRelationships: onManageRelationships,
+                    ),
                   ),
                 ),
               ),

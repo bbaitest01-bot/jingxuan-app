@@ -29,6 +29,9 @@ class RouteNotice {
 // 外殼內所有頁面共用同一個 key：切換網址時只換內容，側邊欄等外殼狀態不會被重建
 const ValueKey<String> _homeShellPageKey = ValueKey<String>('home-shell');
 
+GoRouter? _globalRouter;
+GoRouter get globalRouter => _globalRouter!;
+
 /// 建立全站路由。網址表見 AppRoutes，守門規則見 decideRedirect。
 GoRouter createAppRouter() {
   final AuthStatusService authStatus = AuthStatusService.instance;
@@ -36,7 +39,7 @@ GoRouter createAppRouter() {
   // 每次建立新的 App 都從登入頁開始（離線預覽要重新按「直接跳過登入」）
   authStatus.leaveOfflinePreview();
 
-  return GoRouter(
+  final GoRouter router = GoRouter(
     refreshListenable: authStatus,
     redirect: (BuildContext context, GoRouterState state) {
       final RedirectDecision decision = decideRedirect(state.uri, authStatus.snapshot);
@@ -125,4 +128,6 @@ GoRouter createAppRouter() {
       );
     },
   );
+  _globalRouter = router;
+  return router;
 }

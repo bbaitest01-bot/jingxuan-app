@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../router/app_router.dart';
 import '../services/onboarding_tour_service.dart';
 import '../services/onboarding_tour_steps.dart';
 import '../theme/app_theme.dart';
@@ -78,7 +79,14 @@ class _OnboardingTourOverlayState extends State<OnboardingTourOverlay> {
       _tour.skipCurrent();
       return;
     }
-    if (route != null) GoRouter.of(context).go(route);
+    if (route != null) {
+      final GoRouter? router = GoRouter.maybeOf(context);
+      if (router != null) {
+        router.go(route);
+      } else {
+        globalRouter.go(route);
+      }
+    }
 
     // 2. 等要指的東西（或空資料提示）出現：最多等 1.5 秒，但只要一出現就立刻結束等待
     bool isFound = step.targetIds.isEmpty;

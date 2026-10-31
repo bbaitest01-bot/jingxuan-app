@@ -7,6 +7,9 @@ import '../services/app_settings.dart';
 import '../services/customer_card_summary_service.dart';
 import '../services/customer_service.dart';
 import '../services/customer_stage_service.dart';
+import '../services/onboarding_tour_service.dart';
+import '../widgets/tour_target.dart';
+import 'customers/customer_card.dart';
 import 'customers/customer_stage_filter_banner.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/customer_share_export_dialog.dart';
@@ -63,14 +66,52 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     context.go(AppRoutes.trash);
   }
 
+  bool _isTourSideSheetOpen = false;
+
   @override
   void initState() {
     super.initState();
     _viewMode = AppSettings.instance.defaultCustomerViewMode;
     _searchController.addListener(_filterCustomers);
+    OnboardingTourService.instance.addListener(_onTourStepChanged);
     if (CustomerStage.isValid(widget.stageFilter)) _loadCustomerStages();
     _checkDevRole();
     _showCachedThenRefresh();
+  }
+
+  // 新手導覽第 7 步展示「側邊速查面板」（2026-11-01 沛沛定案：自動滑出側邊欄，展示圖二）
+  void _onTourStepChanged() {
+    if (!mounted) return;
+    final OnboardingTourService tour = OnboardingTourService.instance;
+    if (!tour.isActive) {
+      _isTourSideSheetOpen = false;
+      return;
+    }
+    final step = tour.currentStep;
+    if (step.targetIds.contains('customerDetail.sideSheet')) {
+      if (_allCustomers.isNotEmpty && !_isTourSideSheetOpen) {
+        _isTourSideSheetOpen = true;
+        tour.dismissActiveModal = () {
+          if (mounted && _isTourSideSheetOpen) {
+            _isTourSideSheetOpen = false;
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          }
+        };
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _isTourSideSheetOpen) {
+            final String firstId = _allCustomers.first['id'].toString();
+            final Rect firstCardRect = TourTarget.rectOf('customers.first') ??
+                CustomerCard.liveRectOf(firstId) ??
+                const Rect.fromLTWH(260, 180, 320, 240);
+            _openCustomerDetails(_allCustomers.first, originRect: firstCardRect);
+          }
+        });
+      }
+    } else {
+      _isTourSideSheetOpen = false;
+    }
   }
 
   // 有上次讀到的客戶名單就先顯示（不出現載入骨架），再在背景重新讀取；沒有就正常讀取
@@ -89,6 +130,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
 
   @override
   void dispose() {
+    OnboardingTourService.instance.removeListener(_onTourStepChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -328,15 +370,19 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
 
   // 打開側邊欄（卡片模式會把卡片飛到左邊，見 customer_detail_opener.dart）
   Future<void> _openCustomerDetails(Map<String, dynamic> customer, {Rect? originRect}) async {
-    await openCustomerDetail(
-      context,
-      customer: customer,
-      originRect: originRect,
-      onCustomerUpdated: _replaceUpdatedCustomer,
-      onEdit: () => _openCustomerForm(customer: customer),
-      onDelete: () => _confirmDeleteCustomer(customer),
-      onManageRelationships: () => _openRelationshipsDialog(customer),
-    );
+    try {
+      await openCustomerDetail(
+        context,
+        customer: customer,
+        originRect: originRect,
+        onCustomerUpdated: _replaceUpdatedCustomer,
+        onEdit: () => _openCustomerForm(customer: customer),
+        onDelete: () => _confirmDeleteCustomer(customer),
+        onManageRelationships: () => _openRelationshipsDialog(customer),
+      );
+    } finally {
+      _isTourSideSheetOpen = false;
+    }
   }
 
   // 側邊欄裡改了資料就同步回列表

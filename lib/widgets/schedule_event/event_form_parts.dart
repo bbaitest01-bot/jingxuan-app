@@ -137,10 +137,10 @@ class _GoogleSyncBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
     IconData icon = Icons.cloud_sync_outlined;
-    String label = '自動對齊 Google';
+    String label = '單向推送 Google';
     if (isSynced) {
       icon = Icons.sync;
-      label = 'Google 已對齊';
+      label = 'Google 已推送';
     }
 
     return Container(
