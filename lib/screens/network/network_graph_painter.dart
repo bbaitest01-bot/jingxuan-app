@@ -57,6 +57,9 @@ class NetworkGraphPainter extends CustomPainter {
   /// 滑鼠移上去或點選的那位客戶：只有他和他的人脈是亮的
   final String? focusedNodeId;
   final String? selectedNodeId;
+
+  /// 搜尋找到的人（名字裡有輸入的字）：沒有選取或滑鼠移上去時，這些人亮起來加橘框、其他人變淡（2026-11-01）
+  final Set<String>? searchMatchIds;
   final Set<String> hiddenTypes;
   final bool hideLoneNodes;
   final Map<String, Color> edgeColors;
@@ -76,6 +79,7 @@ class NetworkGraphPainter extends CustomPainter {
     required this.viewport,
     required this.focusedNodeId,
     required this.selectedNodeId,
+    this.searchMatchIds,
     required this.hiddenTypes,
     required this.hideLoneNodes,
     required this.edgeColors,
@@ -94,16 +98,20 @@ class NetworkGraphPainter extends CustomPainter {
     final String? focusId = focusedNodeId;
     Set<String>? focusIds;
     if (focusId != null) focusIds = graph.neighborIdsOf(focusId, hiddenTypes: hiddenTypes);
+    // 沒有人被選取時，搜尋找到的人才是亮的那一群
+    Set<String>? searchIds;
+    if (focusId == null) searchIds = searchMatchIds;
+    focusIds ??= searchIds;
 
     final List<NetworkGraphEdge> visibleEdges = [];
     for (final NetworkGraphEdge edge in graph.edges) {
       if (!hiddenTypes.contains(edge.type)) visibleEdges.add(edge);
     }
     for (final NetworkGraphEdge edge in visibleEdges) {
-      _paintEdge(canvas, edge, focusId);
+      _paintEdge(canvas, edge, focusId, searchIds);
     }
     for (final NetworkGraphNode node in graph.nodes) {
-      if (_isNodeVisible(node)) _paintNode(canvas, node, focusIds);
+      if (_isNodeVisible(node)) _paintNode(canvas, node, focusIds, searchIds);
     }
     for (final NetworkGraphEdge edge in visibleEdges) {
       // 關係文字：有人被選取時只寫他的線；沒有時放大到夠大才全部寫
@@ -116,9 +124,14 @@ class NetworkGraphPainter extends CustomPainter {
 
   Color _edgeColor(String type) => edgeColors[type] ?? edgeColors['other']!;
 
-  void _paintEdge(Canvas canvas, NetworkGraphEdge edge, String? focusId) {
+  void _paintEdge(Canvas canvas, NetworkGraphEdge edge, String? focusId, Set<String>? searchIds) {
     double opacity = 0.55;
     double width = 1.2;
+    // 搜尋時：兩頭都是找到的人才照常畫，其他線變淡
+    if (searchIds != null) {
+      final bool bothMatched = searchIds.contains(edge.from.id) && searchIds.contains(edge.to.id);
+      if (!bothMatched) opacity = 0.06;
+    }
     if (focusId != null) {
       opacity = 0.06;
       if (edge.touches(focusId)) {
@@ -149,7 +162,7 @@ class NetworkGraphPainter extends CustomPainter {
     canvas.drawPath(arrow, Paint()..color = color);
   }
 
-  void _paintNode(Canvas canvas, NetworkGraphNode node, Set<String>? focusIds) {
+  void _paintNode(Canvas canvas, NetworkGraphNode node, Set<String>? focusIds, Set<String>? searchIds) {
     final bool isDimmed = focusIds != null && !focusIds.contains(node.id);
     // 關係越多顏色越濃；沒有關係的人用灰色
     Color color = colors.acc.withValues(alpha: 0.45 + math.min(node.degree, 4) * 0.13);
@@ -157,7 +170,8 @@ class NetworkGraphPainter extends CustomPainter {
     if (isDimmed) color = color.withValues(alpha: 0.12);
     canvas.drawCircle(node.position, node.radius, Paint()..color = color);
 
-    if (node.id == selectedNodeId) {
+    final bool isSearchMatch = searchIds != null && searchIds.contains(node.id);
+    if (node.id == selectedNodeId || isSearchMatch) {
       final Paint ringPaint = Paint()
         ..color = colors.warn
         ..style = PaintingStyle.stroke
