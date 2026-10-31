@@ -4,7 +4,29 @@ import 'package:googleapis/calendar/v3.dart' as calendar;
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../main.dart';
 import '../models/schedule_event.dart';
+
+/// 帶有 Google OAuth Access Token 的 HTTP Client
+class _GoogleOAuthClient extends http.BaseClient {
+  final String _token;
+  final http.Client _inner = http.Client();
+
+  _GoogleOAuthClient(this._token);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.headers['Authorization'] = 'Bearer $_token';
+    return _inner.send(request);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
+  }
+}
 
 /// Google 日曆單向推送服務 (Singleton)
 /// 規則：經選助手 App 為正本、Google 日曆為副本；僅單向推送到 Google，不拉取 Google 私人行程
@@ -76,21 +98,31 @@ class GoogleCalendarSyncService {
     }
 
     try {
+      // 1. 優先從 Supabase 連線取得 Google Access Token (providerToken)
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+        final providerToken = session?.providerToken;
+        if (providerToken != null && providerToken.isNotEmpty) {
+          debugPrint('✅ [GoogleCalendarSyncService] 使用 Supabase Google Provider Token 連線');
+          return calendar.CalendarApi(_GoogleOAuthClient(providerToken));
+        }
+      } catch (_) {
+        // 單元測試或離線未初始化 Supabase 時安全跳過
+      }
+
+      // 2. 備案：嘗試從 GoogleSignIn 取得（若為原生端或手動登入）
       var currentUser = _googleSignIn.currentUser;
       currentUser ??= await _googleSignIn.signInSilently();
 
-      if (currentUser == null) {
-        debugPrint('⚠️ [GoogleCalendarSyncService] 使用者未登入 Google 帳號');
-        return null;
+      if (currentUser != null) {
+        final authClient = await _googleSignIn.authenticatedClient();
+        if (authClient != null) {
+          return calendar.CalendarApi(authClient);
+        }
       }
 
-      final authClient = await _googleSignIn.authenticatedClient();
-      if (authClient == null) {
-        debugPrint('⚠️ [GoogleCalendarSyncService] 無法取得 Google OAuth Client');
-        return null;
-      }
-
-      return calendar.CalendarApi(authClient);
+      debugPrint('⚠️ [GoogleCalendarSyncService] 尚未取得 Google 日曆授權憑證');
+      return null;
     } catch (e) {
       debugPrint('⚠️ [GoogleCalendarSyncService] 取得 CalendarApi 失敗: $e');
       return null;
@@ -242,6 +274,20 @@ class GoogleCalendarSyncService {
       final updated = await pushLocalToRemote(event);
       if (updated.syncStatus == 'synced') {
         syncedCount++;
+        // 同步更新資料庫的 google_event_id 與狀態
+        if (!isOfflineMode && Supabase.instance.client.auth.currentUser != null) {
+          try {
+            await Supabase.instance.client
+                .from('schedule_events')
+                .update({
+                  'google_event_id': updated.googleEventId,
+                  'google_calendar_id': updated.googleCalendarId,
+                  'sync_status': updated.syncStatus,
+                  'last_synced_at': updated.lastSyncedAt?.toUtc().toIso8601String(),
+                })
+                .eq('id', updated.id);
+          } catch (_) {}
+        }
       }
     }
 

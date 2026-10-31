@@ -48,7 +48,11 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectTo,
-        queryParams: {'prompt': 'select_account'},
+        scopes: 'https://www.googleapis.com/auth/calendar',
+        queryParams: {
+          'prompt': 'consent select_account',
+          'access_type': 'offline',
+        },
       );
     } catch (error) {
       if (!mounted) return;
@@ -71,13 +75,28 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
     setState(() => _isResyncing = true);
     try {
       final events = await ScheduleService.instance.fetchEvents();
+      if (events.isEmpty) {
+        if (!mounted) return;
+        CustomToast.show(context, '目前沒有行程可同步，請先至「行程」新增一筆測試行程喔！', ToastType.warning);
+        return;
+      }
+
       final count = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
       if (!mounted) return;
-      CustomToast.show(
-        context,
-        '重新同步完成！成功推送 $count 筆行程至「經選助手」日曆',
-        ToastType.success,
-      );
+
+      if (count > 0) {
+        CustomToast.show(
+          context,
+          '重新同步完成！成功推送 $count 筆行程至「經選助手」日曆',
+          ToastType.success,
+        );
+      } else {
+        CustomToast.show(
+          context,
+          '尚未取得 Google 日曆存取權限，請點擊上方的「重新授權」按鈕允許日曆存取！',
+          ToastType.warning,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       CustomToast.show(context, '重新同步失敗：$e', ToastType.error);
