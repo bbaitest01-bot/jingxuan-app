@@ -34,8 +34,18 @@ class OnboardingTourService extends ChangeNotifier {
   bool get isFirstStep => _stepIndex == 0;
   bool get isLastStep => _stepIndex == stepCount - 1;
 
+  /// 導覽步驟中主動打開的對話框／側邊欄關閉回呼（換步或結束時自動關閉）
+  VoidCallback? dismissActiveModal;
+
+  void _closeModalIfOpen() {
+    final callback = dismissActiveModal;
+    dismissActiveModal = null;
+    callback?.call();
+  }
+
   /// 從第一步開始
   void start() {
+    _closeModalIfOpen();
     _stepIndex = 0;
     _isMovingForward = true;
     _isActive = true;
@@ -43,6 +53,7 @@ class OnboardingTourService extends ChangeNotifier {
   }
 
   void next() {
+    _closeModalIfOpen();
     if (isLastStep) {
       finish();
       return;
@@ -54,6 +65,7 @@ class OnboardingTourService extends ChangeNotifier {
 
   void previous() {
     if (isFirstStep) return;
+    _closeModalIfOpen();
     _stepIndex--;
     _isMovingForward = false;
     notifyListeners();
@@ -61,6 +73,7 @@ class OnboardingTourService extends ChangeNotifier {
 
   /// 這一步畫面上找不到要指的東西（例如沒有客戶）：照剛剛的方向跳過
   void skipCurrent() {
+    _closeModalIfOpen();
     if (_isMovingForward) {
       next();
       return;
@@ -74,6 +87,7 @@ class OnboardingTourService extends ChangeNotifier {
 
   /// 看完或按「略過導覽」：關掉，並記在帳號裡下次不再自動跳出
   Future<void> finish() async {
+    _closeModalIfOpen();
     _isActive = false;
     notifyListeners();
     await _markSeen();

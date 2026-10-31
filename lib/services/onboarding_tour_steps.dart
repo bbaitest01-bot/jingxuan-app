@@ -97,11 +97,10 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   ),
   OnboardingTourStep(
     section: '客戶管理',
-    title: '一位客戶的全部資料',
-    body: '每位客戶都有自己的資料頁：保障健檢看出缺口，保單、拜訪紀錄也都整理在這裡。',
-    payloadTargetId: 'customers.first',
-    routeFromPayload: AppRoutes.customerPath,
-    targetIds: ['customerDetail.policies'],
+    title: '側邊速查面板',
+    body: '點開卡片後，右側會展開速查面板，可快速切換基本資料、保單健檢與拜訪歷程；點右上角展開圖示能放大成完整頁面。',
+    route: AppRoutes.customers,
+    targetIds: ['customerDetail.sideSheet'],
     skipWhenMissing: true,
   ),
   // 換類別前，先亮左側選單「拜訪紀錄」
