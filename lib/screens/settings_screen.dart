@@ -1,17 +1,17 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/app_settings.dart';
-import '../services/app_localizations.dart';
-import '../services/google_calendar_sync_service.dart';
-import '../widgets/google_sign_in_button.dart';
-import '../main.dart';
-import '../services/spotlight_tour_service.dart';
-import 'tag_manager_screen.dart';
-import 'settings/accent_color_picker.dart';
-import 'settings/delete_account_dialog.dart';
-import '../theme/app_theme.dart';
 
+import '../main.dart';
+import '../services/app_settings.dart';
+import '../theme/app_theme.dart';
+import 'settings/settings_account_section.dart';
+import 'settings/settings_appearance_section.dart';
+import 'settings/settings_google_section.dart';
+import 'settings/settings_tutorial_section.dart';
+import 'settings/settings_work_section.dart';
+
+/// 系統設定頁（2026-11-01 改版：一條直排，順序 外觀 → 使用習慣 → 教學中心 → Google 連線 → 帳號）
+///
+/// 常用的放上面、設一次就好的往後放、危險的放最後；每一區拆成 settings/ 裡的小檔案。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -19,567 +19,27 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: AppSettings.instance,
-      builder: (context, _) {
-        final settings = AppSettings.instance;
-        final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
-        final primaryColor = settings.primaryColor;
-
+      builder: (BuildContext context, Widget? child) {
+        final AppSettings settings = AppSettings.instance;
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 48),
           child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 800),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Page Header
-                  Row(
-                    children: [
-                      Icon(Icons.tune_rounded, color: primaryColor, size: 28),
-                      const SizedBox(width: 12),
-                      Text(
-                        context.l10n('system_settings_title'),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    context.l10n('system_settings_subtitle'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: context.appColors.ink3,
-                    ),
-                  ),
+                  const _SettingsHeader(),
                   const SizedBox(height: 24),
-
-                  // Cloud Sync Banner
-                  _buildCloudSyncBanner(context, isDark, primaryColor),
-                  const SizedBox(height: 24),
-
-                  // Section 1: Appearance & Theme
-                  _buildSectionHeader(context, Icons.palette_outlined, context.l10n('appearance_theme'), primaryColor),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Theme Mode Selector
-                        Text(
-                          context.l10n('theme_mode'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildThemeModeCard(
-                                context,
-                                mode: ThemeMode.dark,
-                                title: context.l10n('theme_dark'),
-                                icon: Icons.dark_mode_outlined,
-                                isSelected: settings.themeMode == ThemeMode.dark,
-                                isDark: isDark,
-                                primaryColor: primaryColor,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildThemeModeCard(
-                                context,
-                                mode: ThemeMode.light,
-                                title: context.l10n('theme_light'),
-                                icon: Icons.light_mode_outlined,
-                                isSelected: settings.themeMode == ThemeMode.light,
-                                isDark: isDark,
-                                primaryColor: primaryColor,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildThemeModeCard(
-                                context,
-                                mode: ThemeMode.system,
-                                title: context.l10n('theme_system'),
-                                icon: Icons.brightness_auto_outlined,
-                                isSelected: settings.themeMode == ThemeMode.system,
-                                isDark: isDark,
-                                primaryColor: primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        // 網頁版的「系統」是瀏覽器回報的明暗，不一定等於電腦的設定
-                        Text(
-                          context.l10n('theme_system_hint'),
-                          style: TextStyle(fontSize: 12, color: context.appColors.ink3),
-                        ),
-                        const SizedBox(height: 24),
-                        const Divider(height: 1),
-                        const SizedBox(height: 24),
-
-                        // Accent Color Selector
-                        Text(
-                          context.l10n('accent_color'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 12),
-                        AccentColorPicker(settings: settings),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Section 2: View Preferences
-                  _buildSectionHeader(context, Icons.dashboard_customize_outlined, context.l10n('operation_preferences'), primaryColor),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: Column(
-                      children: [
-                        // Default Customer View Mode
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(Icons.style_outlined, color: primaryColor, size: 20),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: MediaQuery.of(context).size.width >= 600
-                                  ? Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(context.l10n('customer_view_mode'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                              const SizedBox(height: 2),
-                                              Text(context.l10n('customer_view_mode_desc'), style: const TextStyle(fontSize: 12)),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        SizedBox(
-                                          width: 260,
-                                          child: SegmentedButton<String>(
-                                            segments: [
-                                              ButtonSegment(
-                                                value: 'card',
-                                                label: Text(context.l10n('view_3d_card')),
-                                                icon: const Icon(Icons.view_carousel_outlined, size: 16),
-                                              ),
-                                              ButtonSegment(
-                                                value: 'list',
-                                                label: Text(context.l10n('view_list_view')),
-                                                icon: const Icon(Icons.table_rows_outlined, size: 16),
-                                              ),
-                                            ],
-                                            selected: {settings.defaultCustomerViewMode},
-                                            onSelectionChanged: (Set<String> newSelection) {
-                                              settings.setDefaultCustomerViewMode(newSelection.first);
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(context.l10n('customer_view_mode'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                        const SizedBox(height: 2),
-                                        Text(context.l10n('customer_view_mode_desc'), style: const TextStyle(fontSize: 12)),
-                                        const SizedBox(height: 10),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: SegmentedButton<String>(
-                                            segments: [
-                                              ButtonSegment(
-                                                value: 'card',
-                                                label: Text(context.l10n('view_3d_card')),
-                                                icon: const Icon(Icons.view_carousel_outlined, size: 16),
-                                              ),
-                                              ButtonSegment(
-                                                value: 'list',
-                                                label: Text(context.l10n('view_list_view')),
-                                                icon: const Icon(Icons.table_rows_outlined, size: 16),
-                                              ),
-                                            ],
-                                            selected: {settings.defaultCustomerViewMode},
-                                            onSelectionChanged: (Set<String> newSelection) {
-                                              settings.setDefaultCustomerViewMode(newSelection.first);
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 24),
-
-                        // Sidebar Collapsed Preference
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          secondary: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(Icons.view_sidebar_outlined, color: primaryColor, size: 20),
-                          ),
-                          title: Text(context.l10n('auto_collapse_sidebar'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                          subtitle: Text(context.l10n('auto_collapse_sidebar_desc'), style: const TextStyle(fontSize: 12)),
-                          value: settings.isSidebarCollapsedByDefault,
-                          activeColor: primaryColor,
-                          onChanged: (bool value) {
-                            settings.setSidebarCollapsedByDefault(value);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Section 2.5: Tag & Folder Management
-                  _buildSectionHeader(context, Icons.local_offer_outlined, '🏷️ 標籤字典與資料夾管理', primaryColor),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.folder_special_outlined, color: primaryColor, size: 20),
-                      ),
-                      title: const Text('標籤與資料夾管理器', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('管理 5 大資料夾分類、標籤手動新增/編輯與一鍵合併功能', style: TextStyle(fontSize: 12)),
-                      trailing: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: context.appColors.onAcc,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const TagManagerScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.tune, size: 16),
-                        label: const Text('開啟管理'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Section 3: Language & Localization (Phase 6 i18n Prep)
-                  _buildSectionHeader(context, Icons.language_outlined, context.l10n('language_title'), primaryColor),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.translate_outlined, color: primaryColor, size: 20),
-                      ),
-                      title: Text(context.l10n('pref_language'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: Text(context.l10n('pref_language_desc'), style: const TextStyle(fontSize: 12)),
-                      trailing: DropdownButton<String>(
-                        value: settings.language,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'zh_TW',
-                            child: Row(
-                              children: [
-                                Text('🇹🇼 繁體中文'),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'en_US',
-                            child: Row(
-                              children: [
-                                Text('🇺🇸 English'),
-                              ],
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            settings.setLanguage(value);
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Section 3.5: Third-Party Account & Service Connection
-                  _buildSectionHeader(context, Icons.account_tree_outlined, '🔗 第三方帳號與服務連線管理', primaryColor),
-                  const SizedBox(height: 12),
-                  Builder(
-                    builder: (context) {
-                      // 離線預覽沒有 Supabase，不能讀（原本會整區變紅色錯誤畫面，2026-10-22）
-                      final currentUser = isOfflineMode ? null : Supabase.instance.client.auth.currentUser;
-                      final bool isGoogleConnected = (currentUser?.identities?.any((i) => i.provider == 'google') ?? false) ||
-                          (currentUser?.appMetadata['provider'] == 'google') ||
-                          ((currentUser?.appMetadata['providers'] as List?)?.contains('google') ?? false);
-
-                      return _buildCardContainer(
-                        context,
-                        isDark,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEA4335).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const GoogleGLogoIcon(size: 22),
-                              ),
-                              title: const Text('Google 帳號連線與授權', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                              subtitle: Text(
-                                isGoogleConnected
-                                    ? '已成功連結 Google 帳號，可雙向同步 Google 行事曆與雲端備份'
-                                    : '尚未連結 Google 帳號，點擊以啟用日曆雙向同步與雲端備份',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isGoogleConnected ? context.appColors.ok : context.appColors.ink3,
-                                ),
-                              ),
-                              trailing: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isOfflineMode
-                                      ? context.appColors.ink3
-                                      : (isGoogleConnected ? context.appColors.ok : context.appColors.warn),
-                                  foregroundColor: context.appColors.onAcc,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                onPressed: isOfflineMode
-                                    ? null
-                                    : () async {
-                                        try {
-                                          final supabase = Supabase.instance.client;
-                                          String? redirectTo;
-                                          if (kIsWeb) {
-                                            final origin = Uri.base.origin;
-                                            redirectTo = (origin.contains('localhost') && !origin.contains(':8080'))
-                                                ? 'http://localhost:8080'
-                                                : origin;
-                                          } else {
-                                            redirectTo = 'http://localhost:8080';
-                                          }
-                                          await supabase.auth.signInWithOAuth(
-                                            OAuthProvider.google,
-                                            redirectTo: redirectTo,
-                                            queryParams: {
-                                              'prompt': 'select_account',
-                                            },
-                                          );
-                                        } catch (e) {
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('連線發起失敗: $e'), backgroundColor: Theme.of(context).colorScheme.error),
-                                            );
-                                          }
-                                        }
-                                      },
-                                icon: Icon(isGoogleConnected ? Icons.check_circle_outline : Icons.link, size: 16),
-                                label: Text(isGoogleConnected ? '已連線 / 重新授權' : '未連線 / 點擊授權'),
-                              ),
-                            ),
-                            const Divider(height: 24),
-                            StatefulBuilder(
-                              builder: (context, setState) {
-                                final syncService = GoogleCalendarSyncService.instance;
-                                final isSyncEnabled = syncService.isSyncEnabled;
-                                return SwitchListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  secondary: const Icon(Icons.calendar_month, color: Color(0xFF4285F4)),
-                                  title: const Text('Google 日曆行程雙向自動同步', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                  subtitle: Text(
-                                    isSyncEnabled
-                                        ? '已啟用！專屬次日曆「保險助手」與本地行程雙向自動對齊'
-                                        : '點擊開啟，將 App 拜訪行程自動寫入 Google 日曆並防重疊衝突',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isSyncEnabled ? context.appColors.ok : context.appColors.ink3,
-                                    ),
-                                  ),
-                                  value: isSyncEnabled,
-                                  onChanged: (val) async {
-                                    await syncService.setSyncEnabled(val);
-                                    setState(() {});
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(val ? '已開啟 Google 日曆雙向自動同步' : '已關閉 Google 日曆同步'),
-                                          backgroundColor: val ? context.appColors.ok : context.appColors.warn,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Section 4: Spotlight Onboarding Tour Controller
-                  _buildSectionHeader(context, Icons.school_outlined, '🎓 新手教學與功能導覽', primaryColor),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '系統功能導覽控制器',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '隨時可播放完整系統導覽，或按章節獨立選看複習各項功能示範。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.appColors.ink2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // 播放完整導覽按鈕
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryColor,
-                            foregroundColor: context.appColors.onAcc,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: () => SpotlightTourService.instance.startTour(chapterIndex: 0),
-                          icon: const Icon(Icons.play_circle_fill, size: 18),
-                          label: const Text('▶️ 播放完整新手導覽 (4 章節)'),
-                        ),
-                        const SizedBox(height: 16),
-                        const Divider(),
-                        const SizedBox(height: 8),
-
-                        // 4 大章節分區選看選單
-                        const Text(
-                          '按章節分區選看：',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 8.0,
-                          children: List.generate(
-                            SpotlightTourService.instance.chapters.length,
-                            (index) {
-                              final chapter = SpotlightTourService.instance.chapters[index];
-                              return ActionChip(
-                                avatar: Icon(chapter.icon, size: 16, color: primaryColor),
-                                label: Text(chapter.title),
-                                backgroundColor: context.appColors.surface2,
-                                onPressed: () => SpotlightTourService.instance.startTour(chapterIndex: index),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Section 5: Delete Account
-                  _buildSectionHeader(context, Icons.person_remove_outlined, '刪除帳號', Theme.of(context).colorScheme.error),
-                  const SizedBox(height: 12),
-                  _buildCardContainer(
-                    context,
-                    isDark,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '刪除您的帳號資料',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '帳號與底下所有資料（客戶、保單、行程、拜訪紀錄、照片）會立即永久刪除，無法復原。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.appColors.ink2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
-                            foregroundColor: Theme.of(context).colorScheme.error,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: BorderSide(color: Theme.of(context).colorScheme.error),
-                            ),
-                          ),
-                          onPressed: () => DeleteAccountDialog.show(context),
-                          icon: const Icon(Icons.delete_forever, size: 18),
-                          label: const Text('刪除帳號'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Reset Defaults Button
-                  Center(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _confirmResetDialog(context, settings, primaryColor),
-                      icon: Icon(Icons.restart_alt_outlined, color: Theme.of(context).colorScheme.error, size: 18),
-                      label: Text(context.l10n('reset_defaults'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Theme.of(context).colorScheme.error),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
+                  SettingsAppearanceSection(settings: settings),
+                  const SizedBox(height: 28),
+                  SettingsWorkSection(settings: settings),
+                  const SizedBox(height: 28),
+                  const SettingsTutorialSection(),
+                  const SizedBox(height: 28),
+                  const SettingsGoogleSection(),
+                  const SizedBox(height: 28),
+                  SettingsAccountSection(settings: settings),
                 ],
               ),
             ),
@@ -588,188 +48,40 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+}
 
-  // Cloud Sync Banner
-  Widget _buildCloudSyncBanner(BuildContext context, bool isDark, Color primaryColor) {
-    final bool isOffline = isOfflineMode;
+/// 頁首：一句白話說明設定存在哪裡（2026-11-01 拿掉 Supabase／SharedPreferences 等技術字）
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isOffline
-            ? context.appColors.warnSoft
-            : primaryColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isOffline ? context.appColors.warn : primaryColor.withOpacity(0.4),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isOffline ? Icons.offline_pin_outlined : Icons.cloud_done_outlined,
-            color: isOffline ? context.appColors.warn : primaryColor,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isOffline ? context.l10n('cloud_sync_offline') : context.l10n('cloud_sync_synced'),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: isOffline ? context.appColors.warn : primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isOffline
-                      ? context.l10n('cloud_sync_offline_desc')
-                      : context.l10n('cloud_sync_synced_desc'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.appColors.ink2,
-                  ),
-                ),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // Section Header Helper
-  Widget _buildSectionHeader(BuildContext context, IconData icon, String title, Color primaryColor) {
-    return Row(
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    String description = '改了就自動存到你的帳號，換電腦登入也一樣';
+    String statusText = '已同步';
+    IconData statusIcon = Icons.cloud_done_outlined;
+    Color statusColor = colors.ok;
+    if (isOfflineMode) {
+      description = '離線預覽中，設定只存在這台電腦';
+      statusText = '只存本機';
+      statusIcon = Icons.cloud_off_outlined;
+      statusColor = colors.warn;
+    }
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 10,
+      runSpacing: 4,
       children: [
-        Icon(icon, size: 20, color: primaryColor),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+        Text(description, style: TextStyle(fontSize: 14, color: colors.ink2)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(statusIcon, size: 16, color: statusColor),
+            const SizedBox(width: 4),
+            Text(statusText, style: TextStyle(fontSize: 13, color: statusColor)),
+          ],
         ),
       ],
-    );
-  }
-
-  // Card Container Helper
-  Widget _buildCardContainer(BuildContext context, bool isDark, {required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.appColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(
-          color: context.appColors.line,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      // 卡片裡的 ListTile（開關、選項）要有自己的 Material，否則開發模式會跳出紅色錯誤畫面（2026-10-22）
-      child: Material(type: MaterialType.transparency, child: child),
-    );
-  }
-
-  // Theme Mode Card Item
-  Widget _buildThemeModeCard(
-    BuildContext context, {
-    required ThemeMode mode,
-    required String title,
-    required IconData icon,
-    required bool isSelected,
-    required bool isDark,
-    required Color primaryColor,
-  }) {
-    return InkWell(
-      onTap: () => AppSettings.instance.setThemeMode(mode),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? primaryColor.withOpacity(0.12)
-              : (context.appColors.surface2),
-          border: Border.all(
-            color: isSelected ? primaryColor : Colors.transparent,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? primaryColor : context.appColors.ink3,
-              size: 24,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? primaryColor : context.appColors.ink,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Reset Confirmation Dialog
-  void _confirmResetDialog(BuildContext context, AppSettings settings, Color primaryColor) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: context.appColors.warn),
-              const SizedBox(width: 8),
-              Text(context.l10n('reset_dialog_title')),
-            ],
-          ),
-          content: Text(context.l10n('reset_dialog_content')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.l10n('cancel')),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: context.appColors.onAcc,
-              ),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await settings.resetToDefaults();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(context.l10n('reset_success'))),
-                  );
-                }
-              },
-              child: Text(context.l10n('confirm')),
-            ),
-          ],
-        );
-      },
     );
   }
 }
