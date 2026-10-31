@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../main.dart';
 import '../../services/google_calendar_sync_service.dart';
+import '../../services/schedule_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_toast.dart';
 import '../../widgets/google_sign_in_button.dart';
@@ -19,6 +20,19 @@ class SettingsGoogleSection extends StatefulWidget {
 }
 
 class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
+  bool _isResyncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSyncSettings();
+  }
+
+  Future<void> _loadSyncSettings() async {
+    await GoogleCalendarSyncService.instance.applyCloudSettings();
+    if (mounted) setState(() {});
+  }
+
   // 有沒有用 Google 登入或連結過 Google（離線預覽沒有 Supabase，直接當作沒連）
   bool _isGoogleConnected() {
     if (isOfflineMode) return false;
@@ -45,7 +59,11 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectTo,
-        queryParams: {'prompt': 'select_account'},
+        scopes: 'https://www.googleapis.com/auth/calendar',
+        queryParams: {
+          'prompt': 'consent select_account',
+          'access_type': 'offline',
+        },
       );
     } catch (error) {
       if (!mounted) return;
@@ -58,9 +76,44 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
     if (!mounted) return;
     setState(() {});
     if (isEnabled) {
-      CustomToast.show(context, '已開啟：行程會放到 Google 日曆', ToastType.success);
+      CustomToast.show(context, '已開啟：行程會單向推送至 Google 日曆', ToastType.success);
     } else {
       CustomToast.show(context, '已關閉 Google 日曆同步', ToastType.warning);
+    }
+  }
+
+  Future<void> _resyncAllEvents() async {
+    setState(() => _isResyncing = true);
+    try {
+      final events = await ScheduleService.instance.fetchEvents();
+      if (events.isEmpty) {
+        if (!mounted) return;
+        CustomToast.show(context, '目前沒有行程可同步，請先至「行程」新增一筆測試行程喔！', ToastType.warning);
+        return;
+      }
+
+      final count = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
+      if (!mounted) return;
+
+      if (count > 0) {
+        CustomToast.show(
+          context,
+          '重新同步完成！成功推送 $count 筆行程至「經選助手」日曆',
+          ToastType.success,
+        );
+      } else {
+        final String? error = GoogleCalendarSyncService.instance.lastErrorMessage;
+        CustomToast.show(
+          context,
+          error != null ? '同步未成功：$error' : '未成功同步任何行程',
+          ToastType.error,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      CustomToast.show(context, '重新同步失敗：$e', ToastType.error);
+    } finally {
+      if (mounted) setState(() => _isResyncing = false);
     }
   }
 
@@ -82,10 +135,10 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
     if (isConnected) accountButton = OutlinedButton(onPressed: _connectGoogle, child: const Text('重新授權'));
     if (isOfflineMode) accountButton = const OutlinedButton(onPressed: null, child: Text('連線'));
 
-    String calendarDescription = '開啟後，App 的行程會自動寫進你的 Google 日曆';
+    String calendarDescription = '開啟後，App 的行程會自動單向推送至 Google 日曆';
     Color calendarDescriptionColor = colors.ink3;
     if (isSyncEnabled) {
-      calendarDescription = '已開啟：行程會自動寫進 Google 日曆（另開一本，不動到原本的行程）';
+      calendarDescription = '已開啟：行程會自動寫進 Google 日曆「經選助手」（另開一本，App 為正本）';
       calendarDescriptionColor = colors.ok;
     }
 
@@ -112,6 +165,18 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
                 descriptionColor: calendarDescriptionColor,
                 trailing: Switch(value: isSyncEnabled, onChanged: _toggleCalendarSync),
               ),
+              if (isSyncEnabled) ...[
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.sync_rounded,
+                  title: '重新同步所有行程',
+                  description: '若在 Google 日曆誤刪，點此將未來的行程一鍵補回',
+                  trailing: OutlinedButton(
+                    onPressed: _isResyncing ? null : _resyncAllEvents,
+                    child: Text(_isResyncing ? '同步中...' : '重新同步'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

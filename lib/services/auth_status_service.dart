@@ -6,6 +6,7 @@ import '../main.dart';
 import '../router/app_routes.dart';
 import 'app_settings.dart';
 import 'customer_service.dart';
+import 'google_calendar_sync_service.dart';
 import 'tag_categorizer.dart';
 import 'tag_manager_service.dart';
 
@@ -118,8 +119,9 @@ class AuthStatusService extends ChangeNotifier {
     if (_profileUserId != session.user.id) {
       CustomerService.instance.clearCache();
       await _loadProfile(session.user.id);
-      // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言）
+      // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言、日曆同步）
       await AppSettings.instance.applyCloudSettings();
+      await GoogleCalendarSyncService.instance.applyCloudSettings();
       // 讀回這個帳號的標籤，客戶卡片、行程上的自訂標籤顏色才會一致（問題 S13）；
       // 第一次使用時也會在這裡把瀏覽器本機的標籤搬進資料庫
       TagCategorizer.clearCustomColors();
