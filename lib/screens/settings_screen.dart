@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'settings/settings_account_section.dart';
 import 'settings/settings_appearance_section.dart';
 import 'settings/settings_google_section.dart';
+import 'settings/settings_reminder_section.dart';
 import 'settings/settings_tutorial_section.dart';
 import 'settings/settings_work_section.dart';
 
@@ -38,6 +39,8 @@ class SettingsScreen extends StatelessWidget {
                   const SettingsTutorialSection(),
                   const SizedBox(height: 28),
                   const SettingsGoogleSection(),
+                  const SizedBox(height: 28),
+                  const SettingsReminderSection(),
                   const SizedBox(height: 28),
                   SettingsAccountSection(settings: settings),
                 ],
