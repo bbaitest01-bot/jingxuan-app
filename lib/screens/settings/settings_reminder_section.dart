@@ -105,14 +105,14 @@ class _SettingsReminderSectionState extends State<SettingsReminderSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SettingsSectionHeader(
-          icon: Icons.mark_email_read_outlined,
+          icon: Icons.email_outlined,
           title: '行程提醒信',
         ),
         SettingsCard(
           child: Column(
             children: [
               SettingsRow(
-                icon: Icons.mail_outline_rounded,
+                icon: Icons.email_outlined,
                 title: '每日行程提醒信',
                 description: statusDescription,
                 descriptionColor: statusColor,
@@ -124,7 +124,7 @@ class _SettingsReminderSectionState extends State<SettingsReminderSection> {
               if (isEnabled) ...[
                 const SettingsDivider(),
                 SettingsRow(
-                  icon: Icons.schedule_rounded,
+                  icon: Icons.access_time_rounded,
                   title: '寄信時間',
                   description: '可選擇當天早上寄或前一晚寄',
                   trailing: Container(
@@ -158,7 +158,7 @@ class _SettingsReminderSectionState extends State<SettingsReminderSection> {
                 ),
                 const SettingsDivider(),
                 SettingsRow(
-                  icon: Icons.send_outlined,
+                  icon: Icons.send_rounded,
                   title: '立即寄送測試信',
                   description: '立即寄發一封測試信，確認信箱能否正常收信',
                   trailing: OutlinedButton(
