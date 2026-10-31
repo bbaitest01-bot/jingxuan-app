@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/customer_card_summary_service.dart';
 import '../../services/tag_categorizer.dart';
+import 'customer_card_details.dart';
 import 'customer_status_widgets.dart';
 import '../../theme/app_theme.dart';
 
@@ -15,7 +16,15 @@ class CustomerCard extends StatelessWidget {
   /// 飛到左邊的那張的複製品不要跟著藏起來
   final bool hideWhenFlying;
 
-  const CustomerCard({super.key, required this.customer, required this.onOpen, this.hideWhenFlying = true});
+  /// 點開後飛出來的放大卡片：改用 [CustomerCardDetailsBody] 的對齊表格（2026-11-01 沛沛）
+  final bool showExtraDetails;
+
+  const CustomerCard(
+      {super.key,
+      required this.customer,
+      required this.onOpen,
+      this.hideWhenFlying = true,
+      this.showExtraDetails = false});
 
   /// 正在飛到左邊的客戶：原本位置的卡片先藏起來。
   /// 用通知的方式只讓那一張卡片重畫，不讓整頁重畫（2026-10-30 量到起飛時整頁重畫會掉格）
@@ -78,21 +87,28 @@ class CustomerCard extends StatelessWidget {
           },
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _CustomerCardHeader(customer: customer, displayName: displayName),
-                const SizedBox(height: 10),
-                Divider(height: 1, color: colors.line),
-                const SizedBox(height: 8),
-                _CustomerSummaryLines(customerId: customer['id'].toString(), customerName: name),
-                const Spacer(),
-                _CustomerTagRow(tags: List<dynamic>.from(customer['tags'] ?? const [])),
-              ],
-            ),
+            child: showExtraDetails
+                ? CustomerCardDetailsBody(customer: customer, displayName: displayName)
+                : _buildListBody(colors, name, displayName),
           ),
         ),
       ),
+    );
+  }
+
+  // 列表裡的卡片內容：頭像、名字、電話、兩行摘要、標籤
+  Widget _buildListBody(AppColors colors, String name, String displayName) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CustomerCardHeader(customer: customer, displayName: displayName),
+        const SizedBox(height: 10),
+        Divider(height: 1, color: colors.line),
+        const SizedBox(height: 8),
+        _CustomerSummaryLines(customerId: customer['id'].toString(), customerName: name),
+        const Spacer(),
+        _CustomerTagRow(tags: List<dynamic>.from(customer['tags'] ?? const [])),
+      ],
     );
   }
 }
@@ -204,7 +220,8 @@ class _CustomerTagRow extends StatelessWidget {
       chips.add(Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(color: style.backgroundColor, borderRadius: BorderRadius.circular(6)),
-        child: Text(tag.toString(), style: TextStyle(color: style.textColor, fontSize: 10, fontWeight: FontWeight.bold)),
+        child:
+            Text(tag.toString(), style: TextStyle(color: style.textColor, fontSize: 10, fontWeight: FontWeight.bold)),
       ));
     }
     return Wrap(spacing: 6, runSpacing: 4, children: chips);

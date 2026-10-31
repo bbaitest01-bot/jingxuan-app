@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// 打開客戶側邊欄時，被點的卡片「咻」一下飛到左邊空白區的正中間（2026-10-30 組長提出）
 ///
 /// 沿一條往上拱的弧線飛過去；關掉側邊欄時 [animation] 倒著跑，卡片飛回它在列表裡的位置。
-/// 視窗大小改變時每一格都重新計算：左邊的卡片重新置中、寬度跟著列表的卡片變，
+/// 視窗大小改變時每一格都重新計算：左邊的卡片重新置中、大小跟著列表的卡片變，
 /// 飛回去時也是飛到列表卡片「現在」的位置（2026-10-30 沛沛反映卡片不會跟著視窗調整）。
 class CustomerCardFlight extends StatelessWidget {
   final Animation<double> animation;
@@ -49,17 +49,34 @@ class CustomerCardFlight extends StatelessWidget {
 
   /// 這個畫面大小下，左邊放不放得下一張卡片
   static bool fitsLanding(Size screenSize, Size cardSize, double sheetWidth, EdgeInsets contentPadding) {
-    return landingRect(screenSize, cardSize, sheetWidth, contentPadding).width >= minLandingWidth;
+    return landingRect(screenSize, layoutSizeOf(cardSize), sheetWidth, contentPadding).width >= minLandingWidth;
   }
 
-  /// 卡片停下來的位置：內容區扣掉側邊欄那一塊的正中間；放不下時卡片寬度縮小（左右各留 24）
+  /// 飛到左邊後放大幾倍（2026-11-01 組長嫌卡片太小，沛沛選 1.35 倍；電腦 1280 寬時左邊剛好塞滿）
+  static const double landingScale = 1.35;
+
+  /// 飛出來的卡片排版時的高度：剛好放得下資料表格（頭像、五行表格、一行標籤）
+  /// 2026-11-01 原本用寬高比算，視窗寬時卡片跟著變高、表格下面空一大塊（沛沛反映看不出縮），改成固定高度
+  static const double landingCardHeight = 262;
+
+  /// 飛出來的卡片「排版」的大小：寬度跟列表一樣，高度固定 [landingCardHeight]
+  static Size layoutSizeOf(Size listCardSize) {
+    return Size(listCardSize.width, landingCardHeight);
+  }
+
+  /// 卡片停下來的位置：內容區扣掉側邊欄那一塊的正中間，等比例放大 [landingScale] 倍；
+  /// 左邊放不下時整張等比例縮小（上下左右各留 24）
   static Rect landingRect(Size screenSize, Size cardSize, double sheetWidth, EdgeInsets contentPadding) {
     final Rect area = contentPadding.deflateRect(Offset.zero & screenSize);
     final double freeLeft = area.left;
     final double freeRight = screenSize.width - sheetWidth;
-    final double width = math.max(0, math.min(cardSize.width, freeRight - freeLeft - 48));
+    final double availableWidth = math.max(0, freeRight - freeLeft - 48);
+    final double availableHeight = math.max(0, area.height - 48);
+    double scale = landingScale;
+    if (cardSize.width > 0) scale = math.min(scale, availableWidth / cardSize.width);
+    if (cardSize.height > 0) scale = math.min(scale, availableHeight / cardSize.height);
     final Offset center = Offset((freeLeft + freeRight) / 2, area.center.dy);
-    return Rect.fromCenter(center: center, width: width, height: cardSize.height);
+    return Rect.fromCenter(center: center, width: cardSize.width * scale, height: cardSize.height * scale);
   }
 
   @override
@@ -73,7 +90,8 @@ class CustomerCardFlight extends StatelessWidget {
       animation: curved,
       builder: (BuildContext context, Widget? child) {
         final Rect start = currentOriginRect?.call() ?? originRect;
-        final Rect end = landingRect(screenSize, start.size, sheetWidth, contentPadding);
+        final Size layoutSize = layoutSizeOf(start.size);
+        final Rect end = landingRect(screenSize, layoutSize, sheetWidth, contentPadding);
         // 視窗太窄、左邊放不下一張卡片：不顯示飛出來的卡片，只有側邊欄（2026-10-30 沛沛決定）
         final bool fits = end.width >= minLandingWidth;
         final ValueChanged<bool>? fitChanged = onFitChanged;
@@ -81,12 +99,31 @@ class CustomerCardFlight extends StatelessWidget {
         if (!fits) return const SizedBox.shrink();
         final double progress = curved.value;
         final Offset position = arcPoint(start.topLeft, end.topLeft, progress);
+        // 邊飛邊放大、邊變高：卡片照「排版大小」排好，再整張等比例縮放（字、圖示一起變大，不變形）
+        final double endScale = end.width / layoutSize.width;
+        final double scale = 1 + (endScale - 1) * progress;
+        final double visibleHeight = start.height + (layoutSize.height - start.height) * progress;
         return Positioned(
           left: position.dx,
           top: position.dy,
-          width: start.width + (end.width - start.width) * progress,
-          height: start.height,
-          child: child!,
+          width: start.width * scale,
+          height: visibleHeight * scale,
+          child: FittedBox(
+            fit: BoxFit.fill,
+            child: SizedBox(
+              width: start.width,
+              height: visibleHeight,
+              // 飛的途中卡片還沒長到全高：照全高排好，下面先切掉
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.topCenter,
+                  minHeight: layoutSize.height,
+                  maxHeight: layoutSize.height,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
         );
       },
       // 飛的那張單獨畫，不讓後面整頁跟著重畫
