@@ -3,6 +3,8 @@ import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../main.dart';
+import '../router/app_router.dart';
+import '../router/app_routes.dart';
 import 'onboarding_tour_steps.dart';
 
 /// 新手大導覽的進度（2026-11-01 重做，取代舊的 SpotlightTourService）
@@ -94,7 +96,7 @@ class OnboardingTourService extends ChangeNotifier {
   }
 
   /// 登入後呼叫一次：網址有 `?tour=first`，或帳號還沒看過導覽，就自動開始
-  void startIfFirstTime() {
+  Future<void> startIfFirstTime() async {
     if (_hasCheckedFirstTime || _isActive) return;
     _hasCheckedFirstTime = true;
     // 支援一般網址 (?tour=first) 與 Flutter Web 雜湊網址 (/#/?tour=first)
@@ -105,11 +107,22 @@ class OnboardingTourService extends ChangeNotifier {
       return;
     }
     if (isOfflineMode) return;
-    final User? user = Supabase.instance.client.auth.currentUser;
+    User? user = Supabase.instance.client.auth.currentUser;
+    try {
+      final UserResponse response = await Supabase.instance.client.auth.getUser();
+      if (response.user != null) {
+        user = response.user;
+      }
+    } catch (_) {
+      // 離線或網路異常降級使用快取的 user
+    }
     if (user == null) return;
     final Object? seen = user.userMetadata?[seenMetadataKey];
     if (seen == true) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) => start());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      globalRouter.go(AppRoutes.schedule);
+      start();
+    });
   }
 
   Future<void> _markSeen() async {
