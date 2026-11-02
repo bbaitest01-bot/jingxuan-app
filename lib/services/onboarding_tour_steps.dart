@@ -56,6 +56,7 @@ const List<OnboardingTourStep> onboardingTourSteps = [
     section: '開始',
     title: '歡迎使用經選助手',
     body: '花一分鐘，帶你看最常用的三件事：排行程、管客戶、記拜訪。隨時可以按「略過導覽」。',
+    route: AppRoutes.schedule,
   ),
   OnboardingTourStep(
     section: '今日行程',

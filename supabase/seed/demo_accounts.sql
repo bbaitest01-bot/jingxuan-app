@@ -52,14 +52,22 @@ BEGIN
     DELETE FROM public.user_tag_categories WHERE profile_id = demo_user_id;
     TRUNCATE demo_customer_ids;
     TRUNCATE demo_record_ids;
-    -- 新手導覽「看過了」的紀錄清掉，主管第一次登入會自動跳出導覽（2026-11-01）
+
+    -- 新手導覽「看過了」的紀錄清掉，主管登入會自動跳出導覽（2026-11-01）
+    -- 同步清掉 auth.users 上的頭像與第三方圖片資訊
     UPDATE auth.users
-    SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) - 'onboarding_tour_seen'
+    SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb)
+      - 'onboarding_tour_seen'
+      - 'avatar_url'
+      - 'picture'
     WHERE id = demo_user_id;
 
-    -- 2. 業務員本人（個人帳號、名片）；權限一律是一般業務員
+    -- 2. 業務員本人（個人帳號、名片、大頭貼）；權限一律是一般業務員
     UPDATE public.profiles SET
       full_name = '林示範',
+      avatar_url = NULL,
+      qr_code_url = NULL,
+      card_theme = 'classic:0',
       role = 'agent',
       status = 'active',
       phone = '0900-000-001',
@@ -330,7 +338,9 @@ SELECT u.email,
   (SELECT count(*) FROM public.visit_projects vp WHERE vp.profile_id = u.id) AS projects,
   (SELECT count(*) FROM public.visit_results vr WHERE vr.profile_id = u.id) AS visit_results,
   (SELECT count(*) FROM public.visit_records r WHERE r.profile_id = u.id) AS visit_records,
-  (SELECT count(*) FROM public.notifications n WHERE n.profile_id = u.id) AS notifications
+  (SELECT count(*) FROM public.notifications n WHERE n.profile_id = u.id) AS notifications,
+  (SELECT p.avatar_url FROM public.profiles p WHERE p.id = u.id) AS avatar_url,
+  (u.raw_user_meta_data->>'onboarding_tour_seen') AS onboarding_tour_seen
 FROM auth.users u
 WHERE u.email IN ('demo1@jingxuan.test', 'demo2@jingxuan.test')
 ORDER BY u.email;
