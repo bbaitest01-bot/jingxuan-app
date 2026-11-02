@@ -58,9 +58,9 @@ class _InsuranceNewsTabState extends State<InsuranceNewsTab> {
         onRefresh: _loadNews,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Center(
-            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1100), child: content),
+            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1280), child: content),
           ),
         ),
       ),

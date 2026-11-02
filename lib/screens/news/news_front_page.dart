@@ -25,7 +25,7 @@ class NewsFrontPage extends StatelessWidget {
         final List<InsuranceNewsTopic> topics = edition.topics;
         final List<InsuranceNewsTopic> restTopics = topics.skip(1).toList();
         EdgeInsets padding = const EdgeInsets.fromLTRB(14, 14, 14, 18);
-        if (isWide) padding = const EdgeInsets.fromLTRB(28, 22, 28, 28);
+        if (isWide) padding = const EdgeInsets.fromLTRB(32, 24, 32, 32);
 
         return NewsPaperSheet(
           padding: padding,
@@ -36,8 +36,8 @@ class NewsFrontPage extends StatelessWidget {
               SizedBox(height: isWide ? 18 : 12),
               _buildLeadSection(context, isWide),
               if (restTopics.isNotEmpty) ...[
-                SizedBox(height: isWide ? 18 : 12),
-                const NewsDoubleRule(),
+                SizedBox(height: isWide ? 22 : 16),
+                _NewsOverviewHeader(isWide: isWide),
                 SizedBox(height: isWide ? 14 : 10),
                 if (isWide)
                   NewsTopicColumns(topics: restTopics, totalTopicCount: topics.length)
@@ -90,7 +90,7 @@ class NewsFrontPage extends StatelessWidget {
   }
 }
 
-/// 報頭：「經選日報」＋雙線＋日期、更新時間、話題與報導數
+/// 報頭：「JINGXUAN.HELPER」＋「經選日報」＋雙線＋日期、更新時間、話題與報導數
 class _NewsMasthead extends StatelessWidget {
   final InsuranceNewsEdition edition;
   final bool isWide;
@@ -112,7 +112,7 @@ class _NewsMasthead extends StatelessWidget {
       updateText = '$hour:$minute 更新';
     }
     final String countText = '${edition.topics.length} 則話題・${edition.articleCount} 篇報導';
-    final TextStyle metaStyle = TextStyle(fontSize: isWide ? 12 : 10.5, color: colors.ink3);
+    final TextStyle metaStyle = TextStyle(fontSize: isWide ? 11.5 : 10, color: colors.ink3);
 
     final List<Widget> metaItems = [Text(dateText, style: metaStyle)];
     if (isWide) metaItems.add(Text('保險業每日焦點', style: metaStyle));
@@ -120,12 +120,30 @@ class _NewsMasthead extends StatelessWidget {
 
     return Column(
       children: [
+        // 英文專題品牌標（jingxuan.helper）
+        Text(
+          'JINGXUAN.HELPER ・ FINANCIAL & INSURANCE DAILY',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: isWide ? 11 : 9.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: isWide ? 3.5 : 2,
+            color: colors.ink3.withValues(alpha: 0.85),
+          ),
+        ),
+        const SizedBox(height: 5),
         Text(
           '經選日報',
           textAlign: TextAlign.center,
-          style: AppTextStyles.serif(fontSize: isWide ? 34 : 24, color: colors.ink).copyWith(letterSpacing: isWide ? 8 : 4),
+          style: AppTextStyles.serif(
+            fontSize: isWide ? 34 : 24,
+            color: colors.ink,
+          ).copyWith(
+            letterSpacing: isWide ? 8 : 4,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
         const NewsDoubleRule(),
         const SizedBox(height: 4),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: metaItems),
@@ -144,7 +162,6 @@ class _DailyTrendStory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final ColorScheme scheme = Theme.of(context).colorScheme;
     final String trend = edition.dailyTrend;
     final String overview = edition.dailyOverview;
 
@@ -152,16 +169,87 @@ class _DailyTrendStory extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          color: scheme.error,
-          child: Text('今日大勢', style: TextStyle(fontSize: 11, color: scheme.onError, letterSpacing: 2)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF991B1B), // 統一經典深紅
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: const Text(
+            '今日大勢',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 2,
+            ),
+          ),
         ),
-        const SizedBox(height: 10),
-        if (trend.isNotEmpty) Text(trend, style: NewsPaperStyle.headline(context, isWide ? 25 : 19, color: colors.acc)),
+        const SizedBox(height: 8),
+        if (trend.isNotEmpty)
+          Text(
+            trend,
+            style: NewsPaperStyle.headline(
+              context,
+              isWide ? 23 : 18,
+              color: colors.ink,
+            ).copyWith(
+              fontWeight: FontWeight.bold,
+              height: 1.48,
+            ),
+          ),
         if (overview.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(overview, style: NewsPaperStyle.body(context, fontSize: isWide ? 14 : 15)),
+          const SizedBox(height: 12),
+          Text(
+            overview,
+            style: NewsPaperStyle.body(context, fontSize: isWide ? 14.5 : 14.5).copyWith(
+              height: 1.82,
+            ),
+          ),
         ],
+      ],
+    );
+  }
+}
+
+/// 即時要聞綜覽區塊標頭：深墨藍徽章 ＋ 報紙貫穿細線
+class _NewsOverviewHeader extends StatelessWidget {
+  final bool isWide;
+
+  const _NewsOverviewHeader({required this.isWide});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color ruleColor = NewsPaperStyle.rule(context);
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B), // 實心深墨藍底標籤
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: const Text(
+            '即時要聞綜覽',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '〔 今日要聞一覽・多方報導彙整 〕',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: context.appColors.ink3,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Container(height: 1, color: ruleColor)),
       ],
     );
   }

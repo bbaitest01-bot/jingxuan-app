@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -210,14 +212,47 @@ class InsuranceNewsService {
     return days;
   }
 
-  // 拿掉沒有任何報導的話題；同標題只留一個
+  // 智慧去重：去除空話題、同標題話題，並辨識同一事件（共享報導來源或相同關鍵數字與核心字眼）
   static List<InsuranceNewsTopic> _cleanTopics(List<InsuranceNewsTopic> topics) {
-    final Map<String, InsuranceNewsTopic> topicByTitle = {};
+    final List<InsuranceNewsTopic> cleaned = [];
     for (final InsuranceNewsTopic topic in topics) {
       if (topic.articles.isEmpty) continue;
-      topicByTitle.putIfAbsent(topic.topicTitle.trim(), () => topic);
+      bool isDuplicate = false;
+      for (int i = 0; i < cleaned.length; i++) {
+        final InsuranceNewsTopic existing = cleaned[i];
+        // 1. 標題完全相同
+        if (existing.topicTitle.trim() == topic.topicTitle.trim()) {
+          isDuplicate = true;
+          if (topic.articles.length > existing.articles.length) cleaned[i] = topic;
+          break;
+        }
+        // 2. 共享相同的文章 URL
+        final Set<String> existingUrls = existing.articles.map((a) => a.sourceUrl.trim()).toSet();
+        final bool sharesArticle = topic.articles.any((a) => a.sourceUrl.trim().isNotEmpty && existingUrls.contains(a.sourceUrl.trim()));
+        if (sharesArticle) {
+          isDuplicate = true;
+          if (topic.articles.length > existing.articles.length) cleaned[i] = topic;
+          break;
+        }
+        // 3. 相同關鍵數字且標題詞彙重疊（例如同為 733萬 微型保險）
+        final String numA = existing.keyNumber.replaceAll(' ', '');
+        final String numB = topic.keyNumber.replaceAll(' ', '');
+        if (numA.isNotEmpty && numA == numB) {
+          final int prefixLen = math.min(4, math.min(existing.topicTitle.length, topic.topicTitle.length));
+          if (prefixLen > 0) {
+            final String subA = existing.topicTitle.substring(0, prefixLen);
+            final String subB = topic.topicTitle.substring(0, prefixLen);
+            if (existing.topicTitle.contains(subB) || topic.topicTitle.contains(subA)) {
+              isDuplicate = true;
+              if (topic.articles.length > existing.articles.length) cleaned[i] = topic;
+              break;
+            }
+          }
+        }
+      }
+      if (!isDuplicate) cleaned.add(topic);
     }
-    return topicByTitle.values.toList();
+    return cleaned;
   }
 }
 

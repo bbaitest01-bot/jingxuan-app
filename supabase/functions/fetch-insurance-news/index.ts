@@ -141,6 +141,7 @@ async function generateTopicImage(
           'Authorization': `Bearer ${CLOUDFLARE_AI_TOKEN.trim()}`,
         },
         body: JSON.stringify({ prompt: `${imagePrompt}. ${NEWS_IMAGE_STYLE}`, steps: 4 }),
+        signal: AbortSignal.timeout(12000),
       },
     );
     if (!res.ok) {
@@ -183,13 +184,12 @@ async function generateTopicImage(
   }
 }
 
-// 4. 補畫插圖：今天和昨天還沒有圖的話題（例如插圖功能上線前抓的、或上次畫圖失敗的），每次最多補 8 張
-//    舊話題沒有存畫面編號，先請 Groq 依標題與重點從清單挑一個，再交給 Cloudflare 畫
-const MAX_BACKFILL_IMAGES = 8;
+// 4. 補畫插圖：今天和昨天還沒有圖的話題，每次最多補 2 張，避免函式逾時
+const MAX_BACKFILL_IMAGES = 2;
 
 async function chooseSceneNumber(title: string, summary: string): Promise<number | null> {
   if (!GROQ_API_KEY) return null;
-  for (const model of ['openai/gpt-oss-20b', 'llama-3.3-70b-versatile']) {
+  for (const model of ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -286,6 +286,7 @@ async function clusterNewsWithGroq(rssItems: RSSItem[]): Promise<ClusteringOutpu
 2. daily_overview: 撰寫一整篇約 200~350 字、結構通順完整的「今日保險產業新聞大勢總覽文章」。
 3. topics: 篩選出 3 至 5 個當日最核心的『保險主題/事件』。
    - 每個主題底下包含 2~4 篇報導（標示 1 篇主要主頭條 is_primary=true，其餘為次要媒體報導 is_primary=false）。
+   - category: 從【即時要聞、產險新訊、公會焦點、壽險動態、政策法規、金融科技】中挑選一個最精準的分類（4 字以內）。
    - ai_summary: 為該主題撰寫一段約 80~150 字的單一段落重點摘要。
    - short_summary: 用【一句話、35 字以內】寫出業務員可以直接跟客戶聊的重點（不要寫「此趨勢凸顯」這類空話）。
    - key_number: 新聞裡最關鍵的一個數字，連單位一起寫（例如「8,100 萬」「3.19 億」「2 倍」「15%」）；沒有明確數字就填空字串，不可自己編。
@@ -324,11 +325,8 @@ ${NEWS_IMAGE_SCENE_LIST_TEXT}
 }`;
 
   const staticCandidateModels = [
-    'groq/compound',
-    'groq/compound-mini',
-    'qwen/qwen3.6-27b',
-    'openai/gpt-oss-20b',
     'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
   ];
   const modelErrors: string[] = [];
   const triedModels = new Set<string>();
@@ -571,6 +569,7 @@ serve(async (req) => {
         .from('insurance_news_topics')
         .insert({
           topic_title: topic.topic_title,
+          category: topic.category || '即時要聞',
           ai_summary: topic.ai_summary,
           short_summary: cleanText(topic.short_summary),
           key_number: cleanText(topic.key_number),
@@ -627,9 +626,15 @@ serve(async (req) => {
             }
           }
 
-          // D) 備援：若無有效文章連結，拿標題做關鍵字對照
+          // D) 備援：若無有效文章連結，以標題產生專屬搜尋連結，確保 URL 絕對唯一不衝突
           if (!matchedUrl) {
-            matchedUrl = uniqueItems[0]?.link || '';
+            const fallbackLink = uniqueItems[rawIdx - 1]?.link;
+            if (fallbackLink) {
+              matchedUrl = fallbackLink;
+            } else {
+              const safeQuery = encodeURIComponent(`${art.source_name || ''} ${art.title || topic.topic_title}`.trim());
+              matchedUrl = `https://www.google.com/search?q=${safeQuery}`;
+            }
           }
 
           const articleRow: any = {
@@ -650,8 +655,8 @@ serve(async (req) => {
 
         const { error: artErr } = await supabaseClient
           .from('insurance_news_articles')
-          // 同一篇報導（同網址）之前抓過就跳過，不讓整個話題的報導都寫入失敗（2026-10-31 紀錄看到 23505）
-          .upsert(articleRows, { onConflict: 'source_url', ignoreDuplicates: true });
+          // 若有相同網址則更新歸入今日最新話題，避免重複網址導致話題被誤判為 0 家報導而刪除
+          .upsert(articleRows, { onConflict: 'source_url' });
 
         if (artErr) {
           console.error(`寫入 topic (${topicId}) 的報導失敗:`, artErr);
@@ -661,13 +666,13 @@ serve(async (req) => {
         }
       }
 
-      // 報導都是之前抓過的（全部被跳過）＝這個話題沒有新內容：刪掉，不留「0 家報導」的空話題、也不浪費畫圖額度
+      // 話題若完全沒有報導（非重疊問題，而是抓取本身為空），才進行清理
       const { count: articleCount } = await supabaseClient
         .from('insurance_news_articles')
         .select('id', { count: 'exact', head: true })
         .eq('topic_id', topicId);
-      if (!articleCount) {
-        console.log(`[fetch-insurance-news] 話題沒有新報導，刪除: ${topic.topic_title}`);
+      if (!articleCount && (!topic.articles || topic.articles.length === 0)) {
+        console.log(`[fetch-insurance-news] 話題沒有任何報導，刪除: ${topic.topic_title}`);
         await supabaseClient.from('insurance_news_topics').delete().eq('id', topicId);
         insertedTopicCount--;
         continue;

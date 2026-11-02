@@ -10,9 +10,12 @@ CREATE EXTENSION IF NOT EXISTS pg_cron;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
 -- 重跑時先移除舊的同名排程，避免重複
-SELECT cron.unschedule(jobname)
-FROM cron.job
-WHERE jobname = 'daily-insurance-news';
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'daily-insurance-news') THEN
+    PERFORM cron.unschedule('daily-insurance-news');
+  END IF;
+END $$;
 
 SELECT cron.schedule(
   'daily-insurance-news',
@@ -22,7 +25,7 @@ SELECT cron.schedule(
     url := 'https://algufuoxkeizxwkofmmp.supabase.co/functions/v1/fetch-insurance-news',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-news-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'news_cron_secret')
+      'x-news-cron-secret', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'news_cron_secret' LIMIT 1)
     ),
     body := '{}'::jsonb,
     -- 抓新聞＋畫圖要一兩分鐘，等久一點
