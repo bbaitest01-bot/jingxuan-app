@@ -20,12 +20,12 @@ class NewsPaperStyle {
 
   /// 宋體標題
   static TextStyle headline(BuildContext context, double fontSize, {Color? color}) {
-    return AppTextStyles.serif(fontSize: fontSize, color: color ?? context.appColors.ink).copyWith(height: 1.35);
+    return AppTextStyles.serif(fontSize: fontSize, color: color ?? context.appColors.ink).copyWith(height: 1.4);
   }
 
   /// 內文：深灰、行距大一點比較好讀
-  static TextStyle body(BuildContext context, {double fontSize = 13.5}) {
-    return TextStyle(fontSize: fontSize, height: 1.75, color: context.appColors.ink2);
+  static TextStyle body(BuildContext context, {double fontSize = 14.2}) {
+    return TextStyle(fontSize: fontSize, height: 1.8, color: context.appColors.ink2);
   }
 }
 
@@ -46,7 +46,7 @@ class NewsDoubleRule extends StatelessWidget {
   }
 }
 
-/// 紙張：灰色底＋很淡的紙紋（細小網點）
+/// 紙張：經典灰色底＋印刷細網點紋路＋立體紙邊微陰影
 class NewsPaperSheet extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -55,14 +55,26 @@ class NewsPaperSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
     return Container(
       decoration: BoxDecoration(
         color: NewsPaperStyle.paper(context),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: colors.ink.withValues(alpha: 0.14), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
-      child: CustomPaint(
-        painter: _PaperGrainPainter(context.appColors.ink.withValues(alpha: 0.05)),
-        child: Padding(padding: padding, child: child),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(2),
+        child: CustomPaint(
+          painter: _PaperGrainPainter(colors.ink.withValues(alpha: 0.05)),
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }
@@ -116,38 +128,76 @@ class NewsHeatMeter extends StatelessWidget {
   }
 }
 
-/// 一行報導：「媒體｜標題 ↗」，點了開原文；電腦滑鼠移上去顯示單篇重點
-class NewsArticleLine extends StatelessWidget {
+/// 一行報導：「媒體｜標題 ↗」，點了開原文；電腦滑鼠移上去有優雅底線與懸停反饋、顯示單篇重點
+class NewsArticleLine extends StatefulWidget {
   final InsuranceNewsArticle article;
 
   const NewsArticleLine({super.key, required this.article});
 
   @override
+  State<NewsArticleLine> createState() => _NewsArticleLineState();
+}
+
+class _NewsArticleLineState extends State<NewsArticleLine> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final Widget line = InkWell(
-      onTap: () => openNewsArticle(context, article),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        // 媒體名接在標題前面一起換行，窄欄也不會被截掉（2026-10-31）
-        child: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: '${article.sourceName}｜', style: TextStyle(fontSize: 12, color: colors.ink3)),
-              TextSpan(text: article.title, style: TextStyle(fontSize: 13, color: colors.ink)),
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Icon(Icons.north_east_rounded, size: 12, color: colors.ink3),
-                ),
-              ),
-            ],
+    final InsuranceNewsArticle article = widget.article;
+
+    final Widget line = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: () => openNewsArticle(context, article),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          decoration: BoxDecoration(
+            color: _isHovered ? colors.ink.withValues(alpha: 0.05) : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
           ),
-          style: const TextStyle(height: 1.5),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '${article.sourceName} ｜ ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _isHovered ? colors.acc : colors.ink3,
+                  ),
+                ),
+                TextSpan(
+                  text: article.title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colors.ink,
+                    decoration: _isHovered ? TextDecoration.underline : TextDecoration.none,
+                    decorationColor: colors.ink,
+                  ),
+                ),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      Icons.north_east_rounded,
+                      size: 12,
+                      color: _isHovered ? colors.acc : colors.ink3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            style: const TextStyle(height: 1.5),
+          ),
         ),
       ),
     );
+
     if (article.articleSummary.isEmpty) return line;
     return Tooltip(
       message: article.articleSummary,

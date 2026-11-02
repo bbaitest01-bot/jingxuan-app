@@ -22,37 +22,38 @@ class NewsTopicColumns extends StatelessWidget {
   static const int _columnCount = 3;
   static const double _columnGap = 18;
 
-  /// 中圖最多幾張，其餘放小方圖
-  static const int _maxMediumImages = 2;
-
-  /// 決定哪幾則放圖、多大
-  static Map<String, NewsImageSize> planImageSizes(List<InsuranceNewsTopic> topics, int totalTopicCount) {
-    final int imageCount = math.min(5, totalTopicCount ~/ 2);
-    final List<InsuranceNewsTopic> withImages = [];
-    for (final InsuranceNewsTopic topic in topics) {
-      if ((topic.mainImageUrl ?? '').isNotEmpty) withImages.add(topic);
-    }
-    // 報導家數多的優先（家數一樣時維持原本順序）
-    final List<InsuranceNewsTopic> ranked = List.of(withImages);
-    ranked.sort((InsuranceNewsTopic a, InsuranceNewsTopic b) => b.articles.length.compareTo(a.articles.length));
+  /// 決定哪幾則放圖：做法 A，有圖話題放寬為 160px 完整置中中圖，充實版面平衡高度！
+  /// 嚴格去重：相同圖片 URL 絕不重複出現兩次！
+  static Map<String, NewsImageSize> planImageSizes(List<InsuranceNewsTopic> topics) {
     final Map<String, NewsImageSize> plan = {};
-    for (int index = 0; index < ranked.length && index < imageCount; index++) {
-      NewsImageSize size = NewsImageSize.small;
-      if (index < _maxMediumImages) size = NewsImageSize.medium;
-      plan[ranked[index].id] = size;
+    final Set<String> usedImageUrls = {};
+
+    for (final InsuranceNewsTopic topic in topics) {
+      final String imgUrl = (topic.mainImageUrl ?? '').trim();
+      if (imgUrl.isEmpty || usedImageUrls.contains(imgUrl)) {
+        plan[topic.id] = NewsImageSize.none;
+        continue;
+      }
+      usedImageUrls.add(imgUrl);
+      plan[topic.id] = NewsImageSize.medium;
     }
     return plan;
   }
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, NewsImageSize> imagePlan = planImageSizes(topics, totalTopicCount);
+    if (topics.isEmpty) return const SizedBox.shrink();
+    // 動態欄數：2 則話題就分 2 欄（每欄 50%），徹底消除第 3 欄大片空白！
+    final int columnCount = math.min(topics.length, _columnCount).clamp(1, 3);
+    final Map<String, NewsImageSize> imagePlan = planImageSizes(topics);
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double columnWidth = (constraints.maxWidth - _columnGap * 2 * (_columnCount - 1)) / _columnCount;
-        final List<List<Widget>> columns = List.generate(_columnCount, (int index) => <Widget>[]);
-        final List<double> columnHeights = List.filled(_columnCount, 0);
-        final List<bool> lastHadImage = List.filled(_columnCount, false);
+        final double columnWidth = columnCount == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - _columnGap * 2 * (columnCount - 1)) / columnCount;
+        final List<List<Widget>> columns = List.generate(columnCount, (int index) => <Widget>[]);
+        final List<double> columnHeights = List.filled(columnCount, 0);
+        final List<bool> lastHadImage = List.filled(columnCount, false);
         final Color ruleColor = NewsPaperStyle.rule(context);
 
         for (final InsuranceNewsTopic topic in topics) {
@@ -69,12 +70,12 @@ class NewsTopicColumns extends StatelessWidget {
         }
 
         final List<Widget> rowChildren = [];
-        for (int column = 0; column < _columnCount; column++) {
+        for (int column = 0; column < columnCount; column++) {
           if (column > 0) rowChildren.add(VerticalDivider(width: 1, thickness: 0.8, color: ruleColor));
           double leftPadding = _columnGap;
           if (column == 0) leftPadding = 0;
           double rightPadding = _columnGap;
-          if (column == _columnCount - 1) rightPadding = 0;
+          if (column == columnCount - 1) rightPadding = 0;
           rowChildren.add(Expanded(
             child: Padding(
               padding: EdgeInsets.only(left: leftPadding, right: rightPadding),
@@ -115,14 +116,14 @@ class NewsTopicColumns extends StatelessWidget {
     height += (summary.length / bodyCharsPerLine).ceil() * 24 + 30;
     height += 44;
     if (topic.articles.length > 1) height += 24;
-    if (imageSize == NewsImageSize.medium) height += width * 0.75 + 26;
+    if (imageSize == NewsImageSize.medium) height += 168;
     if (imageSize == NewsImageSize.small) height += 40;
     if (imageSize == NewsImageSize.none && topic.keyNumber.isNotEmpty) height += 52;
     return height;
   }
 }
 
-/// 手機的其他話題：一欄往下讀，每則之間細線；大約每三則放一張中圖
+/// 手機的其他話題：一欄往下讀，內容與配圖與電腦版 100% 同步
 class NewsTopicSingleColumn extends StatelessWidget {
   final List<InsuranceNewsTopic> topics;
 
@@ -131,14 +132,18 @@ class NewsTopicSingleColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color ruleColor = NewsPaperStyle.rule(context);
+    final Map<String, NewsImageSize> imagePlan = NewsTopicColumns.planImageSizes(topics);
     final List<Widget> items = [];
     for (int index = 0; index < topics.length; index++) {
       if (items.isNotEmpty) {
         items.add(Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: ruleColor)));
       }
-      NewsImageSize imageSize = NewsImageSize.none;
-      if (index % 3 == 1) imageSize = NewsImageSize.medium;
-      items.add(NewsTopicStory(topic: topics[index], isCompact: true, imageSize: imageSize));
+      final NewsImageSize imageSize = imagePlan[topics[index].id] ?? NewsImageSize.none;
+      items.add(NewsTopicStory(
+        topic: topics[index],
+        isCompact: true,
+        imageSize: imageSize,
+      ));
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: items);
   }
