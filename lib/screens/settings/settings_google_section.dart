@@ -80,7 +80,7 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> with Widg
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectTo,
-        scopes: 'https://www.googleapis.com/auth/calendar',
+        scopes: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         queryParams: {
           'prompt': 'consent select_account',
           'access_type': 'offline',
@@ -178,11 +178,11 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> with Widg
     if (isOfflineMode) {
       accountDescription = '離線預覽不能連線';
     } else if (isConnected) {
-      accountDescription = '已連線';
+      accountDescription = '已連線（日曆權限就緒）';
       accountDescriptionColor = colors.ok;
     }
     Widget accountButton = FilledButton(onPressed: _connectGoogle, child: const Text('連線'));
-    if (isConnected) accountButton = OutlinedButton(onPressed: _connectGoogle, child: const Text('重新授權'));
+    if (isConnected) accountButton = OutlinedButton(onPressed: _connectGoogle, child: const Text('切換帳號'));
     if (isOfflineMode) accountButton = const OutlinedButton(onPressed: null, child: Text('連線'));
 
     String calendarDescription = '開啟後，App 的行程會自動單向推送至 Google 日曆';

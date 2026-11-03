@@ -73,6 +73,26 @@ class GoogleCalendarSyncService extends ChangeNotifier {
     }
   }
 
+  /// 登入或連線時，第一時間快取 Google OAuth Provider Token
+  Future<void> cacheProviderToken(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefProviderTokenKey, token);
+      debugPrint('🔑 [GoogleCalendarSyncService] 已快取 Google Provider Token');
+    } catch (e) {
+      debugPrint('⚠️ [GoogleCalendarSyncService] 快取 Provider Token 失敗: $e');
+    }
+  }
+
+  /// 登出時清理快取之 Google OAuth Provider Token
+  Future<void> clearProviderToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefProviderTokenKey);
+      debugPrint('🧹 [GoogleCalendarSyncService] 已清除快取 Google Provider Token');
+    } catch (_) {}
+  }
+
   /// 登入後套用帳號（user_metadata）存的同步設定，換裝置或清除快取時自動恢復
   /// 優先向伺服器要最新的帳號資料（避免讀到瀏覽器本機的舊快取）
   Future<void> applyCloudSettings() async {
@@ -243,8 +263,7 @@ class GoogleCalendarSyncService extends ChangeNotifier {
         final session = Supabase.instance.client.auth.currentSession;
         final providerToken = session?.providerToken;
         if (providerToken != null && providerToken.isNotEmpty) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_prefProviderTokenKey, providerToken);
+          await cacheProviderToken(providerToken);
           debugPrint('✅ [GoogleCalendarSyncService] 使用 Supabase Google Provider Token 連線');
           return calendar.CalendarApi(_GoogleOAuthClient(providerToken));
         }
@@ -271,7 +290,7 @@ class GoogleCalendarSyncService extends ChangeNotifier {
         }
       }
 
-      _lastErrorMessage = '尚未取得 Google 憑證（請點擊「重新授權」並允許日曆存取）';
+      _lastErrorMessage = '尚未取得 Google 憑證（請重新登入或連線並允許日曆存取）';
       debugPrint('⚠️ [GoogleCalendarSyncService] $_lastErrorMessage');
       return null;
     } catch (e) {
@@ -332,17 +351,11 @@ class GoogleCalendarSyncService extends ChangeNotifier {
     if (errorText.contains('403') ||
         errorText.contains('insufficient authentication scopes') ||
         errorText.contains('insufficientPermissions')) {
-      _lastErrorMessage = 'Google 日曆存取授權不足，請點擊「重新授權」並勾選日曆權限';
-      try {
-        final SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.remove(_prefProviderTokenKey);
-      } catch (_) {}
+      _lastErrorMessage = 'Google 日曆存取授權不足，請前往系統設定確認日曆權限';
+      await clearProviderToken();
     } else if (errorText.contains('401') || errorText.contains('invalid_token')) {
-      _lastErrorMessage = 'Google 憑證已失效，請點擊「重新授權」';
-      try {
-        final SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.remove(_prefProviderTokenKey);
-      } catch (_) {}
+      _lastErrorMessage = 'Google 憑證已失效，請點擊「切換帳號」重新授權';
+      await clearProviderToken();
     } else {
       _lastErrorMessage = '$defaultPrefix: $error';
     }
@@ -376,10 +389,7 @@ class GoogleCalendarSyncService extends ChangeNotifier {
         ..start = calendar.EventDateTime(dateTime: event.startAt.toUtc())
         ..end = calendar.EventDateTime(dateTime: event.endAt.toUtc())
         ..extendedProperties = calendar.EventExtendedProperties(
-          private: {
-            'jingxuan_event_id': event.id,
-            'insurance_helper_id': event.id,
-          },
+          private: {'jingxuan_event_id': event.id, 'insurance_helper_id': event.id},
         );
 
       calendar.Event resultEvent;
@@ -481,10 +491,7 @@ class GoogleCalendarSyncService extends ChangeNotifier {
       ..start = calendar.EventDateTime(dateTime: event.startAt.toUtc())
       ..end = calendar.EventDateTime(dateTime: event.endAt.toUtc())
       ..extendedProperties = calendar.EventExtendedProperties(
-        private: {
-          'jingxuan_event_id': event.id,
-          'insurance_helper_id': event.id,
-        },
+        private: {'jingxuan_event_id': event.id, 'insurance_helper_id': event.id},
       );
   }
 }
