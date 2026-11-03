@@ -30,7 +30,7 @@ class _GoogleOAuthClient extends http.BaseClient {
 
 /// Google 日曆單向推送服務 (Singleton)
 /// 規則：經選助手 App 為正本、Google 日曆為副本；僅單向推送到 Google，不拉取 Google 私人行程
-class GoogleCalendarSyncService {
+class GoogleCalendarSyncService extends ChangeNotifier {
   static final GoogleCalendarSyncService instance = GoogleCalendarSyncService._internal();
   GoogleCalendarSyncService._internal();
 
@@ -74,15 +74,42 @@ class GoogleCalendarSyncService {
   }
 
   /// 登入後套用帳號（user_metadata）存的同步設定，換裝置或清除快取時自動恢復
+  /// 優先向伺服器要最新的帳號資料（避免讀到瀏覽器本機的舊快取）
   Future<void> applyCloudSettings() async {
     if (isOfflineMode) return;
     try {
-      final user = Supabase.instance.client.auth.currentUser;
+      final supabase = Supabase.instance.client;
+      // 網頁剛重整時，Session 可能仍在從 LocalStorage 非同步恢復，重試等待最多 2 秒
+      User? user = supabase.auth.currentUser ?? supabase.auth.currentSession?.user;
+      for (int i = 0; i < 6 && user == null; i++) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        user = supabase.auth.currentUser ?? supabase.auth.currentSession?.user;
+      }
+
+      // 向伺服器主動要最新的帳號資料（避免讀到瀏覽器本機的舊快取）
+      // 加上 3 次重試機制，防止短時間內並發請求被速率限制或網路瞬斷
+      for (int i = 0; i < 3; i++) {
+        try {
+          final UserResponse latest = await supabase.auth.getUser();
+          if (latest.user != null) {
+            user = latest.user;
+            break;
+          }
+        } catch (e) {
+          if (i < 2) {
+            await Future.delayed(const Duration(milliseconds: 400));
+          } else {
+            debugPrint('⚠️ [GoogleCalendarSyncService] 3 次向伺服器取得最新帳號資料失敗: $e');
+          }
+        }
+      }
+
       if (user != null && user.userMetadata != null && user.userMetadata!['calendar_sync'] != null) {
         final Map<String, dynamic> cloudData = Map<String, dynamic>.from(user.userMetadata!['calendar_sync']);
         bool hasChanges = false;
         if (cloudData.containsKey('is_sync_enabled')) {
-          final bool cloudEnabled = cloudData['is_sync_enabled'] == true;
+          final dynamic val = cloudData['is_sync_enabled'];
+          final bool cloudEnabled = val == true || val == 'true' || val == 1;
           if (_isSyncEnabled != cloudEnabled) {
             _isSyncEnabled = cloudEnabled;
             hasChanges = true;
@@ -103,10 +130,9 @@ class GoogleCalendarSyncService {
           } else {
             await prefs.remove(_prefCalendarIdKey);
           }
+          notifyListeners();
+          debugPrint('🔄 [GoogleCalendarSyncService] 已套用雲端最新同步開關: $_isSyncEnabled');
         }
-      } else if (user != null && (_isSyncEnabled || _secondaryCalendarId != null)) {
-        // 若雲端帳號尚無紀錄，但本機已開啟同步，自動將本機設定同步至帳號
-        await _syncToCloud();
       }
     } catch (e) {
       if (e is! AssertionError) {
@@ -137,21 +163,24 @@ class GoogleCalendarSyncService {
     if (isOfflineMode) return;
     try {
       final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user != null) {
-        await supabase.auth.updateUser(
-          UserAttributes(
-            data: {
-              ...?user.userMetadata,
-              'calendar_sync': {
-                'is_sync_enabled': _isSyncEnabled,
-                'secondary_calendar_id': _secondaryCalendarId,
-                'updated_at': DateTime.now().toIso8601String(),
-              },
-            },
-          ),
-        );
+      final user = supabase.auth.currentUser ?? supabase.auth.currentSession?.user;
+      if (user == null) {
+        debugPrint('⚠️ [GoogleCalendarSyncService] 尚未登入帳號，無法同步設定至雲端');
+        return;
       }
+
+      await supabase.auth.updateUser(
+        UserAttributes(
+          data: {
+            'calendar_sync': {
+              'is_sync_enabled': _isSyncEnabled,
+              'secondary_calendar_id': _secondaryCalendarId,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+          },
+        ),
+      );
+      debugPrint('✅ [GoogleCalendarSyncService] 已成功更新雲端同步開關: $_isSyncEnabled');
     } catch (e) {
       if (e is! AssertionError) {
         debugPrint('⚠️ [GoogleCalendarSyncService] 同步日曆設定至帳號失敗: $e');
@@ -162,7 +191,33 @@ class GoogleCalendarSyncService {
   /// 設定是否啟用 Google 日曆同步
   Future<void> setSyncEnabled(bool enabled) async {
     _isSyncEnabled = enabled;
+    notifyListeners();
     await _saveToLocalAndCloud();
+  }
+
+  /// 關閉同步時，刪除 Google 日曆上的專屬次日曆「經選助手」（連同其下所有行程副本）
+  /// 達成「不同步就要都不見」的乾淨隔離
+  Future<bool> deleteSecondaryCalendar() async {
+    final String? calId = _secondaryCalendarId;
+    if (calId == null || calId.isEmpty) {
+      return true;
+    }
+
+    final calendar.CalendarApi? api = await _getCalendarApi();
+    if (api == null) return false;
+
+    try {
+      await api.calendars.delete(calId);
+      debugPrint('✅ [GoogleCalendarSyncService] 已從 Google 日曆刪除專屬次日曆: $calId');
+      _secondaryCalendarId = null;
+      await _saveToLocalAndCloud();
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ [GoogleCalendarSyncService] 刪除 Google 次日曆失敗: $e');
+      _secondaryCalendarId = null;
+      await _saveToLocalAndCloud();
+      return false;
+    }
   }
 
   /// 組合行程說明文字（自動附上經選助手警語）
@@ -265,9 +320,31 @@ class GoogleCalendarSyncService {
       }
       return createdCal.id;
     } catch (e) {
-      _lastErrorMessage = 'Google 日曆建立/搜尋失敗: $e';
+      await _handleApiError(e, 'Google 日曆建立/搜尋失敗');
       debugPrint('⚠️ [GoogleCalendarSyncService] 取得/建立「經選助手」次日曆失敗: $e');
       return null;
+    }
+  }
+
+  /// 集中處理 Google API 錯誤，並在權限不足或 Token 失效時自動清理本地快取
+  Future<void> _handleApiError(Object error, String defaultPrefix) async {
+    final String errorText = error.toString();
+    if (errorText.contains('403') ||
+        errorText.contains('insufficient authentication scopes') ||
+        errorText.contains('insufficientPermissions')) {
+      _lastErrorMessage = 'Google 日曆存取授權不足，請點擊「重新授權」並勾選日曆權限';
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_prefProviderTokenKey);
+      } catch (_) {}
+    } else if (errorText.contains('401') || errorText.contains('invalid_token')) {
+      _lastErrorMessage = 'Google 憑證已失效，請點擊「重新授權」';
+      try {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_prefProviderTokenKey);
+      } catch (_) {}
+    } else {
+      _lastErrorMessage = '$defaultPrefix: $error';
     }
   }
 
@@ -327,7 +404,7 @@ class GoogleCalendarSyncService {
         lastSyncedAt: DateTime.now(),
       );
     } catch (e) {
-      _lastErrorMessage = '推送行程失敗: $e';
+      await _handleApiError(e, '推送行程失敗');
       debugPrint('⚠️ [GoogleCalendarSyncService] 推送行程至 Google 日曆失敗: $e');
       return event.copyWith(syncStatus: 'pending_push');
     }
