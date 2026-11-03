@@ -118,7 +118,15 @@ class AuthStatusService extends ChangeNotifier {
       await AppSettings.instance.clearForSignOut();
       // 清掉上一位的自訂標籤顏色
       TagCategorizer.clearCustomColors();
+      // 清除快取的 Google OAuth Provider Token
+      await GoogleCalendarSyncService.instance.clearProviderToken();
       return;
+    }
+
+    // 登入或 Session 恢復時，若包含 Google Provider Token 則第一時間快取，避免跳轉或重整後遺失
+    final String? providerToken = session.providerToken;
+    if (providerToken != null && providerToken.isNotEmpty) {
+      await GoogleCalendarSyncService.instance.cacheProviderToken(providerToken);
     }
 
     OfflineDataStore.ensureOwner(session.user.id);
