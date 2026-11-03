@@ -19,13 +19,34 @@ class SettingsGoogleSection extends StatefulWidget {
   State<SettingsGoogleSection> createState() => _SettingsGoogleSectionState();
 }
 
-class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
+class _SettingsGoogleSectionState extends State<SettingsGoogleSection> with WidgetsBindingObserver {
   bool _isResyncing = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    GoogleCalendarSyncService.instance.addListener(_onSyncServiceChanged);
     _loadSyncSettings();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    GoogleCalendarSyncService.instance.removeListener(_onSyncServiceChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 當使用者切回瀏覽器分頁或手機喚醒時，自動向雲端重新拉取最新的日曆同步開關狀態
+    if (state == AppLifecycleState.resumed) {
+      _loadSyncSettings();
+    }
+  }
+
+  void _onSyncServiceChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadSyncSettings() async {
@@ -72,13 +93,42 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> {
   }
 
   Future<void> _toggleCalendarSync(bool isEnabled) async {
-    await GoogleCalendarSyncService.instance.setSyncEnabled(isEnabled);
-    if (!mounted) return;
-    setState(() {});
-    if (isEnabled) {
-      CustomToast.show(context, '已開啟：行程會單向推送至 Google 日曆', ToastType.success);
+    if (!isEnabled) {
+      // 關閉同步：開關設為 false，並刪除 Google 日曆上的「經選助手」日曆（不同步就要都不見）
+      try {
+        await GoogleCalendarSyncService.instance.setSyncEnabled(false);
+        await GoogleCalendarSyncService.instance.deleteSecondaryCalendar();
+      } catch (e) {
+        if (!mounted) return;
+        CustomToast.show(context, '關閉同步失敗：$e', ToastType.error);
+        setState(() {});
+        return;
+      }
+      if (!mounted) return;
+      setState(() {});
+      CustomToast.show(context, '已關閉同步，並已從 Google 日曆移除「經選助手」行程', ToastType.warning);
     } else {
-      CustomToast.show(context, '已關閉 Google 日曆同步', ToastType.warning);
+      // 開啟同步：開關設為 true，並自動將現有未刪除行程補推上去（同步才回來）
+      try {
+        await GoogleCalendarSyncService.instance.setSyncEnabled(true);
+      } catch (e) {
+        if (!mounted) return;
+        CustomToast.show(context, '開啟同步失敗，無法更新帳號設定：$e', ToastType.error);
+        setState(() {});
+        return;
+      }
+      if (!mounted) return;
+      setState(() {});
+      CustomToast.show(context, '已開啟同步，正在建立日曆並推送行程...', ToastType.success);
+      try {
+        final events = await ScheduleService.instance.fetchEvents();
+        if (events.isNotEmpty) {
+          final count = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
+          if (mounted && count > 0) {
+            CustomToast.show(context, '已同步 $count 筆行程至「經選助手」日曆', ToastType.success);
+          }
+        }
+      } catch (_) {}
     }
   }
 

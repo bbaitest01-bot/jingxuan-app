@@ -63,12 +63,15 @@ class LoginService {
   }
 
   /// Google 登入：會離開網站到 Google，完成後回到 [authRedirectUrl]
+  /// 包含 Google 日曆權限（scopes）與 offline 離線存取，並加上 consent 確保舊使用者也能拿到日曆授權
   Future<void> signInWithGoogle() async {
     await _auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: authRedirectUrl(),
+      scopes: 'https://www.googleapis.com/auth/calendar',
       queryParams: {
-        'prompt': 'select_account',
+        'prompt': 'consent select_account',
+        'access_type': 'offline',
       },
     );
   }

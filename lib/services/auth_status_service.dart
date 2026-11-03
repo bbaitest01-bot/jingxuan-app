@@ -96,6 +96,12 @@ class AuthStatusService extends ChangeNotifier {
     if (authState.event == AuthChangeEvent.passwordRecovery) {
       _isPasswordRecovery = true;
     }
+    // Token 刷新或帳號資料更新時，主動重新讀取雲端日曆同步設定
+    // 讓另一台裝置切換開關後，這台裝置在 Token 刷新（每小時自動觸發）時能同步最新狀態
+    if (authState.event == AuthChangeEvent.tokenRefreshed ||
+        authState.event == AuthChangeEvent.userUpdated) {
+      await GoogleCalendarSyncService.instance.applyCloudSettings();
+    }
     await _applySession(authState.session);
     notifyListeners();
   }
@@ -119,14 +125,15 @@ class AuthStatusService extends ChangeNotifier {
     if (_profileUserId != session.user.id) {
       CustomerService.instance.clearCache();
       await _loadProfile(session.user.id);
-      // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言、日曆同步）
+      // 剛登入或換人：套用這個帳號存的設定（主題色、深淺模式、檢視模式、側邊欄、語言）
       await AppSettings.instance.applyCloudSettings();
-      await GoogleCalendarSyncService.instance.applyCloudSettings();
       // 讀回這個帳號的標籤，客戶卡片、行程上的自訂標籤顏色才會一致（問題 S13）；
       // 第一次使用時也會在這裡把瀏覽器本機的標籤搬進資料庫
       TagCategorizer.clearCustomColors();
       await TagManagerService.getTags();
     }
+    // 每次確認 Session（包含網頁重整、換裝置、換帳號），皆重新套用雲端日曆同步設定，確保跨裝置開關狀態一致
+    await GoogleCalendarSyncService.instance.applyCloudSettings();
   }
 
   Future<void> _loadProfile(String userId) async {
