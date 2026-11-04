@@ -6,9 +6,10 @@ import '../services/insurance_product_service.dart';
 import '../widgets/benefit_item_comparison.dart';
 import '../widgets/benefit_plan_comparison.dart';
 import '../widgets/benefit_trial_inputs.dart';
+import '../widgets/comparison_column_parts.dart';
+import '../widgets/comparison_scroll_bar.dart';
 import '../widgets/comparison_table_rows.dart';
 import '../widgets/custom_toast.dart';
-import '../widgets/enroll_product_dialog.dart';
 import '../widgets/insurance_product_card.dart';
 import '../theme/app_theme.dart';
 
@@ -48,16 +49,16 @@ class PolicyComparisonScreen extends StatefulWidget {
 
 class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   static final _ComparisonSection _basicSection = _ComparisonSection('基本資料', [
-      _ComparisonRow('保險公司', (product) => product.companyName),
-      _ComparisonRow('商品代碼', (product) => product.displayCode),
-      _ComparisonRow('險種', (product) => product.insuranceTypeLabel),
-      _ComparisonRow('主約／附約', (product) => product.productKindLabel),
-      _ComparisonRow('官網分類', (product) => product.sourceCategory),
-      _ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
-      _ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
-      _ComparisonRow('資料來源', productSourceLabel, onTapOf: openProductSource),
-      _ComparisonRow('官網最後確認', (product) => formatApprovalDate(product.lastSeenAt)),
-    ]);
+    _ComparisonRow('保險公司', (product) => product.companyName),
+    _ComparisonRow('商品代碼', (product) => product.displayCode),
+    _ComparisonRow('險種', (product) => product.insuranceTypeLabel),
+    _ComparisonRow('主約／附約', (product) => product.productKindLabel),
+    _ComparisonRow('官網分類', (product) => product.sourceCategory),
+    _ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
+    _ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
+    _ComparisonRow('資料來源', productSourceLabel, onTapOf: openProductSource),
+    _ComparisonRow('官網最後確認', (product) => formatApprovalDate(product.lastSeenAt)),
+  ]);
 
   late final List<InsuranceProduct> _products;
   bool _onlyShowDifferences = false;
@@ -68,6 +69,8 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   Map<String, List<InsuranceBenefitItem>> _itemsByProduct = {};
   // 每款商品的試算數字（業務員填的保額、年繳保費…），只在這次比較用
   final Map<String, BenefitTrialInput> _trialInputByProduct = {};
+  // 比較表左右捲動的控制器：表格和上方滑軌共用，任一邊移動另一邊跟著動
+  final ScrollController _columnScrollController = ScrollController();
 
   @override
   void initState() {
@@ -75,6 +78,12 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     _products = List.of(widget.initialProducts);
     _loadBenefitPlans();
     _loadBenefitItems();
+  }
+
+  @override
+  void dispose() {
+    _columnScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBenefitItems() async {
@@ -273,26 +282,38 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
           const SizedBox(width: 12),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: productColumns,
-              ),
+      // 上方固定一列「第幾款／滑軌／左右箭頭」，商品放不下時才出現（手機不顯示）
+      body: ComparisonScrollArea(
+        controller: _columnScrollController,
+        columnCount: _products.length,
+        columnStep: _ProductComparisonColumn.columnWidth + _ProductComparisonColumn.columnGap,
+        child: _buildComparisonBody(productColumns),
+      ),
+    );
+  }
+
+  Widget _buildComparisonBody(List<Widget> productColumns) {
+    final AppColors colors = context.appColors;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            controller: _columnScrollController,
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: productColumns,
             ),
-            const SizedBox(height: 12),
-            Text(benefitAmountNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
-            const SizedBox(height: 4),
-            Text(benefitItemNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
-            const SizedBox(height: 4),
-            Text(productDataSourceNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          Text(benefitAmountNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+          const SizedBox(height: 4),
+          Text(benefitItemNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+          const SizedBox(height: 4),
+          Text(productDataSourceNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
+        ],
       ),
     );
   }
@@ -300,6 +321,10 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
 /// 比較表中的一款商品（一直欄）
 class _ProductComparisonColumn extends StatelessWidget {
+  /// 一欄的寬度與欄跟欄的間距（上方滑軌的箭頭一次移「欄寬＋間距」）
+  static const double columnWidth = 295;
+  static const double columnGap = 16;
+
   final InsuranceProduct product;
   final List<_ComparisonSection> sections;
   final List<InsuranceBenefitPlan> plans;
@@ -345,8 +370,8 @@ class _ProductComparisonColumn extends StatelessWidget {
     }
 
     return Container(
-      width: 295,
-      margin: const EdgeInsets.only(right: 16),
+      width: columnWidth,
+      margin: const EdgeInsets.only(right: columnGap),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadius.card),
@@ -356,7 +381,7 @@ class _ProductComparisonColumn extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ColumnHeader(product: product, onRemove: onRemove, canRemove: canRemove),
+          ComparisonColumnHeader(product: product, onRemove: onRemove, canRemove: canRemove),
           if (plans.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
@@ -371,113 +396,7 @@ class _ProductComparisonColumn extends StatelessWidget {
             ),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
-          _ColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
-        ],
-      ),
-    );
-  }
-}
-
-class _ColumnHeader extends StatelessWidget {
-  final InsuranceProduct product;
-  final VoidCallback onRemove;
-  final bool canRemove;
-
-  const _ColumnHeader({required this.product, required this.onRemove, required this.canRemove});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      color: colors.accSoft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ProductInfoChip(text: product.displayCode, isMono: true),
-              const Spacer(),
-              if (canRemove)
-                IconButton(
-                  icon: Icon(Icons.close_rounded, size: 18, color: colors.ink3),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: onRemove,
-                  tooltip: '移除此商品',
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(product.companyName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.acc)),
-          const SizedBox(height: 2),
-          Text(
-            product.productName,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 下方三個按鈕：單據試算（建置中）、＋加到客戶、官方條款
-class _ColumnActions extends StatelessWidget {
-  final InsuranceProduct product;
-  final VoidCallback onCalculatorPressed;
-
-  const _ColumnActions({required this.product, required this.onCalculatorPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final RoundedRectangleBorder buttonShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.control),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          OutlinedButton.icon(
-            onPressed: onCalculatorPressed,
-            icon: const Icon(Icons.health_and_safety_outlined, size: 15),
-            label: const Text('全真醫療單據試算（建置中）', style: TextStyle(fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.ink3,
-              side: BorderSide(color: colors.line),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: buttonShape,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton.icon(
-            onPressed: () => showEnrollProductDialog(context, product),
-            // 圖示是「＋」，按鈕整體讀起來就是「＋ 加到客戶」（D8）
-            icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('加到客戶', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.acc,
-              foregroundColor: colors.onAcc,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: buttonShape,
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => openOfficialClause(context, product),
-            icon: const Icon(Icons.picture_as_pdf_rounded, size: 15),
-            label: const Text('官方條款 PDF', style: TextStyle(fontSize: 11)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.ink,
-              side: BorderSide(color: colors.line),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              shape: buttonShape,
-            ),
-          ),
+          ComparisonColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
         ],
       ),
     );
