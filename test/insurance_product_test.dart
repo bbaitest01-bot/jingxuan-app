@@ -95,8 +95,7 @@ void main() {
         'category': '醫療',
         'benefits_json': <String, dynamic>{},
       });
-      final CustomerBenefitSummary summary =
-          CustomerPolicyService().calculateCustomerBenefitSummary([withoutLimit]);
+      final CustomerBenefitSummary summary = CustomerPolicyService().calculateCustomerBenefitSummary([withoutLimit]);
       expect(summary.countedPolicyCount, 0);
       expect(summary.policiesWithoutLimitCount, 1);
       expect(summary.totalRoomDaily, 0);
@@ -132,12 +131,13 @@ void main() {
   });
 
   group('保單比較畫面', () {
-    testWidgets('比較的商品都沒有限額表時不顯示實支實付區塊，下方說明不是保費；試算按鈕按下只提示建置中', (WidgetTester tester) async {
+    testWidgets('比較的商品都沒有限額表時不顯示實支實付區塊，下方說明不是保費；沒有建置中的試算按鈕', (WidgetTester tester) async {
       await pumpScreen(
         tester,
         PolicyComparisonScreen(initialProducts: [
           buildProduct(),
-          buildProduct(id: 'p2', companyName: '富邦人壽', productCode: 'FPF', productName: '富邦人壽測試壽險', insuranceType: 'life'),
+          buildProduct(
+              id: 'p2', companyName: '富邦人壽', productCode: 'FPF', productName: '富邦人壽測試壽險', insuranceType: 'life'),
         ]),
       );
 
@@ -150,12 +150,9 @@ void main() {
       expect(find.textContaining('不是保費'), findsOneWidget);
       expect(find.text('國壽字第1110090697號'), findsNWidgets(2));
 
-      await tester.tap(find.text('全真醫療單據試算（建置中）').first);
-      // 提示訊息在下一幀才加到畫面上
-      await tester.pump();
-      await tester.pump();
-      expect(find.text('試算需要理賠限額資料，目前建置中'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
+      // 舊設計的單據試算、組合包精算按鈕已拿掉（D26）
+      expect(find.textContaining('全真醫療單據試算'), findsNothing);
+      expect(find.textContaining('組合包聯合精算'), findsNothing);
     });
 
     testWidgets('只有一款時是「商品資料」頁：沒有只看差異、組合精算、移除按鈕', (WidgetTester tester) async {
@@ -174,7 +171,8 @@ void main() {
         tester,
         PolicyComparisonScreen(initialProducts: [
           buildProduct(),
-          buildProduct(id: 'p2', companyName: '富邦人壽', productCode: 'FPF', productName: '富邦人壽測試壽險', insuranceType: 'life'),
+          buildProduct(
+              id: 'p2', companyName: '富邦人壽', productCode: 'FPF', productName: '富邦人壽測試壽險', insuranceType: 'life'),
         ]),
       );
 
