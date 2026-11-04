@@ -37,7 +37,7 @@ class _ComparisonSection {
 ///
 /// 理賠限額（實支實付）讀 insurance_product_benefit_plans（D14，全景地圖 4-K），每欄可切換計畫；
 /// 定額型商品的給付項目讀 insurance_product_benefit_items（第 5 階段 D 第 2 層），點格子看條款原文；
-/// 「全真醫療單據試算」「組合包聯合精算」按鈕保留但先停用，不用假數字計算（全景地圖 4-H ⑪）。
+/// 舊設計的「全真醫療單據試算」「組合包聯合精算」一直停用，2026-11-04 拿掉（和保單健檢重疊，D26）。
 class PolicyComparisonScreen extends StatefulWidget {
   final List<InsuranceProduct> initialProducts;
 
@@ -186,10 +186,6 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   }
 
   /// 試算功能需要理賠限額資料，第二層比價資料做好前先停用
-  void _showCalculatorNotReady() {
-    CustomToast.show(context, '試算需要理賠限額資料，目前建置中', ToastType.warning);
-  }
-
   /// 「只看差異」打開時，所有商品值都一樣的列就不顯示
   bool _isRowVisible(_ComparisonRow row) {
     // 只有一款商品時沒有差異可比，全部顯示
@@ -237,7 +233,6 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
         selectedPlanIndex: _selectedPlanIndex[product.id] ?? 0,
         onPlanChanged: (int planIndex) => setState(() => _selectedPlanIndex[product.id] = planIndex),
         onRemove: () => _removeProduct(index),
-        onCalculatorPressed: _showCalculatorNotReady,
         canRemove: _products.length > 1,
       ));
     }
@@ -258,20 +253,9 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
           title,
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.ink),
         ),
+        // 2026-11-04 沛沛決定拿掉「組合包聯合精算」（和保單健檢重疊，D26），上方只留「只看差異」
         actions: [
-          if (isComparing)
-            OutlinedButton.icon(
-              onPressed: _showCalculatorNotReady,
-              icon: const Icon(Icons.waterfall_chart_rounded, size: 15),
-              label: const Text('組合包聯合精算（建置中）', style: TextStyle(fontSize: 12)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors.ink3,
-                side: BorderSide(color: colors.line),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
-              ),
-            ),
           if (isComparing) ...[
-            const SizedBox(width: 8),
             Text('只看差異', style: TextStyle(fontSize: 12, color: colors.ink, fontWeight: FontWeight.bold)),
             Switch(
               value: _onlyShowDifferences,
@@ -333,7 +317,6 @@ class _ProductComparisonColumn extends StatelessWidget {
   final int selectedPlanIndex;
   final ValueChanged<int> onPlanChanged;
   final VoidCallback onRemove;
-  final VoidCallback onCalculatorPressed;
   final bool canRemove;
 
   const _ProductComparisonColumn({
@@ -345,7 +328,6 @@ class _ProductComparisonColumn extends StatelessWidget {
     required this.selectedPlanIndex,
     required this.onPlanChanged,
     required this.onRemove,
-    required this.onCalculatorPressed,
     required this.canRemove,
   });
 
@@ -396,7 +378,7 @@ class _ProductComparisonColumn extends StatelessWidget {
             ),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),
-          ComparisonColumnActions(product: product, onCalculatorPressed: onCalculatorPressed),
+          ComparisonColumnActions(product: product),
         ],
       ),
     );

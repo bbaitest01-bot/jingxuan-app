@@ -50,12 +50,12 @@ class ComparisonColumnHeader extends StatelessWidget {
   }
 }
 
-/// 下方三個按鈕：單據試算（建置中）、＋加到客戶、官方條款
+/// 下方兩個按鈕：＋加到客戶、官方條款
+/// （「全真醫療單據試算」2026-11-04 拿掉：一直停用、和保單健檢重疊，D26）
 class ComparisonColumnActions extends StatelessWidget {
   final InsuranceProduct product;
-  final VoidCallback onCalculatorPressed;
 
-  const ComparisonColumnActions({super.key, required this.product, required this.onCalculatorPressed});
+  const ComparisonColumnActions({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {
@@ -69,18 +69,6 @@ class ComparisonColumnActions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          OutlinedButton.icon(
-            onPressed: onCalculatorPressed,
-            icon: const Icon(Icons.health_and_safety_outlined, size: 15),
-            label: const Text('全真醫療單據試算（建置中）', style: TextStyle(fontSize: 12)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.ink3,
-              side: BorderSide(color: colors.line),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              shape: buttonShape,
-            ),
-          ),
-          const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () => showEnrollProductDialog(context, product),
             // 圖示是「＋」，按鈕整體讀起來就是「＋ 加到客戶」（D8）
