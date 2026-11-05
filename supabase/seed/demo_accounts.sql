@@ -1,13 +1,24 @@
 -- ============================================================================
 -- 示範帳號假資料（2026-10-30，給保險業主管試用與新手教學）
 --
--- 用途：demo1、demo2 兩個示範帳號放一模一樣的假資料，兩位主管各用一個，互不影響。
--- 重置：這一份可以重複執行。每次執行都會「先清空這兩個帳號的資料，再放回原本的假資料」；
+-- 用途：示範帳號放一模一樣的假資料，每個帳號互不影響。
+--       demo1、demo2：兩位主管試用；jingxuan.helper@gmail.com：口試 demo（2026-11-05 加，
+--       要用真的 Google 帳號才能示範 Google 日曆同步與每日提醒信）。
+-- 重置：這一份可以重複執行。每次執行都會「先清空帳號的資料，再放回原本的假資料」；
 --       日期以執行當天為準（例：行程永遠是「今天」「明天」），所以重置後畫面是新的。
---       只想重置其中一個帳號：把下面 demo_emails 裡另一個刪掉再執行。
--- 安全：只處理 @jingxuan.test 結尾的帳號；名字、電話、信箱全部虛構（0900-000-xxx、@example.com）。
--- 前提：先在 Supabase → Authentication → Users 建好 demo1@jingxuan.test、demo2@jingxuan.test。
+--       要重置哪些帳號，就在下面 demo_emails 只留那些（預設只重置口試 demo 帳號，不動主管的帳號）。
+-- 安全：只處理 @jingxuan.test 結尾的帳號，以及 allowed_real_emails 裡列出的帳號；
+--       名字、電話、信箱全部虛構（0900-000-xxx、@example.com）。
+-- 前提：帳號要先存在（demo1／demo2 在 Supabase → Authentication → Users 建立；
+--       jingxuan.helper@gmail.com 先用 Google 登入 App 一次）。
 -- 執行：Supabase SQL Editor 整份貼上 → Run；最後會列出每個帳號的筆數。
+-- 名字：@jingxuan.test 的帳號重置成「林示範」；allowed_real_emails 的帳號保留在 App 自己改的名字。
+-- Google 日曆：假資料是直接寫進資料庫，不會自動出現在 Google 日曆；
+--       執行完要用該帳號登入 App → 系統設定 → Google 連線 → 打開「行程放到 Google 日曆」
+--       （打開時會自動把現有行程推上去；已經打開的話按「重新同步」）。
+--       重複執行會讓 Google 日曆出現重複的行程：再執行前，先在 App 把「行程放到 Google 日曆」關掉
+--       （App 會刪掉 Google 上的「經選助手」日曆，只刪這個日曆，不動私人主日曆），執行完再打開。
+--       不要直接在 Google 日曆網頁刪「經選助手」日曆：App 還記著舊日曆，之後同步會失敗。
 -- ============================================================================
 
 CREATE TEMP TABLE IF NOT EXISTS demo_customer_ids (customer_name TEXT PRIMARY KEY, id UUID NOT NULL);
@@ -15,7 +26,10 @@ CREATE TEMP TABLE IF NOT EXISTS demo_record_ids (title TEXT PRIMARY KEY, id UUID
 
 DO $$
 DECLARE
-  demo_emails TEXT[] := ARRAY['demo1@jingxuan.test', 'demo2@jingxuan.test'];
+  -- 這次要重置的帳號；要重置主管的帳號，改成 ARRAY['demo1@jingxuan.test', 'demo2@jingxuan.test']
+  demo_emails TEXT[] := ARRAY['jingxuan.helper@gmail.com'];
+  -- 不是 @jingxuan.test、但確定可以清空的真實帳號（口試 demo 用的專案 Gmail）
+  allowed_real_emails TEXT[] := ARRAY['jingxuan.helper@gmail.com'];
   demo_email TEXT;
   demo_user_id UUID;
   today_local TIMESTAMP := date_trunc('day', now() AT TIME ZONE 'Asia/Taipei');
@@ -30,8 +44,8 @@ DECLARE
 BEGIN
   FOREACH demo_email IN ARRAY demo_emails LOOP
     -- 只准處理示範帳號，避免誤刪真的業務員資料
-    IF demo_email NOT LIKE '%@jingxuan.test' THEN
-      RAISE EXCEPTION '只能處理 @jingxuan.test 的示範帳號：%', demo_email;
+    IF demo_email NOT LIKE '%@jingxuan.test' AND NOT (demo_email = ANY (allowed_real_emails)) THEN
+      RAISE EXCEPTION '只能處理 @jingxuan.test 或 allowed_real_emails 裡的示範帳號：%', demo_email;
     END IF;
     SELECT id INTO demo_user_id FROM auth.users WHERE email = demo_email;
     IF demo_user_id IS NULL THEN
@@ -64,7 +78,9 @@ BEGIN
 
     -- 2. 業務員本人（個人帳號、名片、大頭貼）；權限一律是一般業務員
     UPDATE public.profiles SET
-      full_name = '林示範',
+      -- 名字：主管的 demo1、demo2 重置成「林示範」；不是 @jingxuan.test 的真實帳號（口試 demo）
+      -- 保留自己在 App 改的名字，重置不會蓋掉（2026-11-05）
+      full_name = CASE WHEN demo_email LIKE '%@jingxuan.test' THEN '林示範' ELSE full_name END,
       avatar_url = NULL,
       qr_code_url = NULL,
       card_theme = 'classic:0',
@@ -213,16 +229,20 @@ BEGIN
     JOIN public.insurance_products p ON p.product_name = v.product_name;
 
     -- 7. 保單健檢目標（王大明壽險有缺口、實支夠；陳醫師重大疾病有缺口）
+    --    王美華＝口試 demo 客戶：富邦佳實在計劃2 是病房 2,000／住院醫療 20 萬，
+    --    目標 3,000／50 萬 → 健檢看到實支不夠，再接保單比價（2026-11-05）
     INSERT INTO public.customer_coverage_targets (customer_id, category, target_amount)
     SELECT c.id, v.category, v.target_amount
     FROM (VALUES
       ('王大明', 'life', 5000000), ('王大明', 'accident', 1000000), ('王大明', 'reimbursement_hospital', 200000),
-      ('王美華', 'life', 2000000),
+      ('王美華', 'life', 2000000), ('王美華', 'reimbursement_room', 3000), ('王美華', 'reimbursement_hospital', 500000),
       ('陳志豪', 'critical_illness', 3000000), ('陳志豪', 'life', 5000000)
     ) AS v(customer_name, category, target_amount)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
-    -- 8. 行程（以今天為準：今天 3 個、這週 4 個、過去 2 個已完成）
+    -- 8. 行程（以今天為準：今天 4 個、這週 4 個、過去 2 個已完成）
+    --    今天 13:00 王美華＝口試 demo 的客戶（口試約 14:00）：demo 時這個行程已經開始，
+    --    會出現在專案拜訪「還沒記錄結果」，現場按「記錄結果」示範（2026-11-05 改）
     INSERT INTO public.schedule_events (profile_id, customer_id, title, start_at, end_at, location, event_type, tag, is_completed)
     SELECT demo_user_id, c.id, v.title,
            (today_local + make_interval(days => v.day_offset, mins => v.start_minute)) AT TIME ZONE 'Asia/Taipei',
@@ -231,6 +251,7 @@ BEGIN
     FROM (VALUES
       (NULL::text, '團隊晨會',                   0, 540,  60,  '通訊處會議室',        'personal', '內勤', false),
       ('林佳穎',   '林佳穎 醫療險需求訪談',       0, 630,  60,  '信義區示範咖啡廳',    'customer_visit', '首談', false),
+      ('王美華',   '王美華 實支實付比較',         0, 780,  60,  '王美華家（板橋）',    'customer_visit', '跟進', false),
       ('許文彬',   '許董 員工團保與傳承規劃',     0, 870,  90,  '許董公司（內湖）',    'meeting',  '規劃', false),
       ('王大明',   '王大明 保單送件',             1, 600,  30,  '台北分公司',          'follow_up', '送件', false),
       ('吳建宏',   '吳建宏 生日關懷',             2, 570,  60,  NULL,                 'follow_up', '關懷', false),
@@ -279,6 +300,17 @@ BEGIN
     ) AS v(project_id, customer_name, days_ago, result, note)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
+    -- 9b. 已經拜訪過的行程（蔡宜君、楊志明）接上拜訪結果，才不會在「還沒記錄結果」顯示過期未記錄
+    --     （demo 時那一區只留今天的林佳穎、王美華；2026-11-05）
+    UPDATE public.visit_results vr
+    SET schedule_event_id = s.id
+    FROM public.schedule_events s
+    WHERE vr.profile_id = demo_user_id
+      AND vr.project_id = daily_project_id
+      AND s.profile_id = demo_user_id
+      AND s.customer_id = vr.customer_id
+      AND s.is_completed;
+
     -- 10. 拜訪紀錄（5 篇已整理：原始轉錄有辨識錯字，整理後只修錯字與標點；1 篇還沒整理）
     WITH inserted AS (
       INSERT INTO public.visit_records (profile_id, customer_id, title, raw_transcript, organized_content, status, created_at, updated_at)
@@ -310,18 +342,41 @@ BEGIN
     )
     INSERT INTO demo_record_ids (title, id) SELECT title, id FROM inserted;
 
-    -- 11. 通知（拜訪紀錄整理完成、行程提醒）
+    -- 10b. 口試 demo：王美華今天 13:00 拜訪完、回程在車上錄的紀錄（時間寫今天 13:50，已整理好）
+    --      內容接 demo 的保單比價，最後提到媽媽曾美玲 → 接人脈拓撲（2026-11-05）
+    WITH inserted AS (
+      INSERT INTO public.visit_records (profile_id, customer_id, title, raw_transcript, organized_content, status, created_at, updated_at)
+      SELECT demo_user_id, c.id, '王美華 實支實付比較',
+             '今天跟王小姐比較了三家的時支實付 他現在是富邦計劃二 住院醫療只有二十萬 他擔心以後用到自費的醫材會不夠 看了國泰富邦南山各一款 他比較想要終身型的 覺得富邦實在滿益比較適合 預算一個月兩千左右 請我下次帶建議書過去 另外他說媽媽也想了解長照 可以約時間',
+             '今天跟王小姐比較了三家的實支實付。她現在是富邦計劃二，住院醫療只有二十萬，她擔心以後用到自費的醫材會不夠。看了國泰、富邦、南山各一款，她比較想要終身型的，覺得富邦實在滿溢比較適合，預算一個月兩千左右，請我下次帶建議書過去。另外她說媽媽也想了解長照，可以約時間。',
+             'done',
+             (today_local + interval '13 hours 50 minutes') AT TIME ZONE 'Asia/Taipei',
+             (today_local + interval '13 hours 52 minutes') AT TIME ZONE 'Asia/Taipei'
+      FROM demo_customer_ids c
+      WHERE c.customer_name = '王美華'
+      RETURNING id, title
+    )
+    INSERT INTO demo_record_ids (title, id) SELECT title, id FROM inserted;
+
+    -- 11. 通知（只有拜訪紀錄整理完成；App 還沒有行程提醒通知）
     INSERT INTO public.notifications (profile_id, type, title, content, link_path, target_visit_record_id, is_read, created_at)
     SELECT demo_user_id, v.type, v.title, v.content,
            CASE WHEN r.id IS NULL THEN v.link_path ELSE '/visit-records/' || r.id::text END,
            r.id, v.is_read, now() - make_interval(hours => v.hours_ago)
     FROM (VALUES
       ('visit_record_ready', '拜訪紀錄整理完成', '「蔡宜君 實支實付說明」已整理好，錯字與標點已修正。', '蔡宜君 實支實付說明', NULL, false, 20),
-      ('visit_record_ready', '拜訪紀錄整理完成', '「陳醫師 重大疾病規劃」已整理好，錯字與標點已修正。', '陳醫師 重大疾病規劃', NULL, true, 190),
-      ('schedule_reminder',  '今天有 3 個行程',  '10:30 林佳穎 醫療險需求訪談、14:30 許董 員工團保與傳承規劃…', NULL, '/schedule', false, 2),
-      ('schedule_reminder',  '明天：王大明 保單送件', '別忘了帶要保書與身分證影本。', NULL, '/schedule', false, 1)
+      ('visit_record_ready', '拜訪紀錄整理完成', '「陳醫師 重大疾病規劃」已整理好，錯字與標點已修正。', '陳醫師 重大疾病規劃', NULL, true, 190)
+      -- 2026-11-05 拿掉兩則「行程提醒」通知：App 目前還沒有行程提醒通知，只有拜訪紀錄會出現在鈴鐺
     ) AS v(type, title, content, record_title, link_path, is_read, hours_ago)
     LEFT JOIN demo_record_ids r ON r.title = v.record_title;
+
+    -- 11b. 口試 demo：王美華的紀錄整理完成（今天 13:52，未讀）
+    INSERT INTO public.notifications (profile_id, type, title, content, link_path, target_visit_record_id, is_read, created_at)
+    SELECT demo_user_id, 'visit_record_ready', '拜訪紀錄整理完成', '「王美華 實支實付比較」已整理好，錯字與標點已修正。',
+           '/visit-records/' || r.id::text, r.id, false,
+           (today_local + interval '13 hours 52 minutes') AT TIME ZONE 'Asia/Taipei'
+    FROM demo_record_ids r
+    WHERE r.title = '王美華 實支實付比較';
 
     RAISE NOTICE '已放好 % 的假資料', demo_email;
   END LOOP;
@@ -330,7 +385,8 @@ END $$;
 DROP TABLE IF EXISTS demo_customer_ids;
 DROP TABLE IF EXISTS demo_record_ids;
 
--- 檢查：每個示範帳號應該是 客戶 20（含垃圾桶 2）、保單 13、行程 9、專案 3、拜訪結果 8、拜訪紀錄 6、通知 4
+-- 檢查：每個示範帳號應該是 客戶 20（含垃圾桶 2）、保單 13、行程 10、專案 3、拜訪結果 8、拜訪紀錄 7、通知 3
+--       （帳號這次沒有重置的話，會顯示上次的筆數）
 SELECT u.email,
   (SELECT count(*) FROM public.customers c WHERE c.profile_id = u.id) AS customers,
   (SELECT count(*) FROM public.customer_policies cp JOIN public.customers c ON c.id = cp.customer_id WHERE c.profile_id = u.id) AS policies,
@@ -342,5 +398,5 @@ SELECT u.email,
   (SELECT p.avatar_url FROM public.profiles p WHERE p.id = u.id) AS avatar_url,
   (u.raw_user_meta_data->>'onboarding_tour_seen') AS onboarding_tour_seen
 FROM auth.users u
-WHERE u.email IN ('demo1@jingxuan.test', 'demo2@jingxuan.test')
+WHERE u.email IN ('demo1@jingxuan.test', 'demo2@jingxuan.test', 'jingxuan.helper@gmail.com')
 ORDER BY u.email;
