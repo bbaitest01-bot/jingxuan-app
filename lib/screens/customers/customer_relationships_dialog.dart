@@ -1,278 +1,252 @@
 import 'package:flutter/material.dart';
-import '../../services/customer_relationship_service.dart';
-import '../../widgets/custom_toast.dart';
-import '../../theme/app_theme.dart';
 
-/// 管理一位客戶的人脈：轉介紹來源（維度 1）與社交角色關係（維度 2）。
+import '../../services/customer_relationship_service.dart';
+import '../../services/relationship_manager_service.dart';
+import '../../services/relationship_rows.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/custom_toast.dart';
+import 'relationship_add_form.dart';
+
+/// 管理一位客戶的人脈（2026-11-08 重做，模型圖沛沛確認）：
+/// - 目前的關係：一位對方一列（一般關係＋轉介紹合在一起，例「朋友・他介紹的」），可刪除
+/// - ＋ 新增關係：搜尋現有客戶或打新名字（只要名字就建客戶）、選配偶／子女…、勾「是他介紹給我的」
+/// - 這個人是誰介紹的
+/// 視窗關閉時回傳最後新增的那位客戶 id（人脈圖移到他身上）；沒有新增回傳 null。
 /// 轉介紹來源改變時呼叫 [onReferralSourceChanged]，讓外框同步畫面上的客戶資料。
-/// 視窗關閉後才結束，人脈拓撲用這點在關閉後重新讀資料（2026-10-30 拓撲頁改用這個視窗，不再各寫一份）。
-Future<void> showCustomerRelationshipsDialog(
+Future<String?> showCustomerRelationshipsDialog(
   BuildContext outerContext, {
   required Map<String, dynamic> customer,
   required List<Map<String, dynamic>> allCustomers,
   required void Function(String? referralSourceId) onReferralSourceChanged,
-}) async {
-  final customerId = customer['id'].toString();
-  String? currentReferralId = customer['referral_source_id']?.toString();
-
-  List<Map<String, dynamic>> rels = await CustomerRelationshipService.fetchAllRelationships();
-
-  if (!outerContext.mounted) return;
-
-  await showDialog<void>(
+}) {
+  return showDialog<String>(
     context: outerContext,
-    builder: (dialogCtx) {
-      return StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final myRels = rels.where((r) =>
-            r['source_customer_id'].toString() == customerId ||
-            r['target_customer_id'].toString() == customerId
-          ).toList();
+    builder: (BuildContext dialogContext) => _RelationshipManagerDialog(
+      customer: customer,
+      allCustomers: allCustomers,
+      onReferralSourceChanged: onReferralSourceChanged,
+    ),
+  );
+}
 
-          final otherCustomers = allCustomers.where((c) => c['id'].toString() != customerId).toList();
+class _RelationshipManagerDialog extends StatefulWidget {
+  final Map<String, dynamic> customer;
+  final List<Map<String, dynamic>> allCustomers;
+  final void Function(String? referralSourceId) onReferralSourceChanged;
 
-          String? selectedTargetId = otherCustomers.isNotEmpty ? otherCustomers.first['id'].toString() : null;
-          String selectedType = 'family';
-          final detailController = TextEditingController(text: '親眷');
+  const _RelationshipManagerDialog({
+    required this.customer,
+    required this.allCustomers,
+    required this.onReferralSourceChanged,
+  });
 
-          return AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.hub_rounded, color: outerContext.appColors.acc),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '👥 管理人脈與轉介紹：${customer['name']}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: SizedBox(
-                width: 480,
+  @override
+  State<_RelationshipManagerDialog> createState() => _RelationshipManagerDialogState();
+}
+
+class _RelationshipManagerDialogState extends State<_RelationshipManagerDialog> {
+  // 視窗裡自己的一份客戶清單（新增的客戶、改了的介紹人先放這裡，關掉後外框會重讀）
+  late final List<Map<String, dynamic>> _customers;
+  List<Map<String, dynamic>> _relationships = [];
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _lastAddedId;
+
+  String get _viewerId => widget.customer['id'].toString();
+  String get _viewerName => widget.customer['name']?.toString() ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _customers = [];
+    for (final Map<String, dynamic> customer in widget.allCustomers) {
+      _customers.add(Map<String, dynamic>.from(customer));
+    }
+    _loadRelationships();
+  }
+
+  Future<void> _loadRelationships() async {
+    final List<Map<String, dynamic>> relationships = await CustomerRelationshipService.fetchAllRelationships();
+    if (!mounted) return;
+    setState(() {
+      _relationships = relationships;
+      _isLoading = false;
+    });
+  }
+
+  Map<String, dynamic>? _customerById(String id) {
+    for (final Map<String, dynamic> customer in _customers) {
+      if (customer['id'].toString() == id) return customer;
+    }
+    return null;
+  }
+
+  Future<void> _add(AddRelationshipRequest request) async {
+    setState(() => _isSaving = true);
+    try {
+      final String otherId = await RelationshipManagerService.addRelation(_viewerId, request);
+      // 新客戶放進清單；轉介紹寫到對方的資料上
+      Map<String, dynamic>? other = _customerById(otherId);
+      if (other == null) {
+        other = {'id': otherId, 'name': request.newCustomerName};
+        _customers.add(other);
+      }
+      if (request.isReferredByViewer) other['referral_source_id'] = _viewerId;
+      _lastAddedId = otherId;
+      await _loadRelationships();
+      if (!mounted) return;
+      CustomToast.show(context, '已新增「${other['name']}」的關係', ToastType.success);
+    } catch (error) {
+      if (!mounted) return;
+      CustomToast.show(context, '新增失敗，請檢查網路後再試', ToastType.error);
+    }
+    if (mounted) setState(() => _isSaving = false);
+  }
+
+  Future<void> _remove(RelationshipRow row) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext confirmContext) => AlertDialog(
+        title: const Text('刪除這個關係？'),
+        content: Text('會拿掉$_viewerName和${row.otherName}之間的關係（${row.describe(_viewerName)}），客戶本身不會被刪除。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(confirmContext, false), child: const Text('取消')),
+          FilledButton(
+            style: AppButtonStyles.danger(confirmContext),
+            onPressed: () => Navigator.pop(confirmContext, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await RelationshipManagerService.removeRow(_viewerId, row);
+    if (row.isIntroducedByViewer) _customerById(row.otherId)?['referral_source_id'] = null;
+    if (row.introducedViewer) {
+      _customerById(_viewerId)?['referral_source_id'] = null;
+      widget.onReferralSourceChanged(null);
+    }
+    await _loadRelationships();
+    if (mounted) CustomToast.show(context, '已刪除關係', ToastType.success);
+  }
+
+  Future<void> _setReferrer(String? referrerId) async {
+    await CustomerRelationshipService.updateReferralSource(customerId: _viewerId, referralSourceId: referrerId);
+    _customerById(_viewerId)?['referral_source_id'] = referrerId;
+    widget.onReferralSourceChanged(referrerId);
+    if (!mounted) return;
+    setState(() {});
+    CustomToast.show(context, '已更新介紹人', ToastType.success);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final List<Map<String, dynamic>> otherCustomers = [];
+    for (final Map<String, dynamic> customer in _customers) {
+      if (customer['id'].toString() != _viewerId) otherCustomers.add(customer);
+    }
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+      title: Text('管理$_viewerName的關係', style: AppTextStyles.serif(fontSize: 16, color: colors.ink)),
+      content: SizedBox(
+        width: 460,
+        child: _isLoading
+            ? const LinearProgressIndicator()
+            : SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('📌 維度 1：轉介紹歸因 (Referral Source)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: outerContext.appColors.acc)),
-                    const SizedBox(height: 4),
-                    Text('指定是哪位已有客戶將此人轉介紹給您：', style: TextStyle(fontSize: 11, color: outerContext.appColors.ink3)),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String?>(
-                      value: otherCustomers.any((c) => c['id'].toString() == currentReferralId) ? currentReferralId : null,
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('無 (自開發 / 獨立客戶)'),
-                        ),
-                        ...otherCustomers.map((c) => DropdownMenuItem<String?>(
-                          value: c['id'].toString(),
-                          child: Text('${c['name']} ${c['phone'] != null && c['phone'].toString().isNotEmpty ? "(${c['phone']})" : ""}'),
-                        )),
-                      ],
-                      onChanged: (val) async {
-                        currentReferralId = val;
-                        await CustomerRelationshipService.updateReferralSource(
-                          customerId: customerId,
-                          referralSourceId: val,
-                        );
-                        onReferralSourceChanged(val);
-                        setDialogState(() {});
-                        CustomToast.show(outerContext, '✅ 已更新轉介紹來源', ToastType.success);
-                      },
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
+                    _buildCurrentRows(colors),
+                    Divider(height: 24, color: colors.line),
+                    RelationshipAddForm(
+                      viewerId: _viewerId,
+                      viewerName: _viewerName,
+                      customers: otherCustomers,
+                      isSaving: _isSaving,
+                      onSubmit: _add,
                     ),
-
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 8),
-
-                    Text('維度 2：社交角色關係 (Social Relationships)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: outerContext.appColors.acc)),
-                    const SizedBox(height: 4),
-                    Text('建立與其他客戶的親眷、職場、社團關係：', style: TextStyle(fontSize: 11, color: outerContext.appColors.ink3)),
-                    const SizedBox(height: 10),
-
-                    if (myRels.isEmpty)
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('目前尚無社交角色關係紀錄', style: TextStyle(fontSize: 12, color: outerContext.appColors.ink3)),
-                      )
-                    else
-                      ...myRels.map((r) {
-                        final bool isSource = r['source_customer_id'].toString() == customerId;
-                        final otherId = isSource ? r['target_customer_id'].toString() : r['source_customer_id'].toString();
-                        final otherCust = allCustomers.firstWhere((c) => c['id'].toString() == otherId, orElse: () => {'name': '未知客戶'});
-                        final typeStr = r['relationship_type'] ?? 'family';
-                        final detailStr = r['relationship_detail'] ?? '';
-
-                        // 關係類型用全站共用的分類色：親眷藍、職場青綠、社團橘、其他灰
-                        AppCategoryColor categoryColor = AppCategoryColors.blue;
-                        String typeName = '親眷';
-                        if (typeStr == 'workplace') {
-                          categoryColor = AppCategoryColors.teal;
-                          typeName = '職場';
-                        } else if (typeStr == 'social') {
-                          categoryColor = AppCategoryColors.orange;
-                          typeName = '社團';
-                        } else if (typeStr == 'other') {
-                          categoryColor = AppCategoryColors.gray;
-                          typeName = '其他';
-                        }
-                        final Color tagColor = categoryColor.solid(outerContext);
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: categoryColor.soft(outerContext),
-                            borderRadius: BorderRadius.circular(AppRadius.control),
-                            border: Border.all(color: tagColor.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: tagColor,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(typeName, style: TextStyle(fontSize: 10, color: outerContext.appColors.onAcc, fontWeight: FontWeight.bold)),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${otherCust['name']} (${detailStr.isNotEmpty ? detailStr : typeName})',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.delete_outline_rounded, color: Theme.of(outerContext).colorScheme.error, size: 18),
-                                onPressed: () async {
-                                  await CustomerRelationshipService.deleteRelationship(r['id'].toString());
-                                  rels = await CustomerRelationshipService.fetchAllRelationships();
-                                  setDialogState(() {});
-                                  CustomToast.show(outerContext, '🗑️ 已解除人脈關係', ToastType.warning);
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: outerContext.appColors.surface2,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('➕ 新增社交關係：', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            value: selectedTargetId,
-                            items: otherCustomers.map((c) => DropdownMenuItem<String>(
-                              value: c['id'].toString(),
-                              child: Text(c['name'] ?? ''),
-                            )).toList(),
-                            onChanged: (val) {
-                              if (val != null) selectedTargetId = val;
-                            },
-                            decoration: InputDecoration(
-                              labelText: '選擇對象客戶',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: selectedType,
-                                  items: const [
-                                    DropdownMenuItem(value: 'family', child: Text('親眷')),
-                                    DropdownMenuItem(value: 'workplace', child: Text('職場/同事')),
-                                    DropdownMenuItem(value: 'social', child: Text('社團/朋友')),
-                                    DropdownMenuItem(value: 'other', child: Text('其他')),
-                                  ],
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      selectedType = val;
-                                      if (val == 'family') detailController.text = '親眷';
-                                      else if (val == 'workplace') detailController.text = '同事';
-                                      else if (val == 'social') detailController.text = '社友';
-                                      else detailController.text = '朋友';
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    labelText: '關係類別',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: detailController,
-                                  decoration: InputDecoration(
-                                    labelText: '細節描述 (如 夫妻)',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                if (selectedTargetId != null) {
-                                  await CustomerRelationshipService.addRelationship(
-                                    sourceCustomerId: customerId,
-                                    targetCustomerId: selectedTargetId!,
-                                    relationshipType: selectedType,
-                                    relationshipDetail: detailController.text.trim(),
-                                  );
-                                  rels = await CustomerRelationshipService.fetchAllRelationships();
-                                  setDialogState(() {});
-                                  CustomToast.show(outerContext, '✅ 成功新增人脈關聯', ToastType.success);
-                                }
-                              },
-                              icon: const Icon(Icons.add_rounded, size: 16),
-                              label: const Text('新增關聯'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: outerContext.appColors.acc,
-                                foregroundColor: outerContext.appColors.onAcc,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    Divider(height: 24, color: colors.line),
+                    _buildReferrerPicker(colors, otherCustomers),
                   ],
                 ),
               ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, _lastAddedId), child: const Text('關閉')),
+      ],
+    );
+  }
+
+  Widget _buildCurrentRows(AppColors colors) {
+    final List<RelationshipRow> rows = RelationshipRows.build(
+      viewerId: _viewerId,
+      customers: _customers,
+      relationships: _relationships,
+    );
+    final List<Widget> children = [
+      Text('目前的關係', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.ink)),
+    ];
+    if (rows.isEmpty) {
+      children.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text('還沒有關係，可以在下面新增', style: TextStyle(fontSize: 12, color: colors.ink3)),
+      ));
+    }
+    for (final RelationshipRow row in rows) {
+      children.add(Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.line, width: 0.5))),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text.rich(TextSpan(children: [
+                TextSpan(text: '${row.otherName}　', style: TextStyle(fontSize: 13, color: colors.ink)),
+                TextSpan(text: row.describe(_viewerName), style: TextStyle(fontSize: 12, color: colors.ink2)),
+              ])),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('關閉'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
+            TextButton(
+              onPressed: () => _remove(row),
+              style: TextButton.styleFrom(foregroundColor: colors.warn, visualDensity: VisualDensity.compact),
+              child: const Text('刪除', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
+  }
+
+  /// 這個人是誰介紹的（客戶資料的轉介紹來源）
+  Widget _buildReferrerPicker(AppColors colors, List<Map<String, dynamic>> otherCustomers) {
+    final List<DropdownMenuItem<String?>> items = [
+      const DropdownMenuItem<String?>(value: null, child: Text('沒有（自己開發的客戶）')),
+    ];
+    for (final Map<String, dynamic> customer in otherCustomers) {
+      items.add(DropdownMenuItem<String?>(value: customer['id'].toString(), child: Text(customer['name']?.toString() ?? '')));
+    }
+    String? currentReferrerId = _customerById(_viewerId)?['referral_source_id']?.toString();
+    if (currentReferrerId != null && _customerById(currentReferrerId) == null) currentReferrerId = null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('$_viewerName是誰介紹的', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.ink)),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String?>(
+          // 介紹人在別處被清掉時（刪除那一列），選單要跟著變
+          key: ValueKey<String?>(currentReferrerId),
+          initialValue: currentReferrerId,
+          isExpanded: true,
+          items: items,
+          decoration: InputDecoration(
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+          ),
+          onChanged: _setReferrer,
+        ),
+      ],
+    );
+  }
 }

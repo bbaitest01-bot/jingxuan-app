@@ -175,7 +175,7 @@ BEGIN
     JOIN demo_customer_ids t ON t.customer_name = v.target_name;
 
     -- 5b. 轉介紹來源（人脈拓撲畫成有箭頭的線，點客戶時顯示「由誰介紹、介紹了誰」）
-    --     介紹人和被介紹的人之間不另外建上面的關係，箭頭才看得到
+    --     （2026-11-08 起同一對人有其他關係時也會畫箭頭，合在同一條線上，例「朋友・介紹」）
     UPDATE public.customers c
     SET referral_source_id = referrer.id
     FROM (VALUES

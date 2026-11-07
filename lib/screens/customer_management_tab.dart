@@ -401,8 +401,8 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
     );
   }
 
-  void _openRelationshipsDialog(Map<String, dynamic> customer) {
-    showCustomerRelationshipsDialog(
+  Future<void> _openRelationshipsDialog(Map<String, dynamic> customer) async {
+    final String? addedCustomerId = await showCustomerRelationshipsDialog(
       context,
       customer: customer,
       allCustomers: _allCustomers,
@@ -412,6 +412,8 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
         });
       },
     );
+    // 視窗裡新增了客戶：重新讀清單，才看得到新的人
+    if (addedCustomerId != null && mounted) await _fetchCustomers(silent: true);
   }
 
   // 勾選或取消一位客戶

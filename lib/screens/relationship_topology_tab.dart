@@ -165,7 +165,7 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
   }
 
   Future<void> _manageRelationships(Map<String, dynamic> customer) async {
-    await showCustomerRelationshipsDialog(
+    final String? addedCustomerId = await showCustomerRelationshipsDialog(
       context,
       customer: customer,
       allCustomers: _allCustomers,
@@ -174,7 +174,22 @@ class _RelationshipTopologyTabState extends State<RelationshipTopologyTab> {
       },
     );
     // 視窗關掉後重新讀，圖上才看得到剛改的關係
-    if (mounted) await _loadNetwork();
+    if (!mounted) return;
+    await _loadNetwork();
+    if (addedCustomerId != null) _focusAfterSettle(addedCustomerId);
+  }
+
+  /// 剛新增的人：選取他，等圖排一下（新的人從中間長出來）再把畫面移過去（2026-11-08 demo 用）
+  void _focusAfterSettle(String customerId) {
+    if (!mounted) return;
+    setState(() => _selectedNodeId = customerId);
+    Future<void>.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      final NetworkGraphNode? node = _graph?.nodeById[customerId];
+      if (node == null) return;
+      _viewport.userHasMoved = true;
+      _viewport.centerOn(node.position, scale: 1.3);
+    });
   }
 
   @override
