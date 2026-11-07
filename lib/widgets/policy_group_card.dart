@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
 import '../services/policy_detail_service.dart';
 import '../services/policy_group_service.dart';
@@ -17,8 +19,10 @@ import 'policy_detail/policy_status_dialog.dart';
 class PolicyGroupCard extends StatefulWidget {
   final PolicyGroup group;
   final PolicyGroupList list;
+  // 三個人的名字（{客戶 id: 姓名}）；沒有就不顯示那一行
+  final Map<String, String> partyNames;
 
-  const PolicyGroupCard({super.key, required this.group, required this.list});
+  const PolicyGroupCard({super.key, required this.group, required this.list, this.partyNames = const {}});
 
   @override
   State<PolicyGroupCard> createState() => _PolicyGroupCardState();
@@ -56,6 +60,30 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
     return '還沒填${missing.join('、')}';
   }
 
+  /// 「要保人 王美華・被保險人 陳小寶・受益人 法定繼承人」；不是這位客戶自己的名字可以點，跳到那位客戶
+  /// （模型圖 2026-11-07）；沒填過三個人回傳 null（卡片不多一行）
+  Widget? _buildPartiesLine(AppColors colors) {
+    final CustomerEnrolledPolicy main = _group.mainItem;
+    if (!main.hasPartyDetails) return null;
+    final List<Widget> parts = [
+      _PartyName(label: '要保人', customerId: main.effectivePolicyholderId, ownerId: main.customerId, names: widget.partyNames),
+      Text('・', style: TextStyle(fontSize: 12, color: colors.ink3)),
+      _PartyName(label: '被保險人', customerId: main.effectiveInsuredId, ownerId: main.customerId, names: widget.partyNames),
+    ];
+    final String beneficiaryText = main.beneficiaryText ?? '';
+    final String? beneficiaryId = main.beneficiaryCustomerId;
+    if (beneficiaryText.isNotEmpty) {
+      parts.add(Text('・受益人 $beneficiaryText', style: TextStyle(fontSize: 12, color: colors.ink2)));
+    } else if (beneficiaryId != null) {
+      parts.add(Text('・', style: TextStyle(fontSize: 12, color: colors.ink3)));
+      parts.add(_PartyName(label: '受益人', customerId: beneficiaryId, ownerId: main.customerId, names: widget.partyNames));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: parts),
+    );
+  }
+
   Future<void> _openPremiumDialog() async {
     if (await showPolicyPremiumDialog(context, _group.mainItem.customerId, _group.items)) widget.list.onPolicyChanged();
   }
@@ -82,6 +110,7 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
       }
     }
     final String? missingDetailText = _missingDetailText();
+    final Widget? partiesLine = _buildPartiesLine(colors);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       decoration: BoxDecoration(
@@ -102,6 +131,7 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
                     Text(_subtitle(), style: AppTextStyles.mono(fontSize: 11, color: colors.ink3)),
                     if (missingDetailText != null)
                       Text(missingDetailText, style: TextStyle(fontSize: 11, color: colors.warn)),
+                    if (partiesLine != null) partiesLine,
                   ],
                 ),
               ),
@@ -419,4 +449,37 @@ Future<bool> _confirmDelete(BuildContext context, String title, String message) 
     },
   );
   return confirmed == true;
+}
+
+/// 卡片上的一個人：「被保險人 陳小寶」；不是這位客戶自己時名字加底線、可以點，跳到那位客戶的頁面
+class _PartyName extends StatelessWidget {
+  final String label;
+  final String customerId;
+  final String ownerId;
+  final Map<String, String> names;
+
+  const _PartyName({required this.label, required this.customerId, required this.ownerId, required this.names});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final String name = names[customerId] ?? '';
+    final TextStyle labelStyle = TextStyle(fontSize: 12, color: colors.ink2);
+    if (customerId == ownerId || name.isEmpty) {
+      return Text('$label $name', style: labelStyle);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$label ', style: labelStyle),
+        InkWell(
+          onTap: () => context.go(AppRoutes.customerPath(customerId)),
+          child: Text(
+            name,
+            style: TextStyle(fontSize: 12, color: colors.acc, decoration: TextDecoration.underline, decorationColor: colors.acc),
+          ),
+        ),
+      ],
+    );
+  }
 }

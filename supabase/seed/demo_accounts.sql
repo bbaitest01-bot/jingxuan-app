@@ -229,6 +229,17 @@ BEGIN
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name
     JOIN public.insurance_products p ON p.product_name = v.product_name;
 
+    -- 6-1. 保單的三個人（2026-11-07）：王大明那張國泰保單是太太王美華出錢（要保人）、受益人也是她；
+    --      被保險人還是王大明自己，所以兩人的健檢數字都不變
+    UPDATE public.customer_policies cp
+    SET policyholder_customer_id = wife.id,
+        beneficiary_customer_id = wife.id
+    FROM demo_customer_ids wife, demo_customer_ids husband
+    WHERE wife.customer_name = '王美華'
+      AND husband.customer_name = '王大明'
+      AND cp.customer_id = husband.id
+      AND cp.policy_number = 'DEMO-A0001';
+
     -- 7. 保單健檢目標（王大明壽險有缺口、實支夠；陳醫師重大疾病有缺口）
     --    王美華＝口試 demo 客戶：富邦佳實在計劃2 是病房 2,000／住院醫療 20 萬，
     --    目標 3,000／50 萬 → 健檢看到實支不夠，再接保單比價（2026-11-05）

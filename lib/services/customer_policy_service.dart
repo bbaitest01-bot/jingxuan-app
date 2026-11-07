@@ -27,6 +27,12 @@ class CustomerEnrolledPolicy {
   final int? reducedCoverageAmount;
   // 繳別：annual／semiannual／quarterly／monthly／single（見 PaymentFrequency）；空值＝還沒填
   final String? paymentFrequency;
+  // 保單的三個人（2026-11-07 主管回饋）：只記是哪一位客戶；空值＝就是這張保單掛的客戶自己
+  final String? policyholderCustomerId;
+  final String? insuredCustomerId;
+  final String? beneficiaryCustomerId;
+  // 受益人不是客戶時直接寫（例：法定繼承人）
+  final String? beneficiaryText;
   // 掃描保單帶進來的欄位（4-J）；手動加入的保單這些多半是空的
   final String? policyGroupId;
   final String? policyNumber;
@@ -60,6 +66,10 @@ class CustomerEnrolledPolicy {
     this.hasPolicyLoan = false,
     this.reducedCoverageAmount,
     this.paymentFrequency,
+    this.policyholderCustomerId,
+    this.insuredCustomerId,
+    this.beneficiaryCustomerId,
+    this.beneficiaryText,
     this.policyGroupId,
     this.policyNumber,
     this.coverageRole,
@@ -75,6 +85,18 @@ class CustomerEnrolledPolicy {
 
   /// 有保障（有效、減額繳清、展期定期）；放在「有效保單」區、算進健檢
   bool get isActive => PolicyStatus.hasCoverage(status);
+
+  /// 被保險人是哪位客戶（沒填就是保單掛的客戶自己）；健檢算在這個人身上
+  String get effectiveInsuredId => insuredCustomerId ?? customerId;
+
+  /// 要保人是哪位客戶（沒填就是保單掛的客戶自己）
+  String get effectivePolicyholderId => policyholderCustomerId ?? customerId;
+
+  /// 有沒有填過三個人的任何一個（沒填過的卡片不顯示「要保人…」那一行）
+  bool get hasPartyDetails {
+    final String text = beneficiaryText ?? '';
+    return policyholderCustomerId != null || insuredCustomerId != null || beneficiaryCustomerId != null || text.isNotEmpty;
+  }
 
   /// 健檢用的保額：減額繳清且有填新保額就用新保額，否則用原本的保額
   int? get coverageAmountForCheck {
@@ -126,6 +148,10 @@ class CustomerEnrolledPolicy {
       hasPolicyLoan: json['has_policy_loan'] == true,
       reducedCoverageAmount: (json['reduced_coverage_amount'] as num?)?.toInt(),
       paymentFrequency: json['payment_frequency'] as String?,
+      policyholderCustomerId: json['policyholder_customer_id'] as String?,
+      insuredCustomerId: json['insured_customer_id'] as String?,
+      beneficiaryCustomerId: json['beneficiary_customer_id'] as String?,
+      beneficiaryText: json['beneficiary_text'] as String?,
       policyGroupId: json['policy_group_id'] as String?,
       policyNumber: json['policy_number'] as String?,
       coverageRole: json['coverage_role'] as String?,

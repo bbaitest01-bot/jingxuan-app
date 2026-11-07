@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/benefit_plan_service.dart';
 import '../../services/coverage_check_service.dart';
 import '../../services/customer_policy_service.dart';
+import '../../services/policy_party_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
 import 'coverage_target_dialog.dart';
@@ -33,6 +34,8 @@ class _CustomerCoverageCheckSectionState extends State<CustomerCoverageCheckSect
   Map<String, InsuranceBenefitPlan> _plansById = {};
   Map<String, int> _targets = {};
   bool _isLoading = true;
+  // 健檢算的保單：被保險人是這位客戶的（自己名下＋別人幫他買的；2026-11-07 三個人）
+  List<CustomerEnrolledPolicy> _coveringPolicies = [];
 
   @override
   void initState() {
@@ -49,9 +52,12 @@ class _CustomerCoverageCheckSectionState extends State<CustomerCoverageCheckSect
   }
 
   Future<void> _loadAll() async {
+    final List<CustomerEnrolledPolicy> fromOthers = await PolicyPartyService().fetchPoliciesFromOthers(widget.customerId);
+    final List<CustomerEnrolledPolicy> covering =
+        PolicyPartyService.policiesCoveringCustomer(widget.customerId, widget.policies, fromOthers);
     final List<String> productIds = [];
     final List<String> planIds = [];
-    for (final CustomerEnrolledPolicy policy in widget.policies) {
+    for (final CustomerEnrolledPolicy policy in covering) {
       productIds.add(policy.policyClauseId);
       final String? planId = policy.benefitPlanId;
       if (planId != null) {
@@ -63,6 +69,7 @@ class _CustomerCoverageCheckSectionState extends State<CustomerCoverageCheckSect
     final Map<String, int> targets = await _coverageService.fetchTargets(widget.customerId);
     if (!mounted) return;
     setState(() {
+      _coveringPolicies = covering;
       _productCategories = categories;
       _plansById = plansById;
       _targets = targets;
@@ -88,13 +95,13 @@ class _CustomerCoverageCheckSectionState extends State<CustomerCoverageCheckSect
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
     final CoverageCheckResult result = CoverageCheckService.calculate(
-      policies: widget.policies,
+      policies: _coveringPolicies,
       productCategories: _productCategories,
       plansById: _plansById,
     );
 
     int activeCount = 0;
-    for (final CustomerEnrolledPolicy policy in widget.policies) {
+    for (final CustomerEnrolledPolicy policy in _coveringPolicies) {
       if (policy.isActive) activeCount++;
     }
 

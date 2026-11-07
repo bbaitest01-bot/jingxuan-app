@@ -169,6 +169,7 @@ class _InfoRow extends StatelessWidget {
 
 /// 保單（C6、C-18、D21）：一張保單一張卡片，分「有效保單」「已失效保單」兩區（清單在 policy_detail/policy_group_list.dart）
 class CustomerPoliciesSection extends StatelessWidget {
+  final String customerId;
   final List<CustomerEnrolledPolicy> policies;
   // 右上角「掃描保單」（第 5 階段 E）
   final VoidCallback onScanPressed;
@@ -181,6 +182,7 @@ class CustomerPoliciesSection extends StatelessWidget {
 
   const CustomerPoliciesSection({
     super.key,
+    required this.customerId,
     required this.policies,
     required this.onScanPressed,
     required this.onEditCoverage,
@@ -190,18 +192,17 @@ class CustomerPoliciesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget content = const CustomerDetailEmptyText('還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入');
-    if (policies.isNotEmpty) {
-      content = PolicyGroupList(
+    // 沒有自己的保單也要顯示清單：下面可能有「保障他的保單」（別人幫他買的）
+    final Widget content = PolicyGroupList(
+        customerId: customerId,
         policies: policies,
-        emptyText: '',
+        emptyText: '還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入',
         // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
         onOpenProduct: (CustomerEnrolledPolicy policy) => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
         onEditCoverage: onEditCoverage,
         onPolicyChanged: onPolicyChanged,
         onDelete: onDelete,
       );
-    }
 
     return CustomerDetailSection(
       icon: Icons.health_and_safety_outlined,

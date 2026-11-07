@@ -5,6 +5,7 @@ import 'package:insurance_helper/screens/customers/detail/customer_detail_sectio
 import 'package:insurance_helper/services/coverage_check_service.dart';
 import 'package:insurance_helper/services/customer_policy_service.dart';
 import 'package:insurance_helper/services/policy_detail_service.dart';
+import 'package:insurance_helper/services/policy_party_service.dart';
 import 'package:insurance_helper/services/policy_group_service.dart';
 import 'package:insurance_helper/widgets/policy_group_card.dart';
 
@@ -25,10 +26,14 @@ CustomerEnrolledPolicy buildPolicy({
   int? reducedCoverageAmount,
   bool hasPolicyLoan = false,
   String? coverageCategory,
+  String customerId = 'c1',
+  String? policyholderId,
+  String? insuredId,
+  String? beneficiaryText,
 }) {
   final Map<String, dynamic> json = {
     'id': id,
-    'customer_id': 'c1',
+    'customer_id': customerId,
     'policy_clause_id': 'product-$id',
     'product_name': productName,
     'company_name': '國泰人壽',
@@ -49,6 +54,9 @@ CustomerEnrolledPolicy buildPolicy({
   json['reduced_coverage_amount'] = reducedCoverageAmount;
   json['has_policy_loan'] = hasPolicyLoan;
   json['coverage_category'] = coverageCategory;
+  json['policyholder_customer_id'] = policyholderId;
+  json['insured_customer_id'] = insuredId;
+  json['beneficiary_text'] = beneficiaryText;
   return CustomerEnrolledPolicy.fromJson(json);
 }
 
@@ -96,6 +104,27 @@ void main() {
         plansById: const {},
       );
       expect(result.currentOf('life'), 1200000);
+    });
+  });
+
+  group('保單的三個人（2026-11-07 主管回饋）', () {
+    test('沒填時要保人、被保險人都是保單掛的客戶自己', () {
+      final CustomerEnrolledPolicy policy = buildPolicy();
+      expect(policy.effectiveInsuredId, 'c1');
+      expect(policy.effectivePolicyholderId, 'c1');
+      expect(policy.hasPartyDetails, isFalse);
+    });
+
+    test('健檢：媽媽幫兒子買的保單算在兒子，不算在媽媽', () {
+      final CustomerEnrolledPolicy forSon = buildPolicy(id: 'son', customerId: 'mom', insuredId: 'kid');
+      final CustomerEnrolledPolicy forMom = buildPolicy(id: 'mom-own', customerId: 'mom');
+      expect(PolicyPartyService.policiesCoveringCustomer('mom', [forSon, forMom], const []).map((p) => p.id), ['mom-own']);
+      expect(PolicyPartyService.policiesCoveringCustomer('kid', const [], [forSon]).map((p) => p.id), ['son']);
+    });
+
+    test('有填受益人文字就算填過三個人', () {
+      expect(buildPolicy(beneficiaryText: '法定繼承人').hasPartyDetails, isTrue);
+      expect(buildPolicy(policyholderId: 'wife').effectivePolicyholderId, 'wife');
     });
   });
 
@@ -187,7 +216,7 @@ void main() {
     testWidgets('一張保單一張卡片：收合只顯示主約，點開看附約；整張失效放已失效', (WidgetTester tester) async {
       await pumpWidgetInPage(
         tester,
-        CustomerPoliciesSection(policies: [
+        CustomerPoliciesSection(customerId: 'c1', policies: [
           buildPolicy(id: 'm', productName: '國泰測試終身壽險', groupId: 'g1', role: 'main', policyNumber: 'A1', coverageAmount: 1000000),
           buildPolicy(id: 'r', productName: '國泰測試醫療附約', groupId: 'g1', role: 'rider', policyNumber: 'A1'),
           buildPolicy(id: 'c', productName: '南山人壽測試癌症保險', status: 'lapsed'),
@@ -211,6 +240,7 @@ void main() {
       await pumpWidgetInPage(
         tester,
         CustomerPoliciesSection(
+          customerId: 'c1',
           policies: [
             buildPolicy(id: 'm', groupId: 'g1', role: 'main', premium: 1500, paymentFrequency: PaymentFrequency.monthly, hasPolicyLoan: true),
             buildPolicy(id: 'n', groupId: 'g2', role: 'main', premium: 3000, status: PolicyStatus.reducedPaidUp, coverageAmount: 500000, reducedCoverageAmount: 200000),
@@ -238,6 +268,7 @@ void main() {
       await pumpWidgetInPage(
         tester,
         CustomerPoliciesSection(
+          customerId: 'c1',
           policies: [buildPolicy(id: 'm', groupId: 'g1', role: 'main')],
           onScanPressed: () {},
           onEditCoverage: (_) {},
@@ -263,6 +294,7 @@ void main() {
       await pumpWidgetInPage(
         tester,
         CustomerPoliciesSection(
+          customerId: 'c1',
           policies: const [],
           onScanPressed: () => scanPressed = true,
           onEditCoverage: (_) {},

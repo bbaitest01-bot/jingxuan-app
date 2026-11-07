@@ -3,11 +3,14 @@ import 'package:intl/intl.dart';
 
 import '../../services/customer_policy_service.dart';
 import '../../services/policy_detail_service.dart';
+import '../../services/policy_party_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
 import '../customer_policy_widgets.dart';
+import 'policy_parties_editor.dart';
 
-/// 「保單資料」：整張保單一起填生效日、繳別，每一項分開填每期保費（2026-11-07 模型圖沛沛確認）；
+/// 「保單資料」：整張保單一起填三個人（要保人、被保險人、受益人）、生效日、繳別，
+/// 每一項分開填每期保費（2026-11-07 模型圖沛沛確認）；
 /// 存成功回傳 true（呼叫的地方再重新讀保單）
 Future<bool> showPolicyPremiumDialog(BuildContext context, String customerId, List<CustomerEnrolledPolicy> items) async {
   final bool? saved = await showDialog<bool>(
@@ -33,6 +36,9 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
   DateTime? _effectiveDate;
   String? _paymentFrequency;
   bool _isSaving = false;
+  // 三個人：讀完名字才顯示（owner＝保單掛的客戶）
+  PartyCustomer? _owner;
+  PolicyPartiesValue _parties = const PolicyPartiesValue();
 
   @override
   void initState() {
@@ -43,6 +49,30 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
       _paymentFrequency ??= item.paymentFrequency;
       _premiumControllers[item.id] = TextEditingController(text: item.premium?.toString() ?? '');
     }
+    _loadParties();
+  }
+
+  /// 讀三個人的名字，組成畫面上的初始值（沒填的要保人、被保險人就是保單客戶自己）
+  Future<void> _loadParties() async {
+    final CustomerEnrolledPolicy first = widget.items.first;
+    final Map<String, String> names = await PolicyPartyService().fetchNamesFor(widget.items);
+    if (!mounted) return;
+    PartyCustomer? customerOf(String? id) {
+      if (id == null) return null;
+      return PartyCustomer(id: id, name: names[id] ?? '（已刪除的客戶）', phone: '');
+    }
+
+    final String beneficiaryText = first.beneficiaryText ?? '';
+    setState(() {
+      _owner = PartyCustomer(id: widget.customerId, name: names[widget.customerId] ?? '這位客戶', phone: '');
+      _parties = PolicyPartiesValue(
+        policyholder: customerOf(first.policyholderCustomerId),
+        insured: customerOf(first.insuredCustomerId),
+        isBeneficiaryText: beneficiaryText.isNotEmpty,
+        beneficiaryCustomer: customerOf(first.beneficiaryCustomerId),
+        beneficiaryText: beneficiaryText,
+      );
+    });
   }
 
   @override
@@ -90,6 +120,24 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
         paymentFrequency: _paymentFrequency,
         premiumByPolicyId: premiumByPolicyId,
       );
+      // 三個人：受益人「從客戶選」和「直接填寫」只存一種
+      if (_owner != null) {
+        String? beneficiaryId;
+        String? beneficiaryText;
+        if (_parties.isBeneficiaryText) {
+          beneficiaryText = _parties.beneficiaryText;
+        } else {
+          beneficiaryId = _parties.beneficiaryCustomer?.id;
+        }
+        await PolicyPartyService().saveParties(
+          customerId: widget.customerId,
+          items: widget.items,
+          policyholderId: _parties.policyholder?.id,
+          insuredId: _parties.insured?.id,
+          beneficiaryId: beneficiaryId,
+          beneficiaryText: beneficiaryText,
+        );
+      }
       if (!mounted) return;
       CustomToast.show(context, '保單資料已儲存', ToastType.success);
       Navigator.pop(context, true);
@@ -114,6 +162,8 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildPartiesArea(),
+              Divider(height: 24, color: colors.line),
               const _FieldLabel('生效日（投保日期）'),
               _buildDateField(colors),
               const SizedBox(height: 12),
@@ -140,6 +190,16 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
           child: const Text('儲存'),
         ),
       ],
+    );
+  }
+
+  Widget _buildPartiesArea() {
+    final PartyCustomer? owner = _owner;
+    if (owner == null) return const LinearProgressIndicator();
+    return PolicyPartiesEditor(
+      owner: owner,
+      value: _parties,
+      onChanged: (PolicyPartiesValue value) => setState(() => _parties = value),
     );
   }
 

@@ -819,6 +819,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           ],
 
           PolicyGroupList(
+            customerId: widget.customer['id']?.toString() ?? '',
             policies: _enrolledPolicies,
             emptyText: '目前尚未加入任何已購保單，可以按「掃描保單」，或點擊上方按鈕${_catalogCountText('從 ', ' 款真實商品中')}搜尋加入。',
             onOpenProduct: _openProductInInsights,

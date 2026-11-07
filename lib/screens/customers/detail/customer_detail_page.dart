@@ -174,6 +174,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               ),
               const SizedBox(height: 16),
               CustomerPoliciesSection(
+                customerId: widget.customerId,
                 policies: _policies,
                 onScanPressed: () => _scanPolicy(customer),
                 onEditCoverage: _editCoverage,

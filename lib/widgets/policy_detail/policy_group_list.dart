@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../router/app_routes.dart';
 import '../../services/customer_policy_service.dart';
 import '../../services/policy_detail_service.dart';
 import '../../services/policy_group_service.dart';
+import '../../services/policy_party_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
 import '../policy_group_card.dart';
@@ -11,9 +14,11 @@ import '../policy_group_card.dart';
 ///
 /// - 最上面：有效保單張數、一年總保費
 /// - 分「有效保單」「已失效保單」兩區；整張都沒保障才放已失效，部分附約失效的那幾項劃線
-/// - 卡片「編輯」改保費、繳別、生效日；「⋯」改狀態、刪除
+/// - 卡片「編輯」改三個人、保費、繳別、生效日；「⋯」改狀態、刪除
+/// - 最下面「保障他的保單」：別的客戶當要保人、被保險人是這位客戶的保單（例：媽媽幫他買的）
 /// 客戶完整頁與側邊抽屜共用；改了保單資料或狀態會呼叫 onPolicyChanged（呼叫的地方重新讀保單）
-class PolicyGroupList extends StatelessWidget {
+class PolicyGroupList extends StatefulWidget {
+  final String customerId;
   final List<CustomerEnrolledPolicy> policies;
   final String emptyText;
   final ValueChanged<CustomerEnrolledPolicy> onOpenProduct;
@@ -23,6 +28,7 @@ class PolicyGroupList extends StatelessWidget {
 
   const PolicyGroupList({
     super.key,
+    required this.customerId,
     required this.policies,
     required this.emptyText,
     required this.onOpenProduct,
@@ -32,12 +38,53 @@ class PolicyGroupList extends StatelessWidget {
   });
 
   @override
+  State<PolicyGroupList> createState() => _PolicyGroupListState();
+}
+
+class _PolicyGroupListState extends State<PolicyGroupList> {
+  // 卡片上「要保人 王美華・被保險人 陳小寶」要用的名字
+  Map<String, String> _partyNames = {};
+  // 別人名下、但保障這位客戶的保單
+  List<CustomerEnrolledPolicy> _policiesFromOthers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadParties();
+  }
+
+  @override
+  void didUpdateWidget(PolicyGroupList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.policies != widget.policies || oldWidget.customerId != widget.customerId) _loadParties();
+  }
+
+  Future<void> _loadParties() async {
+    final PolicyPartyService service = PolicyPartyService();
+    final List<CustomerEnrolledPolicy> fromOthers = await service.fetchPoliciesFromOthers(widget.customerId);
+    final Map<String, String> names = await service.fetchNamesFor([...widget.policies, ...fromOthers]);
+    if (!mounted) return;
+    setState(() {
+      _policiesFromOthers = fromOthers;
+      _partyNames = names;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
+    final List<CustomerEnrolledPolicy> policies = widget.policies;
+    final Widget fromOthersSection = _CoveredByOthersSection(policies: _policiesFromOthers, names: _partyNames);
     if (policies.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(emptyText, style: TextStyle(fontSize: 12, color: colors.ink3), textAlign: TextAlign.center),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(widget.emptyText, style: TextStyle(fontSize: 12, color: colors.ink3), textAlign: TextAlign.center),
+          ),
+          fromOthersSection,
+        ],
       );
     }
     final List<PolicyGroup> activeGroups = [];
@@ -54,11 +101,54 @@ class PolicyGroupList extends StatelessWidget {
       children: [
         PolicySummaryHeader(activeGroupCount: activeGroups.length, summary: PolicyDetailService.summarize(policies)),
         const SizedBox(height: 14),
-        _GroupSection(title: '有效保單', groups: activeGroups, list: this),
+        _GroupSection(title: '有效保單', groups: activeGroups, list: widget, partyNames: _partyNames),
         const SizedBox(height: 14),
-        _GroupSection(title: '已失效保單', groups: inactiveGroups, list: this),
+        _GroupSection(title: '已失效保單', groups: inactiveGroups, list: widget, partyNames: _partyNames),
+        fromOthersSection,
       ],
     );
+  }
+}
+
+/// 「保障他的保單」：別的客戶當要保人買的；點要保人名字跳到那位客戶
+class _CoveredByOthersSection extends StatelessWidget {
+  final List<CustomerEnrolledPolicy> policies;
+  final Map<String, String> names;
+
+  const _CoveredByOthersSection({required this.policies, required this.names});
+
+  @override
+  Widget build(BuildContext context) {
+    if (policies.isEmpty) return const SizedBox.shrink();
+    final AppColors colors = context.appColors;
+    final List<Widget> rows = [
+      const SizedBox(height: 14),
+      Text('保障他的保單（別人當要保人）', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
+      Text('健檢已經把這些算進來；要修改請到要保人的客戶頁', style: TextStyle(fontSize: 11, color: colors.ink3)),
+    ];
+    for (final CustomerEnrolledPolicy policy in policies) {
+      final String policyholderId = policy.effectivePolicyholderId;
+      final String policyholderName = names[policyholderId] ?? '';
+      rows.add(Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: colors.line),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: Text(policy.productName, style: TextStyle(fontSize: 13, color: colors.ink))),
+            InkWell(
+              onTap: () => context.go(AppRoutes.customerPath(policyholderId)),
+              child: Text('要保人 $policyholderName', style: TextStyle(fontSize: 12, color: colors.acc)),
+            ),
+          ],
+        ),
+      ));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
   }
 }
 
@@ -129,8 +219,9 @@ class _GroupSection extends StatelessWidget {
   final String title;
   final List<PolicyGroup> groups;
   final PolicyGroupList list;
+  final Map<String, String> partyNames;
 
-  const _GroupSection({required this.title, required this.groups, required this.list});
+  const _GroupSection({required this.title, required this.groups, required this.list, required this.partyNames});
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +248,7 @@ class _GroupSection extends StatelessWidget {
     }
     for (final PolicyGroup group in groups) {
       children.add(const SizedBox(height: 8));
-      children.add(PolicyGroupCard(group: group, list: list));
+      children.add(PolicyGroupCard(group: group, list: list, partyNames: partyNames));
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
