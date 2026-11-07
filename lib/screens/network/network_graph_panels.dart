@@ -8,9 +8,9 @@ import '../topology_colors.dart';
 /// 關係類型（篩選按鈕的順序與文字）
 const List<(String, String)> networkRelationshipTypes = [
   ('referral', '轉介紹'),
-  ('family', '親眷'),
-  ('workplace', '職場'),
-  ('social', '社團'),
+  ('family', '家人'),
+  ('workplace', '同事'),
+  ('social', '朋友'),
   ('other', '其他'),
 ];
 
@@ -150,10 +150,13 @@ class NetworkNodeInfoCard extends StatelessWidget {
     final AppColors colors = context.appColors;
     final List<String> referrerNames = [];
     final List<String> referredNames = [];
+    // 轉介紹：箭頭指進他＝誰介紹他；指出＝他介紹了誰（和其他關係合在同一條線上也算）
     for (final NetworkGraphEdge edge in graph.edges) {
-      if (edge.type != 'referral') continue;
-      if (edge.to.id == node.id) referrerNames.add(edge.from.name);
-      if (edge.from.id == node.id) referredNames.add(edge.to.name);
+      final NetworkGraphNode? referrer = edge.referrer;
+      final NetworkGraphNode? referred = edge.referred;
+      if (referrer == null || referred == null) continue;
+      if (referred.id == node.id) referrerNames.add(referrer.name);
+      if (referrer.id == node.id) referredNames.add(referred.name);
     }
     final int knownCount = graph.neighborIdsOf(node.id).length - 1;
     final String stageText = CustomerCardSummaryService.instance.summaryOf(node.id).policyText;

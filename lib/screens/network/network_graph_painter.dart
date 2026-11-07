@@ -105,7 +105,7 @@ class NetworkGraphPainter extends CustomPainter {
 
     final List<NetworkGraphEdge> visibleEdges = [];
     for (final NetworkGraphEdge edge in graph.edges) {
-      if (!hiddenTypes.contains(edge.type)) visibleEdges.add(edge);
+      if (edge.isVisible(hiddenTypes)) visibleEdges.add(edge);
     }
     for (final NetworkGraphEdge edge in visibleEdges) {
       _paintEdge(canvas, edge, focusId, searchIds);
@@ -143,21 +143,28 @@ class NetworkGraphPainter extends CustomPainter {
       ..color = _edgeColor(edge.type).withValues(alpha: opacity)
       ..strokeWidth = width;
     canvas.drawLine(edge.from.position, edge.to.position, linePaint);
-    if (edge.type == 'referral') _paintArrow(canvas, edge, linePaint.color);
+    if (edge.showsArrow(hiddenTypes)) _paintArrow(canvas, edge, linePaint.color);
   }
 
-  // 轉介紹的箭頭：指向被介紹的人，尖端停在圓點外緣
+  /// 箭頭長度（2026-11-08 沛沛選 B：比原本 8 大一點、線不加粗，不要太搶眼）
+  static const double arrowLength = 11;
+
+  // 轉介紹的箭頭：從介紹人指向被介紹的人，尖端停在圓點外緣；線的顏色維持原本的關係
   void _paintArrow(Canvas canvas, NetworkGraphEdge edge, Color color) {
-    final Offset direction = edge.to.position - edge.from.position;
+    final NetworkGraphNode? referrer = edge.referrer;
+    final NetworkGraphNode? referred = edge.referred;
+    if (referrer == null || referred == null) return;
+    final Offset direction = referred.position - referrer.position;
     final double length = direction.distance;
     if (length < 1) return;
     final Offset unit = direction / length;
     final Offset side = Offset(-unit.dy, unit.dx);
-    final Offset tip = edge.to.position - unit * (edge.to.radius + 2);
+    final Offset tip = referred.position - unit * (referred.radius + 2);
+    const double halfWidth = arrowLength / 2;
     final Path arrow = Path()
       ..moveTo(tip.dx, tip.dy)
-      ..lineTo(tip.dx - unit.dx * 8 + side.dx * 4, tip.dy - unit.dy * 8 + side.dy * 4)
-      ..lineTo(tip.dx - unit.dx * 8 - side.dx * 4, tip.dy - unit.dy * 8 - side.dy * 4)
+      ..lineTo(tip.dx - unit.dx * arrowLength + side.dx * halfWidth, tip.dy - unit.dy * arrowLength + side.dy * halfWidth)
+      ..lineTo(tip.dx - unit.dx * arrowLength - side.dx * halfWidth, tip.dy - unit.dy * arrowLength - side.dy * halfWidth)
       ..close();
     canvas.drawPath(arrow, Paint()..color = color);
   }

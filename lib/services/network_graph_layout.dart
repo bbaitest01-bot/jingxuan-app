@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import 'relationship_kinds.dart';
+
 /// 網狀人脈關係圖上的一位客戶（一個小圓點）
 class NetworkGraphNode {
   final String id;
@@ -34,18 +36,61 @@ class NetworkGraphNode {
   }
 }
 
-/// 兩位客戶之間的一條關係線
+/// 兩位客戶之間的一條關係線（2026-11-08：同一對人不管有幾種關係都只畫一條線）
+///
+/// 例：王美華和陳志豪是朋友、而且是王美華介紹的 → 一條朋友顏色的線，標籤「朋友・介紹」，
+/// 箭頭指向陳志豪（沛沛選 B：保留原本關係的顏色，轉介紹只加箭頭）
 class NetworkGraphEdge {
   final NetworkGraphNode from;
   final NetworkGraphNode to;
 
-  /// referral（轉介紹，from 介紹了 to）、family、workplace、social、other
+  /// 線的顏色：第一種一般關係（family、workplace、social、other）；只有轉介紹時是 referral
   final String type;
   final String label;
 
-  const NetworkGraphEdge({required this.from, required this.to, required this.type, required this.label});
+  /// 這對人的所有一般關係類型（篩選用：任何一種沒被隱藏就畫）
+  final Set<String> relationTypes;
+
+  /// 介紹人是誰（from 或 to 的 id）；沒有轉介紹是 null
+  final String? referrerId;
+
+  const NetworkGraphEdge({
+    required this.from,
+    required this.to,
+    required this.type,
+    required this.label,
+    this.relationTypes = const {},
+    this.referrerId,
+  });
 
   bool touches(String nodeId) => from.id == nodeId || to.id == nodeId;
+
+  bool get hasReferral => referrerId != null;
+
+  /// 介紹人（沒有轉介紹回傳 null）
+  NetworkGraphNode? get referrer {
+    if (referrerId == null) return null;
+    if (referrerId == from.id) return from;
+    return to;
+  }
+
+  /// 被介紹的人（箭頭指向他）
+  NetworkGraphNode? get referred {
+    if (referrerId == null) return null;
+    if (referrerId == from.id) return to;
+    return from;
+  }
+
+  /// 篩選後要不要畫：任何一種一般關係沒被隱藏，或有轉介紹且轉介紹沒被隱藏
+  bool isVisible(Set<String> hiddenTypes) {
+    for (final String relationType in relationTypes) {
+      if (!hiddenTypes.contains(relationType)) return true;
+    }
+    return showsArrow(hiddenTypes);
+  }
+
+  /// 要不要畫轉介紹箭頭
+  bool showsArrow(Set<String> hiddenTypes) => hasReferral && !hiddenTypes.contains('referral');
 }
 
 /// 像黑曜石（Obsidian）一樣會自己排好的人脈圖（2026-10-30 組長、沛沛決定）
@@ -92,7 +137,7 @@ class NetworkGraph extends ChangeNotifier {
   Set<String> neighborIdsOf(String nodeId, {Set<String> hiddenTypes = const {}}) {
     final Set<String> neighborIds = {nodeId};
     for (final NetworkGraphEdge edge in edges) {
-      if (hiddenTypes.contains(edge.type)) continue;
+      if (!edge.isVisible(hiddenTypes)) continue;
       if (edge.from.id == nodeId) neighborIds.add(edge.to.id);
       if (edge.to.id == nodeId) neighborIds.add(edge.from.id);
     }
@@ -231,45 +276,68 @@ class NetworkGraph extends ChangeNotifier {
     return NetworkGraph(nodes: nodes, edges: edges);
   }
 
+  /// 同一對人合成一條線：一般關係（customer_relationships）＋客戶資料上的轉介紹來源（referral_source_id）
+  /// （2026-11-08 老師、沛沛：原本「已經有線的兩個人不重複畫」，朋友又是轉介紹時轉介紹就不見了）
   static List<NetworkGraphEdge> _buildEdges(
     List<Map<String, dynamic>> customers,
     List<Map<String, dynamic>> relationships,
     Map<String, NetworkGraphNode> nodeById,
   ) {
-    final List<NetworkGraphEdge> edges = [];
+    final Map<String, _EdgeDraft> draftsByPair = {};
+    _EdgeDraft draftFor(NetworkGraphNode first, NetworkGraphNode second) {
+      final List<String> ids = [first.id, second.id]..sort();
+      return draftsByPair.putIfAbsent(ids.join('|'), () => _EdgeDraft(first, second));
+    }
+
     for (final Map<String, dynamic> relationship in relationships) {
       final NetworkGraphNode? from = nodeById[relationship['source_customer_id']?.toString()];
       final NetworkGraphNode? to = nodeById[relationship['target_customer_id']?.toString()];
       if (from == null || to == null || from == to) continue;
       String type = relationship['relationship_type']?.toString() ?? 'other';
       if (type == 'colleague') type = 'workplace';
-      String detail = relationship['relationship_detail']?.toString() ?? '';
-      if (detail.isEmpty) detail = relationship['notes']?.toString() ?? '';
-      edges.add(NetworkGraphEdge(from: from, to: to, type: type, label: _edgeLabel(type, detail)));
+      final _EdgeDraft draft = draftFor(from, to);
+      draft.relationTypes.add(type);
+      final String label = RelationshipKinds.edgeLabel(relationship);
+      if (!draft.labels.contains(label)) draft.labels.add(label);
     }
 
-    // 客戶資料上的「轉介紹來源」畫成有箭頭的線（已經有線的兩個人不重複畫）
     for (final Map<String, dynamic> customer in customers) {
       final NetworkGraphNode? referrer = nodeById[customer['referral_source_id']?.toString()];
       final NetworkGraphNode? referred = nodeById[customer['id'].toString()];
       if (referrer == null || referred == null || referrer == referred) continue;
-      bool alreadyLinked = false;
-      for (final NetworkGraphEdge edge in edges) {
-        if (edge.touches(referrer.id) && edge.touches(referred.id)) alreadyLinked = true;
-      }
-      if (!alreadyLinked) {
-        edges.add(NetworkGraphEdge(from: referrer, to: referred, type: 'referral', label: '轉介紹'));
-      }
+      draftFor(referrer, referred).referrerId = referrer.id;
+    }
+
+    final List<NetworkGraphEdge> edges = [];
+    for (final _EdgeDraft draft in draftsByPair.values) {
+      edges.add(draft.build());
     }
     return edges;
   }
+}
 
-  static String _edgeLabel(String type, String detail) {
-    if (detail.isNotEmpty) return detail;
-    if (type == 'referral') return '轉介紹';
-    if (type == 'family') return '親眷';
-    if (type == 'workplace') return '同事';
-    if (type == 'social') return '社友';
-    return '朋友';
+/// 合成一條線之前先收集這對人的所有關係
+class _EdgeDraft {
+  final NetworkGraphNode from;
+  final NetworkGraphNode to;
+  final Set<String> relationTypes = {};
+  final List<String> labels = [];
+  String? referrerId;
+
+  _EdgeDraft(this.from, this.to);
+
+  NetworkGraphEdge build() {
+    final List<String> labelParts = List.of(labels);
+    if (referrerId != null) labelParts.add('介紹');
+    String type = 'referral';
+    if (relationTypes.isNotEmpty) type = relationTypes.first;
+    return NetworkGraphEdge(
+      from: from,
+      to: to,
+      type: type,
+      label: labelParts.join('・'),
+      relationTypes: relationTypes,
+      referrerId: referrerId,
+    );
   }
 }
