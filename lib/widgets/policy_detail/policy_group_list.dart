@@ -73,6 +73,8 @@ class PolicySummaryHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
     String premiumText = PolicyDetailService.formatAnnualTotal(summary);
+    // 保費有填、只差繳別時寫清楚缺什麼（沛沛 11/07：「還沒填」會以為保費沒填）
+    if (premiumText.isEmpty && summary.missingFrequencyGroupCount > 0) premiumText = '補繳別後才會算';
     if (premiumText.isEmpty && summary.hasPayingPolicy) premiumText = '還沒填';
     if (premiumText.isEmpty) premiumText = '不用繳';
     String? note;

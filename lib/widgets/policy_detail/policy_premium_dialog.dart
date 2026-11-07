@@ -169,7 +169,20 @@ class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
         onSelected: () => setState(() => _paymentFrequency = frequency),
       ));
     });
-    return Wrap(spacing: 6, runSpacing: 6, children: chips);
+    final Widget chipRow = Wrap(spacing: 6, runSpacing: 6, children: chips);
+    // 原本有繳別、這次改成別的：每期金額通常會變（月繳每期比年繳小），提醒照保單改
+    final String? originalFrequency = widget.items.first.paymentFrequency;
+    final bool isFrequencyChanged = originalFrequency != null && originalFrequency != _paymentFrequency;
+    if (!isFrequencyChanged) return chipRow;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        chipRow,
+        const SizedBox(height: 4),
+        Text('繳別改了，下面的每期保費也要改成保單上的新金額',
+            style: TextStyle(fontSize: 11, color: context.appColors.warn)),
+      ],
+    );
   }
 
   List<Widget> _buildPremiumFields() {

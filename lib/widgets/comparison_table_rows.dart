@@ -11,13 +11,27 @@ class ComparisonSectionHeader extends StatelessWidget {
 
   const ComparisonSectionHeader({super.key, required this.title});
 
+  /// 每一區在講什麼（2026-11-07 沛沛：比較頁看不懂各區差在哪，標題旁加一句白話）
+  static const Map<String, String> plainExplanations = {
+    '基本資料': '哪家公司、什麼險種、什麼時候核准',
+    '理賠限額（實支實付）': '看收據報帳時「最多賠多少」；只有實支實付有',
+    '給付項目（條款）': '發生什麼事、給多少錢；點格子看條款原文',
+  };
+
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
+    final String? explanation = plainExplanations[title];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: colors.surface2,
-      child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
+          if (explanation != null) Text(explanation, style: TextStyle(fontSize: 10, color: colors.ink3)),
+        ],
+      ),
     );
   }
 }
