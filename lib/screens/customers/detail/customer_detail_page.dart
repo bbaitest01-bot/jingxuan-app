@@ -7,7 +7,7 @@ import '../../../services/customer_policy_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/visit_record_service.dart';
 import '../../../widgets/custom_toast.dart';
-import '../../../widgets/policy_group_card.dart';
+import '../../../widgets/policy_detail/policy_group_list.dart';
 import '../../../widgets/coverage_check/customer_coverage_check_section.dart';
 import '../../../widgets/coverage_check/policy_coverage_dialog.dart';
 import '../../../widgets/scan_policy/scan_policy_flow.dart';
@@ -119,11 +119,9 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     }
   }
 
-  /// 一項或整張保單改有效／已失效（D21），成功後重新讀保單（健檢跟著重算）
-  Future<void> _setPolicyStatus(List<CustomerEnrolledPolicy> items, String status) async {
-    if (await savePolicyStatus(context, widget.customerId, items, status) && mounted) {
-      await _loadAll();
-    }
+  /// 改了保費、繳別、生效日或狀態（視窗已存好），重新讀保單（健檢、一年總保費跟著重算）
+  Future<void> _reloadAfterPolicyChange() async {
+    if (mounted) await _loadAll();
   }
 
   /// 刪除一項或整張保單（D21，卡片上已先確認）
@@ -176,10 +174,11 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
               ),
               const SizedBox(height: 16),
               CustomerPoliciesSection(
+                customerId: widget.customerId,
                 policies: _policies,
                 onScanPressed: () => _scanPolicy(customer),
                 onEditCoverage: _editCoverage,
-                onSetStatus: _setPolicyStatus,
+                onPolicyChanged: _reloadAfterPolicyChange,
                 onDelete: _deletePolicies,
               ),
               const SizedBox(height: 16),

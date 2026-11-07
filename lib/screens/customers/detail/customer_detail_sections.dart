@@ -7,7 +7,7 @@ import '../../../services/policy_group_service.dart';
 import '../../../services/customer_service.dart';
 import '../../visit_records/visit_record_widgets.dart';
 import '../../../theme/app_theme.dart';
-import '../../../widgets/policy_group_card.dart';
+import '../../../widgets/policy_detail/policy_group_list.dart';
 import '../customer_status_widgets.dart';
 
 /// 客戶細節頁的一個區塊外框：標題（含筆數）、右上角按鈕、內容
@@ -167,40 +167,42 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// 保單（C6、C-18、D21）：一張保單一張卡片，分「有效保單」「已失效保單」兩區（卡片在 policy_group_card.dart）
+/// 保單（C6、C-18、D21）：一張保單一張卡片，分「有效保單」「已失效保單」兩區（清單在 policy_detail/policy_group_list.dart）
 class CustomerPoliciesSection extends StatelessWidget {
+  final String customerId;
   final List<CustomerEnrolledPolicy> policies;
   // 右上角「掃描保單」（第 5 階段 E）
   final VoidCallback onScanPressed;
   // 保單健檢（4-L）：編輯保障類別、保額、實支計畫
   final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
-  // 標為已失效／改回有效、刪除：給一項或整張保單的項目
-  final void Function(List<CustomerEnrolledPolicy> items, String status) onSetStatus;
+  // 改了保費、繳別、生效日或狀態之後（重新讀保單）
+  final VoidCallback onPolicyChanged;
+  // 刪除：給一項或整張保單的項目
   final ValueChanged<List<CustomerEnrolledPolicy>> onDelete;
 
   const CustomerPoliciesSection({
     super.key,
+    required this.customerId,
     required this.policies,
     required this.onScanPressed,
     required this.onEditCoverage,
-    required this.onSetStatus,
+    required this.onPolicyChanged,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget content = const CustomerDetailEmptyText('還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入');
-    if (policies.isNotEmpty) {
-      content = PolicyGroupList(
+    // 沒有自己的保單也要顯示清單：下面可能有「保障他的保單」（別人幫他買的）
+    final Widget content = PolicyGroupList(
+        customerId: customerId,
         policies: policies,
-        emptyText: '',
+        emptyText: '還沒有保單，可以按右上角「掃描保單」，或在數據戰情「＋加到客戶」加入',
         // 跳到數據戰情並帶出這款商品（已勾選），不用再自己搜尋
         onOpenProduct: (CustomerEnrolledPolicy policy) => context.go(AppRoutes.insightsProductPath(policy.policyClauseId)),
         onEditCoverage: onEditCoverage,
-        onSetStatus: onSetStatus,
+        onPolicyChanged: onPolicyChanged,
         onDelete: onDelete,
       );
-    }
 
     return CustomerDetailSection(
       icon: Icons.health_and_safety_outlined,

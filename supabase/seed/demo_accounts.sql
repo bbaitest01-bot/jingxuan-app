@@ -194,7 +194,7 @@ BEGIN
     INSERT INTO public.customer_policies (
       customer_id, policy_clause_id, product_name, company_name, category,
       room_limit, surgery_limit, misc_limit, benefits_json, raw_pdf_url, status,
-      policy_group_id, policy_number, coverage_role, plan_or_amount, effective_date, premium,
+      policy_group_id, policy_number, coverage_role, plan_or_amount, effective_date, premium, payment_frequency,
       coverage_amount, benefit_plan_id, source, enrolled_at
     )
     SELECT c.id, p.id::text, p.product_name, p.company_name,
@@ -203,11 +203,12 @@ BEGIN
            NULL, NULL, NULL, '{}'::jsonb, p.clause_url, v.status,
            CASE WHEN v.policy_number IS NULL THEN NULL ELSE md5(demo_user_id::text || v.policy_number)::uuid END,
            v.policy_number, v.coverage_role, v.plan_or_amount,
-           (today_local - make_interval(days => v.effective_days_ago))::date, v.premium, v.coverage_amount,
+           -- 示範保單的保費都是年繳金額（2026-11-07 加繳別，客戶頁會算出一年總保費）
+           (today_local - make_interval(days => v.effective_days_ago))::date, v.premium, 'annual', v.coverage_amount,
            (SELECT plan.id FROM public.insurance_product_benefit_plans plan WHERE plan.product_id = p.id AND plan.plan_code = v.plan_code LIMIT 1),
            v.source, now() - make_interval(days => v.effective_days_ago)
     FROM (VALUES
-      -- 王大明：一張國泰保單＝主約＋2 附約（示範「一張保單一張卡片」）；另一張防癌險已失效
+      -- 王大明：一張國泰保單＝主約＋2 附約（示範「一張保單一張卡片」）；另一張防癌險停效（lapsed，可復效）
       ('王大明', '國泰人壽新GO心保障100定期壽險',                      'active', 'DEMO-A0001', 'main',  '300萬',   1800, 24000, 3000000, NULL,  'scan'),
       ('王大明', '國泰人壽新實全心意PLUS住院醫療健康保險附約（外溢型）', 'active', 'DEMO-A0001', 'rider', 'M20',     1800, 9800,  NULL,    'M20', 'scan'),
       ('王大明', '國泰人壽超全方位傷害暨兒童傷害失能保險附約',          'active', 'DEMO-A0001', 'rider', '100萬',   1800, 2100,  1000000, NULL,  'scan'),
@@ -227,6 +228,17 @@ BEGIN
     ) AS v(customer_name, product_name, status, policy_number, coverage_role, plan_or_amount, effective_days_ago, premium, coverage_amount, plan_code, source)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name
     JOIN public.insurance_products p ON p.product_name = v.product_name;
+
+    -- 6-1. 保單的三個人（2026-11-07）：王大明那張國泰保單是太太王美華出錢（要保人）、受益人也是她；
+    --      被保險人還是王大明自己，所以兩人的健檢數字都不變
+    UPDATE public.customer_policies cp
+    SET policyholder_customer_id = wife.id,
+        beneficiary_customer_id = wife.id
+    FROM demo_customer_ids wife, demo_customer_ids husband
+    WHERE wife.customer_name = '王美華'
+      AND husband.customer_name = '王大明'
+      AND cp.customer_id = husband.id
+      AND cp.policy_number = 'DEMO-A0001';
 
     -- 7. 保單健檢目標（王大明壽險有缺口、實支夠；陳醫師重大疾病有缺口）
     --    王美華＝口試 demo 客戶：富邦佳實在計劃2 是病房 2,000／住院醫療 20 萬，

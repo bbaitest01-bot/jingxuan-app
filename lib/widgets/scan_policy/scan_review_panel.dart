@@ -308,13 +308,9 @@ class _PolicyInfoCard extends StatelessWidget {
             TextSpan(text: customerName, style: TextStyle(fontSize: 12, color: colors.ink2)),
           ])),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Text('這張保單目前', style: TextStyle(fontSize: 12, color: colors.ink2)),
-              const SizedBox(width: 8),
-              PolicyStatusSelector(status: status, onChanged: onStatusChanged),
-            ],
-          ),
+          Text('這張保單目前', style: TextStyle(fontSize: 12, color: colors.ink2)),
+          const SizedBox(height: 6),
+          PolicyStatusSelector(status: status, onChanged: onStatusChanged),
         ],
       ),
     );

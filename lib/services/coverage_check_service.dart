@@ -85,7 +85,7 @@ class CoverageCheckService {
     return policy.coverageCategory ?? productCategories[policy.policyClauseId];
   }
 
-  /// 加總（只算有效保單；實支實付用選的計畫，其他用保額；總額型實支不分項目不加）
+  /// 加總（只算有保障的保單：有效、減額繳清、展期定期；實支實付用選的計畫，其他用保額；總額型實支不分項目不加）
   static CoverageCheckResult calculate({
     required List<CustomerEnrolledPolicy> policies,
     required Map<String, String?> productCategories,
@@ -115,7 +115,8 @@ class CoverageCheckService {
         continue;
       }
 
-      final int? amount = policy.coverageAmount;
+      // 減額繳清的保單用降級後的新保額
+      final int? amount = policy.coverageAmountForCheck;
       if (amount == null) {
         missingAmountCount++;
         continue;

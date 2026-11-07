@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import 'customer_policy_service.dart';
 
 /// 客戶階段的代號與畫面名稱（數據戰情摘要、客戶管理篩選共用）
 ///
@@ -91,7 +92,7 @@ class CustomerStageService {
           .isFilter('deleted_at', null);
       // 權限只會給自己名下客戶的保單；這裡只要有效的
       final List<dynamic> activePolicyRows =
-          await _supabase.from('customer_policies').select('customer_id').eq('status', 'active');
+          await _supabase.from('customer_policies').select('customer_id').inFilter('status', PolicyStatus.withCoverage);
       final List<dynamic> visitResultRows =
           await _supabase.from('visit_results').select('customer_id').eq('profile_id', user.id);
       final List<dynamic> scheduleRows = await _supabase

@@ -163,6 +163,10 @@ def base_label(base_text):
     return '保額'
 
 
+# 寬鬆規則找到的「保額 × 1」先加記號：同一項有更精確的句子時讓那一句優先，最後再拿掉記號
+LOOSE_MARK = '［寬鬆］'
+
+
 def find_formula(context):
     """在「給付『○○保險金』」前面那段找「怎麼算」；回傳畫面要顯示的短句，找不到回傳 None"""
     # 富邦常見：同一句裡依「第 1～10 保單年度、第 11～15 保單年度…」給不同比例，先標分情況
@@ -246,6 +250,12 @@ def find_formula(context):
         return '依保單上的滿期保險金額'
     if re.search(r'(?:按|依)(?:本契約|本附約)?(?:保險單上所記載之)?「?(?:保險單上所記載之|當年度|[^，。「」]{0,14}?(?:時|當時|日)之)*「?(?:壽險當年度|當年度|總|基本)?(?:保險金額|保額)」?(?:為準)?[，,]?(?:依照本契約約定)?給付$', context):
         return '保額 × 1'
+    # 壽險常見的其他寫法（2026-11-07 補身故算法）：
+    # 「按保險單上所記載的保險金額(不含其他附約…)，給付」「按身故日時，本契約保險單上所記載之保險金額，給付」
+    # 「按身故日計算「當年度保險金額」給付」：中間只有日期、契約、保單的說明，沒有倍數或比例 → 保額 × 1
+    loose = re.search(r'(?:按|依)([^。]{0,40}?)「?(?:當年度|基本|總)?保險金額」?(?:[（(][^）)]{0,30}[）)])?[，,]?給付$', context)
+    if loose and not re.search(r'乘|倍|百分之|[%％]|已繳|保單價值|下列|下表|日額|單位', loose.group(1)):
+        return '保額 × 1' + LOOSE_MARK
     # 「按下列約定」「按保險年齡一百零四歲之保險單年度末，下列二款計算方式…」都算分情況
     if re.search(r'(?:按|以|依)[^。]{0,30}?(?:下列|下表)', context):
         return '分情況（看原文）'
@@ -336,7 +346,7 @@ def case_formula(value):
         return None
     formula = find_formula('按' + value + '給付')
     if formula and '看原文' not in formula:
-        return formula
+        return formula.replace(LOOSE_MARK, '')
     return None
 
 
@@ -363,6 +373,10 @@ def summarize_cases(text, start, context):
         if '：' in body:
             condition, _, value = body.rpartition('：')
         formula = case_formula(value)
+        # 「下列三款取最大」：算得出的那幾款照列，算不出的寫「其他算法」（app 會顯示「至少」）
+        # （2026-11-07 補身故算法：原本只要有一款看不懂，整項就變成看原文）
+        if not formula and take_larger:
+            formula = '其他算法'
         if not formula:
             return None
         if take_larger:
@@ -376,10 +390,18 @@ def summarize_cases(text, start, context):
         return None
     # 每種情況算法都一樣（例：未滿 16 歲、16 歲以上都是保額 × 50%）就不分情況
     distinct_formulas = {formula for _, formula in cases}
+    # 每一款都看不懂：維持看原文
+    if distinct_formulas == {'其他算法'}:
+        return None
     if len(distinct_formulas) == 1:
         return cases[0][1]
     if take_larger:
-        return '取較高：' + '／'.join(formula for _, formula in cases)
+        formulas = [formula for _, formula in cases]
+        # 同一個算法出現兩次（例：保額 × 1／保單價值／保額 × 1）通常是讀錯段落，不採用（2026-11-07）
+        known = [formula for formula in formulas if formula != '其他算法']
+        if len(known) != len(set(known)):
+            return None
+        return '取較高：' + '／'.join(formulas)
     main_condition, main_formula = cases[-1]
     others = '；'.join(f'{condition}：{formula}' for condition, formula in cases[:-1])
     return f'{main_condition}：{main_formula}（{others}）'
@@ -514,29 +536,46 @@ def extract_items(text):
             if year_summary:
                 formula = year_summary
         # 分好幾種情況的（第 1 年、第 2 年起…）：整理成「主要金額（其他情況）」，出處也帶上那幾種情況
+        from_summary = False
         if formula == '分情況（看原文）':
             summary = summarize_cases(text, match.end(), text[sentence_start:match.start() + 2])
             if summary:
                 formula = summary
+                from_summary = True
                 excerpt = text[sentence_start:min(len(text), match.end() + 260)]
-        candidates_by_key.setdefault(key, []).append((formula, excerpt, match.start()))
+        candidates_by_key.setdefault(key, []).append((formula, excerpt, match.start(), from_summary))
 
     items = []
     for key, all_candidates in candidates_by_key.items():
         # 先用這一項自己那一條（標題「○○保險金的給付」到下一條）裡的句子；別條提到它時的數字常常是別項的
         own_candidates = [candidate for candidate in all_candidates if in_own_article(text, names_by_key[key], candidate[2])]
-        candidates = [(formula, excerpt) for formula, excerpt, _ in (own_candidates or all_candidates)]
+        chosen_pool = own_candidates or all_candidates
+        candidates = [(formula, excerpt) for formula, excerpt, _, _ in chosen_pool]
         chosen = candidates[0]
-        for formula, excerpt in candidates:
-            if formula and '看原文' not in formula:
-                chosen = (formula, excerpt)
-                break
+        # 選句子的順序（2026-11-07）：1. 句子本身就寫出算法 2. 整理「下列幾款」得到的完整算法
+        # 3. 「取較高：…／其他算法」；避免把原本就對的算法換成整理出來的
+        # 1. 精確的算法（照出現順序，和原本一樣）2. 寬鬆規則的「保額 × 1」
+        # 3. 「取較高：…／其他算法」
+        def is_complete(formula):
+            return bool(formula) and '看原文' not in formula and '其他算法' not in formula and LOOSE_MARK not in formula
+        exact = [(formula, excerpt) for formula, excerpt, _, _ in chosen_pool if is_complete(formula)]
+        loose = [(formula, excerpt) for formula, excerpt, _, _ in chosen_pool if formula and LOOSE_MARK in formula]
+        partial = [(formula, excerpt) for formula, excerpt, _, _ in chosen_pool if formula and '其他算法' in formula]
+        if exact:
+            chosen = exact[0]
+        elif loose:
+            chosen = loose[0]
+        elif partial:
+            chosen = partial[0]
         else:
             for formula, excerpt in candidates:
                 if formula or re.search(r'本公司(?:按|依|以)', excerpt):
                     chosen = (formula, excerpt)
                     break
-        items.append({'item_key': key, 'item_name': names_by_key[key], 'formula': chosen[0], 'excerpt': chosen[1]})
+        chosen_formula = chosen[0]
+        if chosen_formula:
+            chosen_formula = chosen_formula.replace(LOOSE_MARK, '')
+        items.append({'item_key': key, 'item_name': names_by_key[key], 'formula': chosen_formula, 'excerpt': chosen[1]})
     # 意外險的「喪葬費用保險金」是意外身故的另一種說法，已經有「意外身故」就不另列「身故」
     keys = {item['item_key'] for item in items}
     if '意外身故' in keys:

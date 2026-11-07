@@ -3,6 +3,8 @@ import '../services/benefit_item_service.dart';
 import '../services/benefit_plan_service.dart';
 import '../services/benefit_trial_calculator.dart';
 import '../services/insurance_product_service.dart';
+import '../services/scenario/claim_scenario.dart';
+import '../services/scenario/claim_scenario_calculator.dart';
 import '../widgets/benefit_item_comparison.dart';
 import '../widgets/benefit_plan_comparison.dart';
 import '../widgets/benefit_trial_inputs.dart';
@@ -11,6 +13,9 @@ import '../widgets/comparison_scroll_bar.dart';
 import '../widgets/comparison_table_rows.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/insurance_product_card.dart';
+import '../widgets/scenario/no_benefit_notice.dart';
+import '../widgets/scenario/scenario_input_panel.dart';
+import '../widgets/scenario/scenario_result_card.dart';
 import '../theme/app_theme.dart';
 
 /// 比較表的一列：標題＋從商品取出要顯示的文字
@@ -38,6 +43,7 @@ class _ComparisonSection {
 /// 理賠限額（實支實付）讀 insurance_product_benefit_plans（D14，全景地圖 4-K），每欄可切換計畫；
 /// 定額型商品的給付項目讀 insurance_product_benefit_items（第 5 階段 D 第 2 層），點格子看條款原文；
 /// 舊設計的「全真醫療單據試算」「組合包聯合精算」一直停用，2026-11-04 拿掉（和保單健檢重疊，D26）。
+/// 2026-11-07 加「情境試算」：最上面填情境（住院、身故、癌症…），每欄算「這個情境大約可以拿多少」。
 class PolicyComparisonScreen extends StatefulWidget {
   final List<InsuranceProduct> initialProducts;
 
@@ -69,6 +75,12 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   Map<String, List<InsuranceBenefitItem>> _itemsByProduct = {};
   // 每款商品的試算數字（業務員填的保額、年繳保費…），只在這次比較用
   final Map<String, BenefitTrialInput> _trialInputByProduct = {};
+  // 情境試算：每款共用同一個情境；實支實付各自選買幾張
+  ClaimScenarioInput _scenarioInput = const ClaimScenarioInput();
+  final Map<String, int> _copiesByProduct = {};
+  // 給付項目、限額表都讀完了（還沒讀完前不顯示「沒有給付項目」的說明，免得閃一下）
+  bool _isItemsLoaded = false;
+  bool _isPlansLoaded = false;
   // 比較表左右捲動的控制器：表格和上方滑軌共用，任一邊移動另一邊跟著動
   final ScrollController _columnScrollController = ScrollController();
 
@@ -94,7 +106,10 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     final Map<String, List<InsuranceBenefitItem>> itemsByProduct =
         await BenefitItemService().fetchItemsForProducts(productIds);
     if (!mounted) return;
-    setState(() => _itemsByProduct = itemsByProduct);
+    setState(() {
+      _itemsByProduct = itemsByProduct;
+      _isItemsLoaded = true;
+    });
   }
 
   List<InsuranceBenefitItem> _itemsOf(InsuranceProduct product) {
@@ -127,7 +142,10 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     final Map<String, List<InsuranceBenefitPlan>> plansByProduct =
         await BenefitPlanService().fetchPlansForProducts(productIds);
     if (!mounted) return;
-    setState(() => _plansByProduct = plansByProduct);
+    setState(() {
+      _plansByProduct = plansByProduct;
+      _isPlansLoaded = true;
+    });
   }
 
   /// 這款商品目前選的計畫；沒有限額表回傳 null
@@ -230,6 +248,15 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
         plans: _plansByProduct[product.id] ?? const [],
         benefitItems: _itemsOf(product),
         onTrialChanged: (BenefitTrialInput input) => setState(() => _trialInputByProduct[product.id] = input),
+        scenarioResult: ClaimScenarioCalculator.calculate(
+          input: _scenarioInput,
+          plan: _selectedPlanOf(product),
+          items: _itemsOf(product),
+          trialInput: _trialInputOf(product),
+        ),
+        copies: _copiesByProduct[product.id] ?? 1,
+        isBenefitDataLoaded: _isItemsLoaded && _isPlansLoaded,
+        onCopiesChanged: (int copies) => setState(() => _copiesByProduct[product.id] = copies),
         selectedPlanIndex: _selectedPlanIndex[product.id] ?? 0,
         onPlanChanged: (int planIndex) => setState(() => _selectedPlanIndex[product.id] = planIndex),
         onRemove: () => _removeProduct(index),
@@ -283,6 +310,11 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ScenarioInputPanel(
+            input: _scenarioInput,
+            onChanged: (ClaimScenarioInput input) => setState(() => _scenarioInput = input),
+          ),
+          const SizedBox(height: 14),
           SingleChildScrollView(
             controller: _columnScrollController,
             scrollDirection: Axis.horizontal,
@@ -314,6 +346,10 @@ class _ProductComparisonColumn extends StatelessWidget {
   final List<InsuranceBenefitPlan> plans;
   final List<InsuranceBenefitItem> benefitItems;
   final ValueChanged<BenefitTrialInput> onTrialChanged;
+  final ClaimScenarioResult scenarioResult;
+  final int copies;
+  final ValueChanged<int> onCopiesChanged;
+  final bool isBenefitDataLoaded;
   final int selectedPlanIndex;
   final ValueChanged<int> onPlanChanged;
   final VoidCallback onRemove;
@@ -325,6 +361,10 @@ class _ProductComparisonColumn extends StatelessWidget {
     required this.plans,
     required this.benefitItems,
     required this.onTrialChanged,
+    required this.scenarioResult,
+    required this.copies,
+    required this.onCopiesChanged,
+    required this.isBenefitDataLoaded,
     required this.selectedPlanIndex,
     required this.onPlanChanged,
     required this.onRemove,
@@ -375,6 +415,17 @@ class _ProductComparisonColumn extends StatelessWidget {
               fields: BenefitTrialCalculator.fieldsFor(benefitItems),
               currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName),
               onChanged: onTrialChanged,
+            ),
+          // 沒有給付項目也沒有限額表（豁免保費、批註…）：說明原因，不顯示情境結果
+          if (isBenefitDataLoaded && plans.isEmpty && benefitItems.isEmpty)
+            NoBenefitNotice(product: product)
+          else
+            // 情境試算的結果（放在試算下面：試算填的保額、日額會用到）
+            ScenarioResultCard(
+              result: scenarioResult,
+              currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName),
+              copies: copies,
+              onCopiesChanged: onCopiesChanged,
             ),
           ...sectionWidgets,
           Divider(height: 1, color: colors.line),

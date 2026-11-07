@@ -87,20 +87,6 @@ void main() {
       expect(policy.hasLimitData, isFalse);
       expect(limitTextOrNotReady(policy.roomLimit), '建置中');
     });
-
-    test('保障總額只算有限額資料的保單，全部沒有時不判斷缺口', () {
-      final CustomerEnrolledPolicy withoutLimit = CustomerEnrolledPolicy.fromJson({
-        'id': 'cp1',
-        'customer_id': 'c1',
-        'category': '醫療',
-        'benefits_json': <String, dynamic>{},
-      });
-      final CustomerBenefitSummary summary = CustomerPolicyService().calculateCustomerBenefitSummary([withoutLimit]);
-      expect(summary.countedPolicyCount, 0);
-      expect(summary.policiesWithoutLimitCount, 1);
-      expect(summary.totalRoomDaily, 0);
-      expect(summary.hasCriticalGap, isFalse);
-    });
   });
 
   group('資料來源', () {

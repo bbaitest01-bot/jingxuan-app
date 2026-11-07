@@ -1,109 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
+import '../services/policy_detail_service.dart';
 import '../services/policy_group_service.dart';
 import '../theme/app_theme.dart';
-import 'custom_toast.dart';
+import 'customer_policy_widgets.dart';
+import 'policy_detail/policy_group_list.dart';
+import 'policy_detail/policy_premium_dialog.dart';
+import 'policy_detail/policy_status_dialog.dart';
 
-/// 客戶的保單：一張保單一張卡片（2026-10-29 D21，視覺模型圖沛沛確認）
-///
-/// - 分「有效保單」「已失效保單」兩區；整張都失效才放已失效，部分附約失效的那幾項劃線
+/// 一張保單的卡片（D21；2026-11-07 加狀態標籤、保費、繳別）
 /// - 卡片預設只顯示主約，「＋N 項附約」點開才列出
-/// - 點一項：看商品資料、保額、標為已失效／改回有效、刪除這項
-/// - 「⋯」：整張標為已失效／改回有效、刪除整張保單
-/// 客戶完整頁與側邊抽屜共用；onSetStatus、onDelete 給的是要處理的那幾項（一項或整張）
-class PolicyGroupList extends StatelessWidget {
-  final List<CustomerEnrolledPolicy> policies;
-  final String emptyText;
-  final ValueChanged<CustomerEnrolledPolicy> onOpenProduct;
-  final ValueChanged<CustomerEnrolledPolicy> onEditCoverage;
-  final void Function(List<CustomerEnrolledPolicy> items, String status) onSetStatus;
-  final ValueChanged<List<CustomerEnrolledPolicy>> onDelete;
-
-  const PolicyGroupList({
-    super.key,
-    required this.policies,
-    required this.emptyText,
-    required this.onOpenProduct,
-    required this.onEditCoverage,
-    required this.onSetStatus,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    if (policies.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(emptyText, style: TextStyle(fontSize: 12, color: colors.ink3), textAlign: TextAlign.center),
-      );
-    }
-    final List<PolicyGroup> activeGroups = [];
-    final List<PolicyGroup> lapsedGroups = [];
-    for (final PolicyGroup group in PolicyGrouping.group(policies)) {
-      if (group.isAllLapsed) {
-        lapsedGroups.add(group);
-      } else {
-        activeGroups.add(group);
-      }
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _GroupSection(title: '有效保單', groups: activeGroups, list: this),
-        const SizedBox(height: 14),
-        _GroupSection(title: '已失效保單', groups: lapsedGroups, list: this),
-      ],
-    );
-  }
-}
-
-class _GroupSection extends StatelessWidget {
-  final String title;
-  final List<PolicyGroup> groups;
-  final PolicyGroupList list;
-
-  const _GroupSection({required this.title, required this.groups, required this.list});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    int itemCount = 0;
-    for (final PolicyGroup group in groups) {
-      itemCount += group.items.length;
-    }
-    final List<Widget> children = [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink))),
-          Text('${groups.length} 張保單・$itemCount 項', style: TextStyle(fontSize: 12, color: colors.ink3)),
-        ],
-      ),
-    ];
-    if (groups.isEmpty) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Text('沒有', style: TextStyle(fontSize: 12, color: colors.ink3)),
-      ));
-    }
-    for (final PolicyGroup group in groups) {
-      children.add(const SizedBox(height: 8));
-      children.add(PolicyGroupCard(group: group, list: list));
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
-  }
-}
-
-/// 一張保單的卡片
+/// - 右上「編輯」：保費、繳別、生效日；「⋯」：更改狀態、刪除整張保單
+/// - 點一項：看商品資料、保額、更改這項狀態、刪除這項
 class PolicyGroupCard extends StatefulWidget {
   final PolicyGroup group;
   final PolicyGroupList list;
+  // 三個人的名字（{客戶 id: 姓名}）；沒有就不顯示那一行
+  final Map<String, String> partyNames;
 
-  const PolicyGroupCard({super.key, required this.group, required this.list});
+  const PolicyGroupCard({super.key, required this.group, required this.list, this.partyNames = const {}});
 
   @override
   State<PolicyGroupCard> createState() => _PolicyGroupCardState();
@@ -114,25 +33,67 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
 
   PolicyGroup get _group => widget.group;
 
+  /// 「保單號碼 X・生效 2021/03/15・月繳・一年 24,600 元」；手動加入的開頭寫「手動加入」
   String _subtitle() {
-    if (_group.isManual) {
-      return '手動加入';
-    }
     final List<String> parts = [];
+    if (_group.isManual) parts.add('手動加入');
     final String policyNumber = _group.policyNumber ?? '';
     if (policyNumber.isNotEmpty) parts.add('保單號碼 $policyNumber');
     final DateTime? effectiveDate = _group.effectiveDate;
     if (effectiveDate != null) parts.add('生效 ${DateFormat('yyyy/MM/dd').format(effectiveDate)}');
+    final String frequencyLabel = PaymentFrequency.label(_group.mainItem.paymentFrequency);
+    if (frequencyLabel.isNotEmpty) parts.add(frequencyLabel);
+    final String annualText = PolicyDetailService.formatAnnualTotal(PolicyDetailService.summarize(_group.items));
+    if (annualText.isNotEmpty) parts.add('一年 $annualText');
     if (parts.isEmpty) return '掃描加入';
     return parts.join('・');
   }
 
+  /// 還沒填的保單資料提醒：「還沒填繳別、生效日」；都填了回傳 null
+  String? _missingDetailText() {
+    // 已經沒有保障的保單（停效、解約、滿期）不必提醒
+    if (_group.isAllLapsed) return null;
+    final List<String> missing = [];
+    if (_group.mainItem.paymentFrequency == null) missing.add('繳別');
+    if (_group.effectiveDate == null) missing.add('生效日');
+    if (missing.isEmpty) return null;
+    return '還沒填${missing.join('、')}';
+  }
+
+  /// 「要保人 王美華・被保險人 陳小寶・受益人 法定繼承人」；不是這位客戶自己的名字可以點，跳到那位客戶
+  /// （模型圖 2026-11-07）；沒填過三個人回傳 null（卡片不多一行）
+  Widget? _buildPartiesLine(AppColors colors) {
+    final CustomerEnrolledPolicy main = _group.mainItem;
+    if (!main.hasPartyDetails) return null;
+    final List<Widget> parts = [
+      _PartyName(label: '要保人', customerId: main.effectivePolicyholderId, ownerId: main.customerId, names: widget.partyNames),
+      Text('・', style: TextStyle(fontSize: 12, color: colors.ink3)),
+      _PartyName(label: '被保險人', customerId: main.effectiveInsuredId, ownerId: main.customerId, names: widget.partyNames),
+    ];
+    final String beneficiaryText = main.beneficiaryText ?? '';
+    final String? beneficiaryId = main.beneficiaryCustomerId;
+    if (beneficiaryText.isNotEmpty) {
+      parts.add(Text('・受益人 $beneficiaryText', style: TextStyle(fontSize: 12, color: colors.ink2)));
+    } else if (beneficiaryId != null) {
+      parts.add(Text('・', style: TextStyle(fontSize: 12, color: colors.ink3)));
+      parts.add(_PartyName(label: '受益人', customerId: beneficiaryId, ownerId: main.customerId, names: widget.partyNames));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: parts),
+    );
+  }
+
+  Future<void> _openPremiumDialog() async {
+    if (await showPolicyPremiumDialog(context, _group.mainItem.customerId, _group.items)) widget.list.onPolicyChanged();
+  }
+
   Future<void> _onGroupMenu(String action) async {
     final List<CustomerEnrolledPolicy> items = _group.items;
-    if (action == 'lapse') {
-      widget.list.onSetStatus(items, PolicyStatus.lapsed);
-    } else if (action == 'active') {
-      widget.list.onSetStatus(items, PolicyStatus.active);
+    if (action == 'status') {
+      if (await showPolicyStatusDialog(context, _group.mainItem.customerId, items)) widget.list.onPolicyChanged();
+    } else if (action == 'premium') {
+      await _openPremiumDialog();
     } else if (action == 'delete' && await _confirmDelete(context, '刪除整張保單', '會刪掉這張保單的 ${items.length} 項，刪除後無法復原。')) {
       widget.list.onDelete(items);
     }
@@ -148,12 +109,8 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
         rows.add(_PolicyItemRow(item: item, list: widget.list));
       }
     }
-    String lapseLabel = '整張標為已失效';
-    String lapseAction = 'lapse';
-    if (_group.isAllLapsed) {
-      lapseLabel = '整張改回有效';
-      lapseAction = 'active';
-    }
+    final String? missingDetailText = _missingDetailText();
+    final Widget? partiesLine = _buildPartiesLine(colors);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       decoration: BoxDecoration(
@@ -170,17 +127,26 @@ class _PolicyGroupCardState extends State<PolicyGroupCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_group.companyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
+                    _GroupTitleRow(group: _group),
                     Text(_subtitle(), style: AppTextStyles.mono(fontSize: 11, color: colors.ink3)),
+                    if (missingDetailText != null)
+                      Text(missingDetailText, style: TextStyle(fontSize: 11, color: colors.warn)),
+                    if (partiesLine != null) partiesLine,
                   ],
                 ),
+              ),
+              TextButton(
+                onPressed: _openPremiumDialog,
+                style: TextButton.styleFrom(foregroundColor: colors.acc, visualDensity: VisualDensity.compact),
+                child: const Text('編輯', style: TextStyle(fontSize: 12)),
               ),
               PopupMenuButton<String>(
                 icon: Icon(Icons.more_horiz_rounded, color: colors.ink3),
                 tooltip: '整張保單',
                 onSelected: _onGroupMenu,
                 itemBuilder: (BuildContext menuContext) => [
-                  PopupMenuItem<String>(value: lapseAction, child: Text(lapseLabel)),
+                  const PopupMenuItem<String>(value: 'premium', child: Text('保費、繳別、生效日')),
+                  const PopupMenuItem<String>(value: 'status', child: Text('更改狀態')),
                   PopupMenuItem<String>(value: 'delete', child: Text('刪除整張保單', style: TextStyle(color: colors.warn))),
                 ],
               ),
@@ -218,13 +184,7 @@ class _PolicyItemRow extends StatelessWidget {
     final AppColors colors = context.appColors;
     final bool isLapsed = !item.isActive;
     final String amountText = policyAmountText(item);
-    Widget trailing = Text(amountText, style: AppTextStyles.mono(fontSize: 12, color: isLapsed ? colors.ink3 : colors.ink2));
-    if (amountText.isEmpty) {
-      trailing = InkWell(
-        onTap: () => list.onEditCoverage(item),
-        child: Text('補保額', style: TextStyle(fontSize: 12, color: colors.acc)),
-      );
-    }
+    final Widget trailing = _ItemAmountColumn(item: item, amountText: amountText, onFillAmount: () => list.onEditCoverage(item));
     return InkWell(
       onTap: () => _showItemActions(context),
       child: Container(
@@ -254,12 +214,10 @@ class _PolicyItemRow extends StatelessWidget {
 
   /// 點一項跳出的動作清單（手機與電腦共用）
   List<_ItemAction> _itemActions() {
-    String statusLabel = '這項改回有效';
-    if (item.isActive) statusLabel = '這項標為已失效';
     final List<_ItemAction> actions = [];
     if (item.isInCatalog) actions.add(const _ItemAction('open', '看商品資料', Icons.description_outlined));
     actions.add(const _ItemAction('coverage', '保障類別與保額', Icons.edit_outlined));
-    actions.add(_ItemAction('status', statusLabel, Icons.swap_horiz_rounded));
+    actions.add(const _ItemAction('status', '更改這項狀態', Icons.swap_horiz_rounded));
     actions.add(const _ItemAction('delete', '刪除這項', Icons.delete_outline_rounded, isDanger: true));
     return actions;
   }
@@ -278,7 +236,7 @@ class _PolicyItemRow extends StatelessWidget {
     } else if (action == 'coverage') {
       list.onEditCoverage(item);
     } else if (action == 'status') {
-      list.onSetStatus([item], item.isActive ? PolicyStatus.lapsed : PolicyStatus.active);
+      if (await showPolicyStatusDialog(context, item.customerId, [item])) list.onPolicyChanged();
     } else if (action == 'delete' && await _confirmDelete(context, '刪除這項', '刪除「${item.productName}」，刪除後無法復原。')) {
       list.onDelete([item]);
     }
@@ -373,7 +331,7 @@ class _RoleTag extends StatelessWidget {
       textColor = colors.acc;
     }
     if (!item.isActive) {
-      label = '已失效';
+      label = PolicyStatus.label(item.status);
       background = colors.surface;
       textColor = colors.ink3;
     }
@@ -395,14 +353,78 @@ class _RoleTag extends StatelessWidget {
 String policyAmountText(CustomerEnrolledPolicy item) {
   final int? amount = item.coverageAmount;
   if (amount != null) {
-    if (amount >= 10000 && amount % 1000 == 0) {
-      String tenThousands = (amount / 10000).toStringAsFixed(1);
-      if (tenThousands.endsWith('.0')) tenThousands = tenThousands.substring(0, tenThousands.length - 2);
-      return '$tenThousands 萬';
-    }
-    return NumberFormat('#,###').format(amount);
+    return PolicyDetailService.formatAmount(amount);
   }
   return item.planOrAmount ?? '';
+}
+
+/// 卡片標題列：公司名稱＋狀態標籤（＋有貸款）
+class _GroupTitleRow extends StatelessWidget {
+  final PolicyGroup group;
+
+  const _GroupTitleRow({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    bool hasPolicyLoan = false;
+    for (final CustomerEnrolledPolicy item in group.items) {
+      if (item.hasPolicyLoan) hasPolicyLoan = true;
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 2,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(group.companyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
+        PolicyStatusChip(status: group.mainItem.status),
+        if (hasPolicyLoan) const PolicyLoanChip(),
+      ],
+    );
+  }
+}
+
+/// 一項右邊的金額：第一行保額（沒有就「補保額」；減額繳清寫「~~50 萬~~ 降為 20 萬」），第二行「每期 1,500 元」
+class _ItemAmountColumn extends StatelessWidget {
+  final CustomerEnrolledPolicy item;
+  final String amountText;
+  final VoidCallback onFillAmount;
+
+  const _ItemAmountColumn({required this.item, required this.amountText, required this.onFillAmount});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    Color amountColor = colors.ink2;
+    if (!item.isActive) amountColor = colors.ink3;
+    Widget amountLine = Text(amountText, style: AppTextStyles.mono(fontSize: 12, color: amountColor));
+    if (amountText.isEmpty) {
+      amountLine = InkWell(
+        onTap: onFillAmount,
+        child: Text('補保額', style: TextStyle(fontSize: 12, color: colors.acc)),
+      );
+    }
+    final int? reducedAmount = item.reducedCoverageAmount;
+    if (item.status == PolicyStatus.reducedPaidUp && reducedAmount != null) {
+      amountLine = Text.rich(
+        TextSpan(children: [
+          TextSpan(text: amountText, style: const TextStyle(decoration: TextDecoration.lineThrough)),
+          TextSpan(text: ' 降為 ${PolicyDetailService.formatAmount(reducedAmount)}'),
+        ]),
+        style: AppTextStyles.mono(fontSize: 12, color: amountColor),
+      );
+    }
+    final int? premium = item.premium;
+    if (premium == null) return amountLine;
+    final String premiumText = PolicyDetailService.formatPremium(premium, PolicyDetailService.currencyOf(item));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        amountLine,
+        Text('每期 $premiumText', style: AppTextStyles.mono(fontSize: 11, color: colors.ink3)),
+      ],
+    );
+  }
 }
 
 Future<bool> _confirmDelete(BuildContext context, String title, String message) async {
@@ -429,26 +451,35 @@ Future<bool> _confirmDelete(BuildContext context, String title, String message) 
   return confirmed == true;
 }
 
-/// 客戶完整頁與側邊抽屜共用：改狀態並跳提示；有改到回傳 true（呼叫的地方再重新讀保單）
-Future<bool> savePolicyStatus(BuildContext context, String customerId, List<CustomerEnrolledPolicy> items, String status) async {
-  final int successCount = await CustomerPolicyService().updateStatusForPolicies(customerId, items, status);
-  if (!context.mounted) return successCount > 0;
-  if (successCount < items.length) {
-    CustomToast.show(context, '有 ${items.length - successCount} 項切換失敗，請檢查網路後再試', ToastType.error);
-  } else {
-    CustomToast.show(context, '已改為${PolicyStatus.label(status)}（${items.length} 項）', ToastType.success);
-  }
-  return successCount > 0;
-}
+/// 卡片上的一個人：「被保險人 陳小寶」；不是這位客戶自己時名字加底線、可以點，跳到那位客戶的頁面
+class _PartyName extends StatelessWidget {
+  final String label;
+  final String customerId;
+  final String ownerId;
+  final Map<String, String> names;
 
-/// 客戶完整頁與側邊抽屜共用：刪除並跳提示；有刪到回傳 true
-Future<bool> deletePolicyItems(BuildContext context, String customerId, List<CustomerEnrolledPolicy> items) async {
-  final int successCount = await CustomerPolicyService().removePoliciesForCustomer(customerId, items);
-  if (!context.mounted) return successCount > 0;
-  if (successCount < items.length) {
-    CustomToast.show(context, '有 ${items.length - successCount} 項刪除失敗，請檢查網路後再試', ToastType.error);
-  } else {
-    CustomToast.show(context, '已刪除 ${items.length} 項', ToastType.success);
+  const _PartyName({required this.label, required this.customerId, required this.ownerId, required this.names});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    final String name = names[customerId] ?? '';
+    final TextStyle labelStyle = TextStyle(fontSize: 12, color: colors.ink2);
+    if (customerId == ownerId || name.isEmpty) {
+      return Text('$label $name', style: labelStyle);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$label ', style: labelStyle),
+        InkWell(
+          onTap: () => context.go(AppRoutes.customerPath(customerId)),
+          child: Text(
+            name,
+            style: TextStyle(fontSize: 12, color: colors.acc, decoration: TextDecoration.underline, decorationColor: colors.acc),
+          ),
+        ),
+      ],
+    );
   }
-  return successCount > 0;
 }
