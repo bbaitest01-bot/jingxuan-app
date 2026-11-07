@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:insurance_helper/main.dart';
 import 'package:insurance_helper/screens/home_screen.dart';
 import 'package:insurance_helper/screens/customer_management_tab.dart';
-import 'package:insurance_helper/services/customer_policy_service.dart';
 import 'package:insurance_helper/services/tag_categorizer.dart';
 import 'package:insurance_helper/widgets/categorized_tag_accordion_selector.dart';
 import 'package:insurance_helper/widgets/voice_recorder_widget.dart';
@@ -110,55 +109,6 @@ void main() {
 
       // 清除 Toast timer
       await tester.pump(const Duration(seconds: 4));
-    });
-
-    test('Step 4: 0 成本保單健檢精算與保障缺口秒算測試', () {
-      final List<CustomerEnrolledPolicy> samplePolicies = [
-        CustomerEnrolledPolicy(
-          id: 'CP-01',
-          customerId: 'cust_01',
-          policyClauseId: 'PC-01',
-          productName: '超安心醫療保險',
-          companyName: '國泰人壽',
-          category: '實支實付醫療險',
-          roomLimit: '2,500 元/日',
-          surgeryLimit: '150,000 元',
-          miscLimit: '200,000 元',
-          roomDailyValue: 2500,
-          surgeryMaxValue: 150000,
-          miscMaxValue: 200000,
-          rawPdfUrl: 'https://example.com',
-          enrolledAt: DateTime.now(),
-        ),
-        CustomerEnrolledPolicy(
-          id: 'CP-02',
-          customerId: 'cust_01',
-          policyClauseId: 'PC-02',
-          productName: '愛常在重大傷病定期健康保險',
-          companyName: '富邦人壽',
-          category: '重大傷病險',
-          roomLimit: '0 元/日',
-          surgeryLimit: '0 元',
-          miscLimit: '0 元',
-          roomDailyValue: 0,
-          surgeryMaxValue: 0,
-          miscMaxValue: 0,
-          rawPdfUrl: 'https://example.com',
-          enrolledAt: DateTime.now(),
-        ),
-      ];
-
-      final service = CustomerPolicyService();
-      final summary = service.calculateCustomerBenefitSummary(samplePolicies);
-
-      expect(summary.totalRoomDaily, equals(2500));
-      expect(summary.totalSurgeryMax, equals(150000));
-      expect(summary.totalMiscMax, equals(200000));
-      expect(summary.totalCancerCriticalMax, equals(1000000)); // Default benchmark value for critical illness
-      expect(summary.roomGap, equals(1000)); // 3500 - 2500 = 1000
-
-      // 檢查缺口分析結果包含建議
-      expect(summary.detectedGaps, isNotEmpty);
     });
 
     test('Step 3.5: 語音速記時間戳追加與防覆蓋測試 (Voice Notes Timestamped Append Test)', () {

@@ -12,94 +12,6 @@ String limitTextOrNotReady(String limitText) {
   return limitText;
 }
 
-/// 客戶「保單健檢與缺口」的理賠總額卡片
-///
-/// 只加總有理賠限額資料的保單；真實商品還沒有第二層比價資料，會列在「未納入計算」。
-class BenefitSummaryCard extends StatelessWidget {
-  final CustomerBenefitSummary? summary;
-
-  const BenefitSummaryCard({super.key, required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final int countedCount = summary?.countedPolicyCount ?? 0;
-    final int notCountedCount = summary?.policiesWithoutLimitCount ?? 0;
-
-    final List<Widget> rows = [];
-    if (countedCount == 0) {
-      rows.add(Text(
-        '理賠限額資料建置中，暫時無法計算保障總額與缺口。',
-        style: TextStyle(fontSize: 12, color: colors.ink3),
-      ));
-    } else {
-      rows.add(_SummaryRow(label: '病房給付總額', value: '${summary!.totalRoomDaily} 元/日', icon: Icons.hotel_rounded));
-      rows.add(
-          _SummaryRow(label: '手術給付上限', value: '${summary!.totalSurgeryMax} 元', icon: Icons.medical_services_rounded));
-      rows.add(_SummaryRow(label: '自費雜費總額', value: '${summary!.totalMiscMax} 元', icon: Icons.receipt_rounded));
-      rows.add(_SummaryRow(
-        label: '癌症重疾一次金',
-        value: '${summary!.totalCancerCriticalMax ~/ 10000} 萬元',
-        icon: Icons.coronavirus_rounded,
-      ));
-    }
-    if (notCountedCount > 0) {
-      rows.add(const SizedBox(height: 6));
-      rows.add(Text(
-        '$notCountedCount 張保單尚無理賠限額資料，未納入計算',
-        style: TextStyle(fontSize: 11, color: colors.ink3),
-      ));
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.accSoft,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: colors.acc.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.calculate_rounded, color: colors.acc, size: 18),
-              const SizedBox(width: 8),
-              Text('理賠總額', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.ink)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...rows,
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _SummaryRow({required this.label, required this.value, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: colors.ink3),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: colors.ink2))),
-          Text(value, style: AppTextStyles.mono(fontSize: 12, fontWeight: FontWeight.bold, color: colors.ink)),
-        ],
-      ),
-    );
-  }
-}
-
 /// 「加入保單」搜尋結果的一列：公司、險種、商品名稱、＋加入
 class CatalogProductResultTile extends StatelessWidget {
   final InsuranceProduct product;
@@ -159,7 +71,7 @@ class CatalogProductResultTile extends StatelessWidget {
   }
 }
 
-/// 「有效／已失效」二選一（加保單時用；預設有效）
+/// 保單狀態選擇：上排「有保障」、下排「沒有保障」（加保單、改狀態共用；2026-11-07 模型圖沛沛確認）
 class PolicyStatusSelector extends StatelessWidget {
   final String status;
   final ValueChanged<String> onChanged;
@@ -168,20 +80,76 @@ class PolicyStatusSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<String>(
-      segments: const [
-        ButtonSegment<String>(value: PolicyStatus.active, label: Text('有效')),
-        ButtonSegment<String>(value: PolicyStatus.lapsed, label: Text('已失效')),
+    final AppColors colors = context.appColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('有保障', style: TextStyle(fontSize: 11, color: colors.ok)),
+        const SizedBox(height: 4),
+        _StatusChoiceRow(statuses: PolicyStatus.withCoverage, selected: status, onChanged: onChanged),
+        const SizedBox(height: 8),
+        Text('沒有保障', style: TextStyle(fontSize: 11, color: colors.ink3)),
+        const SizedBox(height: 4),
+        _StatusChoiceRow(statuses: PolicyStatus.withoutCoverage, selected: status, onChanged: onChanged),
       ],
-      selected: {status},
-      showSelectedIcon: false,
-      style: const ButtonStyle(visualDensity: VisualDensity.compact),
-      onSelectionChanged: (Set<String> selected) => onChanged(selected.first),
     );
   }
 }
 
-/// 保單狀態小標籤：有效用成功綠、已失效用灰
+/// 一排狀態按鈕
+class _StatusChoiceRow extends StatelessWidget {
+  final List<String> statuses;
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  const _StatusChoiceRow({required this.statuses, required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> chips = [];
+    for (final String status in statuses) {
+      chips.add(SelectableChoiceChip(
+        label: PolicyStatus.label(status),
+        isSelected: status == selected,
+        onSelected: () => onChanged(status),
+      ));
+    }
+    return Wrap(spacing: 6, runSpacing: 6, children: chips);
+  }
+}
+
+/// 單選按鈕：選中的用主題色底＋主題色字（狀態、繳別共用；沛沛 11/07 實測：灰色選中看不出來）
+class SelectableChoiceChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onSelected;
+
+  const SelectableChoiceChip({super.key, required this.label, required this.isSelected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    Color textColor = colors.ink2;
+    Color borderColor = colors.line;
+    if (isSelected) {
+      textColor = colors.acc;
+      borderColor = colors.acc;
+    }
+    return ChoiceChip(
+      label: Text(label, style: TextStyle(fontSize: 12, color: textColor)),
+      selected: isSelected,
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      selectedColor: colors.accSoft,
+      backgroundColor: colors.surface,
+      side: BorderSide(color: borderColor),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+      onSelected: (bool selected) => onSelected(),
+    );
+  }
+}
+
+/// 保單狀態小標籤：有效綠、減額繳清／展期定期藍（有保障但和原本不同）、沒保障灰；停效多寫「可復效」
 class PolicyStatusChip extends StatelessWidget {
   final String status;
 
@@ -190,17 +158,46 @@ class PolicyStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    Color backgroundColor = colors.okSoft;
-    Color textColor = colors.ok;
-    if (status == PolicyStatus.lapsed) {
-      backgroundColor = colors.surface2;
-      textColor = colors.ink3;
+    Color backgroundColor = colors.surface2;
+    Color textColor = colors.ink3;
+    String label = PolicyStatus.label(status);
+    if (status == PolicyStatus.active) {
+      backgroundColor = colors.okSoft;
+      textColor = colors.ok;
+    } else if (PolicyStatus.hasCoverage(status)) {
+      backgroundColor = colors.accSoft;
+      textColor = colors.acc;
+    } else if (status == PolicyStatus.lapsed) {
+      label = '停效・可復效';
     }
+    return _SmallPill(label: label, backgroundColor: backgroundColor, textColor: textColor);
+  }
+}
+
+/// 「有貸款」黃色小標籤（保單貸款是有效保單上的加註，不是狀態）
+class PolicyLoanChip extends StatelessWidget {
+  const PolicyLoanChip({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return _SmallPill(label: '有貸款', backgroundColor: colors.warnSoft, textColor: colors.warn);
+  }
+}
+
+class _SmallPill extends StatelessWidget {
+  final String label;
+  final Color backgroundColor;
+  final Color textColor;
+
+  const _SmallPill({required this.label, required this.backgroundColor, required this.textColor});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
       decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(AppRadius.pill)),
-      child: Text(PolicyStatus.label(status),
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: textColor)),
+      child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textColor)),
     );
   }
 }

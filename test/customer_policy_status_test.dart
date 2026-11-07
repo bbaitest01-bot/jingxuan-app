@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:insurance_helper/router/app_routes.dart';
 import 'package:insurance_helper/screens/customers/detail/customer_detail_sections.dart';
+import 'package:insurance_helper/services/coverage_check_service.dart';
 import 'package:insurance_helper/services/customer_policy_service.dart';
+import 'package:insurance_helper/services/policy_detail_service.dart';
 import 'package:insurance_helper/services/policy_group_service.dart';
 import 'package:insurance_helper/widgets/policy_group_card.dart';
 
@@ -17,6 +19,12 @@ CustomerEnrolledPolicy buildPolicy({
   String? role,
   String? policyNumber,
   int? coverageAmount,
+  int? premium,
+  String? premiumCurrency,
+  String? paymentFrequency,
+  int? reducedCoverageAmount,
+  bool hasPolicyLoan = false,
+  String? coverageCategory,
 }) {
   final Map<String, dynamic> json = {
     'id': id,
@@ -35,6 +43,12 @@ CustomerEnrolledPolicy buildPolicy({
   json['coverage_role'] = role;
   json['policy_number'] = policyNumber;
   json['coverage_amount'] = coverageAmount;
+  json['premium'] = premium;
+  json['premium_currency'] = premiumCurrency;
+  json['payment_frequency'] = paymentFrequency;
+  json['reduced_coverage_amount'] = reducedCoverageAmount;
+  json['has_policy_loan'] = hasPolicyLoan;
+  json['coverage_category'] = coverageCategory;
   return CustomerEnrolledPolicy.fromJson(json);
 }
 
@@ -47,30 +61,71 @@ Future<void> pumpWidgetInPage(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  group('保單狀態（4-I）', () {
-    test('沒有 status 欄位時當作有效；lapsed 是已失效', () {
+  group('保單狀態細分（2026-11-07 主管回饋）', () {
+    test('沒有 status 欄位時當作有效；六種狀態的中文', () {
       expect(buildPolicy().isActive, isTrue);
       expect(buildPolicy().status, PolicyStatus.active);
-      expect(buildPolicy(status: 'lapsed').isActive, isFalse);
-      expect(PolicyStatus.label(PolicyStatus.active), '有效');
-      expect(PolicyStatus.label(PolicyStatus.lapsed), '已失效');
+      expect(PolicyStatus.label(PolicyStatus.lapsed), '停效');
+      expect(PolicyStatus.label(PolicyStatus.reducedPaidUp), '減額繳清');
+      expect(PolicyStatus.label(PolicyStatus.surrendered), '解約');
     });
 
-    test('切換狀態只改狀態，其他欄位不變', () {
-      final CustomerEnrolledPolicy lapsed = buildPolicy().copyWithStatus(PolicyStatus.lapsed);
-      expect(lapsed.isActive, isFalse);
-      expect(lapsed.productName, '國泰人壽測試醫療終身保險');
-      expect(lapsed.id, 'cp1');
+    test('有效、減額繳清、展期定期有保障；停效、解約、滿期沒有', () {
+      for (final String status in PolicyStatus.withCoverage) {
+        expect(buildPolicy(status: status).isActive, isTrue, reason: status);
+      }
+      for (final String status in PolicyStatus.withoutCoverage) {
+        expect(buildPolicy(status: status).isActive, isFalse, reason: status);
+      }
     });
 
-    test('理賠總額只算有效保單', () {
-      const Map<String, dynamic> limits = {'room_daily': 2000, 'surgery_max': 100000, 'misc_max': 50000};
-      final CustomerBenefitSummary summary = CustomerPolicyService().calculateCustomerBenefitSummary([
-        buildPolicy(id: 'a', benefits: Map<String, dynamic>.from(limits)),
-        buildPolicy(id: 'b', status: 'lapsed', benefits: Map<String, dynamic>.from(limits)),
+    test('保單貸款是加註：有貸款的保單仍然有效', () {
+      final CustomerEnrolledPolicy policy = buildPolicy(hasPolicyLoan: true);
+      expect(policy.hasPolicyLoan, isTrue);
+      expect(policy.isActive, isTrue);
+    });
+
+    test('健檢：減額繳清用新保額，停效不算', () {
+      final CoverageCheckResult result = CoverageCheckService.calculate(
+        policies: [
+          buildPolicy(id: 'a', coverageCategory: 'life', coverageAmount: 1000000),
+          buildPolicy(id: 'b', coverageCategory: 'life', coverageAmount: 500000, status: PolicyStatus.reducedPaidUp, reducedCoverageAmount: 200000),
+          buildPolicy(id: 'c', coverageCategory: 'life', coverageAmount: 300000, status: PolicyStatus.lapsed),
+        ],
+        productCategories: const {},
+        plansById: const {},
+      );
+      expect(result.currentOf('life'), 1200000);
+    });
+  });
+
+  group('保費與繳別（2026-11-07 主管回饋）', () {
+    test('一年保費＝每期保費 × 一年繳幾次', () {
+      expect(PolicyDetailService.annualPremiumOf(buildPolicy(premium: 1500, paymentFrequency: PaymentFrequency.monthly)), 18000);
+      expect(PolicyDetailService.annualPremiumOf(buildPolicy(premium: 10000, paymentFrequency: PaymentFrequency.semiannual)), 20000);
+      expect(PolicyDetailService.annualPremiumOf(buildPolicy(premium: 5000, paymentFrequency: PaymentFrequency.annual)), 5000);
+    });
+
+    test('躉繳、沒填繳別、不用再繳（減額繳清、停效）都不算一年保費', () {
+      expect(PolicyDetailService.annualPremiumOf(buildPolicy(premium: 300000, paymentFrequency: PaymentFrequency.single)), isNull);
+      expect(PolicyDetailService.annualPremiumOf(buildPolicy(premium: 1500)), isNull);
+      expect(PolicyDetailService.annualPremiumOf(
+          buildPolicy(premium: 1500, paymentFrequency: PaymentFrequency.monthly, status: PolicyStatus.reducedPaidUp)), isNull);
+      expect(PolicyDetailService.annualPremiumOf(
+          buildPolicy(premium: 1500, paymentFrequency: PaymentFrequency.monthly, status: PolicyStatus.lapsed)), isNull);
+    });
+
+    test('一年總保費：台幣、美元分開加；沒填繳別的張數另外數', () {
+      final AnnualPremiumSummary summary = PolicyDetailService.summarize([
+        buildPolicy(id: 'a', groupId: 'g1', premium: 1500, paymentFrequency: PaymentFrequency.monthly),
+        buildPolicy(id: 'b', groupId: 'g1', premium: 550, paymentFrequency: PaymentFrequency.monthly),
+        buildPolicy(id: 'c', premium: 4215, premiumCurrency: 'USD', paymentFrequency: PaymentFrequency.annual),
+        buildPolicy(id: 'd', groupId: 'g2', premium: 3000),
       ]);
-      expect(summary.countedPolicyCount, 1);
-      expect(summary.totalRoomDaily, 2000);
+      expect(summary.totalByCurrency['TWD'], 24600);
+      expect(summary.totalByCurrency['USD'], 4215);
+      expect(summary.missingFrequencyGroupCount, 1);
+      expect(PolicyDetailService.formatAnnualTotal(summary), '24,600 元＋USD 4,215');
     });
   });
 
@@ -136,11 +191,12 @@ void main() {
           buildPolicy(id: 'm', productName: '國泰測試終身壽險', groupId: 'g1', role: 'main', policyNumber: 'A1', coverageAmount: 1000000),
           buildPolicy(id: 'r', productName: '國泰測試醫療附約', groupId: 'g1', role: 'rider', policyNumber: 'A1'),
           buildPolicy(id: 'c', productName: '南山人壽測試癌症保險', status: 'lapsed'),
-        ], onScanPressed: () {}, onEditCoverage: (_) {}, onSetStatus: (_, __) {}, onDelete: (_) {}),
+        ], onScanPressed: () {}, onEditCoverage: (_) {}, onPolicyChanged: () {}, onDelete: (_) {}),
       );
 
       expect(find.text('保單（2 張）'), findsOneWidget);
-      expect(find.text('有效保單'), findsOneWidget);
+      // 上方摘要一格、下方分區標題一個
+      expect(find.text('有效保單'), findsNWidgets(2));
       expect(find.text('已失效保單'), findsOneWidget);
       expect(find.text('100 萬'), findsOneWidget);
       expect(find.text('國泰測試醫療附約'), findsNothing);
@@ -151,31 +207,55 @@ void main() {
       expect(find.text('手動加入'), findsOneWidget);
     });
 
-    testWidgets('「⋯」整張標為已失效：把整張的每一項都交出去', (WidgetTester tester) async {
-      List<CustomerEnrolledPolicy> changedItems = [];
-      String changedStatus = '';
+    testWidgets('卡片顯示狀態標籤、每期保費、一年總保費；沒填繳別會提醒', (WidgetTester tester) async {
       await pumpWidgetInPage(
         tester,
         CustomerPoliciesSection(
           policies: [
-            buildPolicy(id: 'm', groupId: 'g1', role: 'main'),
-            buildPolicy(id: 'r', groupId: 'g1', role: 'rider'),
+            buildPolicy(id: 'm', groupId: 'g1', role: 'main', premium: 1500, paymentFrequency: PaymentFrequency.monthly, hasPolicyLoan: true),
+            buildPolicy(id: 'n', groupId: 'g2', role: 'main', premium: 3000, status: PolicyStatus.reducedPaidUp, coverageAmount: 500000, reducedCoverageAmount: 200000),
+            buildPolicy(id: 'x', productName: '南山人壽測試癌症保險', status: PolicyStatus.lapsed),
           ],
           onScanPressed: () {},
           onEditCoverage: (_) {},
-          onSetStatus: (List<CustomerEnrolledPolicy> items, String status) {
-            changedItems = items;
-            changedStatus = status;
-          },
+          onPolicyChanged: () {},
+          onDelete: (_) {},
+        ),
+      );
+      expect(find.text('一年總保費'), findsOneWidget);
+      expect(find.text('18,000 元'), findsOneWidget);
+      expect(find.text('有貸款'), findsOneWidget);
+      expect(find.text('減額繳清'), findsOneWidget);
+      expect(find.text('停效・可復效'), findsOneWidget);
+      expect(find.text('每期 1,500 元'), findsOneWidget);
+      expect(find.textContaining('降為 20 萬'), findsOneWidget);
+      expect(find.text('還沒填生效日'), findsOneWidget);
+      // 停效的保單不提醒
+      expect(find.text('還沒填繳別、生效日'), findsOneWidget);
+    });
+
+    testWidgets('「⋯」有「更改狀態」，點開是六種狀態', (WidgetTester tester) async {
+      await pumpWidgetInPage(
+        tester,
+        CustomerPoliciesSection(
+          policies: [buildPolicy(id: 'm', groupId: 'g1', role: 'main')],
+          onScanPressed: () {},
+          onEditCoverage: (_) {},
+          onPolicyChanged: () {},
           onDelete: (_) {},
         ),
       );
       await tester.tap(find.byTooltip('整張保單'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('整張標為已失效'));
+      await tester.tap(find.text('更改狀態'));
       await tester.pumpAndSettle();
-      expect(changedItems.length, 2);
-      expect(changedStatus, PolicyStatus.lapsed);
+      expect(find.text('保單狀態'), findsOneWidget);
+      for (final String label in PolicyStatus.labels.values) {
+        expect(find.widgetWithText(ChoiceChip, label), findsOneWidget);
+      }
+      await tester.tap(find.widgetWithText(ChoiceChip, '減額繳清'));
+      await tester.pumpAndSettle();
+      expect(find.text('減額繳清後的新保額'), findsOneWidget);
     });
 
     testWidgets('沒有保單時顯示提示', (WidgetTester tester) async {
@@ -186,7 +266,7 @@ void main() {
           policies: const [],
           onScanPressed: () => scanPressed = true,
           onEditCoverage: (_) {},
-          onSetStatus: (_, __) {},
+          onPolicyChanged: () {},
           onDelete: (_) {},
         ),
       );

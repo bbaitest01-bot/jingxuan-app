@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
+import 'customer_policy_service.dart';
 import 'customer_stage_service.dart';
 
 /// 客戶卡片上的兩行摘要：保單狀況、下次行程（2026-10-30 沛沛選卡片 C：卡片不空也不擠）；
@@ -65,7 +66,7 @@ class CustomerCardSummaryService {
     try {
       // 權限只會給自己名下客戶的保單
       final List<dynamic> policyRows =
-          await _supabase.from('customer_policies').select('customer_id').eq('status', 'active');
+          await _supabase.from('customer_policies').select('customer_id').inFilter('status', PolicyStatus.withCoverage);
       final List<dynamic> visitResultRows =
           await _supabase.from('visit_results').select('customer_id').eq('profile_id', user.id);
       final List<dynamic> scheduleRows = await _supabase

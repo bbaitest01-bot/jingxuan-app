@@ -169,7 +169,7 @@ void main() {
       });
       expect(policy.isInCatalog, isFalse);
       expect(policy.coverageRoleLabel, '附約');
-      expect(policy.copyWithStatus(PolicyStatus.lapsed).planOrAmount, '計畫三');
+      expect(policy.planOrAmount, '計畫三');
       expect(policy.source, 'scan');
     });
   });

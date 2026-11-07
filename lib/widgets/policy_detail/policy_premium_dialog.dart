@@ -1,0 +1,250 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../services/customer_policy_service.dart';
+import '../../services/policy_detail_service.dart';
+import '../../theme/app_theme.dart';
+import '../custom_toast.dart';
+import '../customer_policy_widgets.dart';
+
+/// 「保單資料」：整張保單一起填生效日、繳別，每一項分開填每期保費（2026-11-07 模型圖沛沛確認）；
+/// 存成功回傳 true（呼叫的地方再重新讀保單）
+Future<bool> showPolicyPremiumDialog(BuildContext context, String customerId, List<CustomerEnrolledPolicy> items) async {
+  final bool? saved = await showDialog<bool>(
+    context: context,
+    builder: (BuildContext dialogContext) => _PolicyPremiumDialog(customerId: customerId, items: items),
+  );
+  return saved ?? false;
+}
+
+class _PolicyPremiumDialog extends StatefulWidget {
+  final String customerId;
+  final List<CustomerEnrolledPolicy> items;
+
+  const _PolicyPremiumDialog({required this.customerId, required this.items});
+
+  @override
+  State<_PolicyPremiumDialog> createState() => _PolicyPremiumDialogState();
+}
+
+class _PolicyPremiumDialogState extends State<_PolicyPremiumDialog> {
+  // {保單項目 id: 每期保費輸入框}
+  final Map<String, TextEditingController> _premiumControllers = {};
+  DateTime? _effectiveDate;
+  String? _paymentFrequency;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 整張一起的欄位：用第一個有填的項目當預設值
+    for (final CustomerEnrolledPolicy item in widget.items) {
+      _effectiveDate ??= item.effectiveDate;
+      _paymentFrequency ??= item.paymentFrequency;
+      _premiumControllers[item.id] = TextEditingController(text: item.premium?.toString() ?? '');
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final TextEditingController controller in _premiumControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  int? _premiumOf(String policyId) {
+    final String text = _premiumControllers[policyId]?.text ?? '';
+    return int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+  }
+
+  /// 幣別單位：台幣寫「元」，外幣寫代碼（USD）
+  String get _currencyUnit {
+    final String currency = PolicyDetailService.currencyOf(widget.items.first);
+    if (currency == 'TWD') return '元';
+    return currency;
+  }
+
+  Future<void> _pickEffectiveDate() async {
+    final DateTime now = DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _effectiveDate ?? now,
+      firstDate: DateTime(1970),
+      lastDate: DateTime(now.year + 1, 12, 31),
+    );
+    if (picked != null) setState(() => _effectiveDate = picked);
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    final Map<String, int?> premiumByPolicyId = {};
+    for (final CustomerEnrolledPolicy item in widget.items) {
+      premiumByPolicyId[item.id] = _premiumOf(item.id);
+    }
+    try {
+      await PolicyDetailService().savePremiumDetails(
+        customerId: widget.customerId,
+        items: widget.items,
+        effectiveDate: _effectiveDate,
+        paymentFrequency: _paymentFrequency,
+        premiumByPolicyId: premiumByPolicyId,
+      );
+      if (!mounted) return;
+      CustomToast.show(context, '保單資料已儲存', ToastType.success);
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      CustomToast.show(context, '儲存失敗，請檢查網路後再試', ToastType.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+      title: Text('保單資料', style: AppTextStyles.serif(fontSize: 16, color: colors.ink)),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _FieldLabel('生效日（投保日期）'),
+              _buildDateField(colors),
+              const SizedBox(height: 12),
+              const _FieldLabel('繳別'),
+              _buildFrequencyChips(),
+              const SizedBox(height: 12),
+              const _FieldLabel('每期保費（每一項）'),
+              ..._buildPremiumFields(),
+              const SizedBox(height: 8),
+              _AnnualPreview(text: _annualPreviewText()),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colors.acc,
+            foregroundColor: colors.onAcc,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+          ),
+          child: const Text('儲存'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateField(AppColors colors) {
+    String dateText = '還沒填，點這裡選日期';
+    final DateTime? effectiveDate = _effectiveDate;
+    if (effectiveDate != null) {
+      dateText = DateFormat('yyyy/MM/dd').format(effectiveDate);
+    }
+    return OutlinedButton.icon(
+      onPressed: _pickEffectiveDate,
+      icon: const Icon(Icons.calendar_today_outlined, size: 16),
+      label: Align(alignment: Alignment.centerLeft, child: Text(dateText, style: AppTextStyles.mono(fontSize: 13))),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: colors.ink,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+      ),
+    );
+  }
+
+  Widget _buildFrequencyChips() {
+    final List<Widget> chips = [];
+    PaymentFrequency.labels.forEach((String frequency, String label) {
+      chips.add(SelectableChoiceChip(
+        label: label,
+        isSelected: _paymentFrequency == frequency,
+        onSelected: () => setState(() => _paymentFrequency = frequency),
+      ));
+    });
+    return Wrap(spacing: 6, runSpacing: 6, children: chips);
+  }
+
+  List<Widget> _buildPremiumFields() {
+    final List<Widget> fields = [];
+    for (final CustomerEnrolledPolicy item in widget.items) {
+      String roleLabel = item.coverageRoleLabel;
+      if (roleLabel.isNotEmpty) roleLabel = '$roleLabel・';
+      fields.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: TextField(
+          controller: _premiumControllers[item.id],
+          keyboardType: TextInputType.number,
+          onChanged: (String value) => setState(() {}),
+          style: AppTextStyles.mono(fontSize: 13),
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: '$roleLabel${item.productName}',
+            suffixText: _currencyUnit,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.control)),
+          ),
+        ),
+      ));
+    }
+    return fields;
+  }
+
+  /// 「每期 2,050 × 12 期 = 一年 24,600 元」；躉繳、沒選繳別時換成提示
+  String _annualPreviewText() {
+    int periodTotal = 0;
+    for (final CustomerEnrolledPolicy item in widget.items) {
+      periodTotal += _premiumOf(item.id) ?? 0;
+    }
+    final String unit = _currencyUnit;
+    final NumberFormat numberFormat = NumberFormat('#,###');
+    final String? frequency = _paymentFrequency;
+    if (frequency == null) {
+      return '選好繳別，就會算出一年保費';
+    }
+    if (frequency == PaymentFrequency.single) {
+      return '躉繳：一次繳清 ${numberFormat.format(periodTotal)} $unit，不算進一年總保費';
+    }
+    final int paymentsPerYear = PaymentFrequency.paymentsPerYear[frequency] ?? 1;
+    final String periodText = numberFormat.format(periodTotal);
+    final String yearText = numberFormat.format(periodTotal * paymentsPerYear);
+    return '每期 $periodText × $paymentsPerYear 期 ＝ 一年 $yearText $unit';
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(text, style: TextStyle(fontSize: 12, color: context.appColors.ink2)),
+    );
+  }
+}
+
+/// 對話框最下面的灰底試算：一年保費怎麼算出來
+class _AnnualPreview extends StatelessWidget {
+  final String text;
+
+  const _AnnualPreview({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final AppColors colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(AppRadius.control)),
+      child: Text(text, style: AppTextStyles.mono(fontSize: 12, color: colors.ink2)),
+    );
+  }
+}
