@@ -12,7 +12,10 @@ class NotificationCenterPopover extends StatefulWidget {
   const NotificationCenterPopover({super.key});
 
   // 分類列顯示哪些分類；行程提醒在 4-E3b 做好後再加入
-  static const List<NotificationCategory> visibleCategories = [NotificationCategory.visitRecord];
+  static const List<NotificationCategory> visibleCategories = [
+    NotificationCategory.visitRecord,
+    NotificationCategory.calendarSync,
+  ];
 
   static void show(BuildContext context) {
     showDialog(

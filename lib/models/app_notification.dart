@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 /// 只放「已經有內容」的分類；行程提醒在 4-E3b 才會加進分類列（沛沛決定：展示時不放還沒有的功能）
 enum NotificationCategory {
   visitRecord('拜訪紀錄'),
-  schedule('行程提醒');
+  schedule('行程提醒'),
+  calendarSync('日曆同步');
 
   final String label;
   const NotificationCategory(this.label);
@@ -14,7 +15,10 @@ enum NotificationCategory {
 enum NotificationType {
   visitRecordReady('visit_record_ready', NotificationCategory.visitRecord, Icons.check_circle_rounded),
   visitRecordFailed('visit_record_failed', NotificationCategory.visitRecord, Icons.error_rounded),
-  scheduleReminder('schedule_reminder', NotificationCategory.schedule, Icons.alarm_rounded);
+  scheduleReminder('schedule_reminder', NotificationCategory.schedule, Icons.alarm_rounded),
+  // G8（2026-11-08）：行程同步到 Google 日曆的結果（成功幾筆／失敗原因）
+  calendarSyncDone('calendar_sync_done', NotificationCategory.calendarSync, Icons.event_available_rounded),
+  calendarSyncFailed('calendar_sync_failed', NotificationCategory.calendarSync, Icons.event_busy_rounded);
 
   final String databaseValue;
   final NotificationCategory category;

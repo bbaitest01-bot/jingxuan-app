@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../models/schedule_event.dart';
+import 'google_access_token_service.dart';
 
 /// 帶有 Google OAuth Access Token 的 HTTP Client
 class _GoogleOAuthClient extends http.BaseClient {
@@ -38,7 +39,6 @@ class GoogleCalendarSyncService extends ChangeNotifier {
   static const String _secondaryCalendarName = '經選助手';
   static const String _prefSyncEnabledKey = 'google_calendar_sync_enabled';
   static const String _prefCalendarIdKey = 'google_calendar_secondary_id';
-  static const String _prefProviderTokenKey = 'google_oauth_provider_token';
 
   /// 行程說明欄自動加註警語，防手滑在 Google 端修改
   static const String syncNotice = '【此行程由經選助手建立，請至經選助手 App 修改】';
@@ -59,6 +59,9 @@ class GoogleCalendarSyncService extends ChangeNotifier {
   String? _lastErrorMessage;
   String? get lastErrorMessage => _lastErrorMessage;
 
+  // 這次推送途中 Google 說通行證過期（401）；重新同步會自動換新再試一次
+  bool _hasTokenExpired = false;
+
   // 允許測試時注入 Mock Client
   http.Client? mockHttpClient;
 
@@ -73,25 +76,11 @@ class GoogleCalendarSyncService extends ChangeNotifier {
     }
   }
 
-  /// 登入或連線時，第一時間快取 Google OAuth Provider Token
-  Future<void> cacheProviderToken(String token) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_prefProviderTokenKey, token);
-      debugPrint('🔑 [GoogleCalendarSyncService] 已快取 Google Provider Token');
-    } catch (e) {
-      debugPrint('⚠️ [GoogleCalendarSyncService] 快取 Provider Token 失敗: $e');
-    }
-  }
+  /// 登入或連線時，第一時間記下 Google 通行證（L4：連同拿到的時間，過期會自動換新）
+  Future<void> cacheProviderToken(String token) => GoogleAccessTokenService.instance.rememberSessionToken(token);
 
-  /// 登出時清理快取之 Google OAuth Provider Token
-  Future<void> clearProviderToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_prefProviderTokenKey);
-      debugPrint('🧹 [GoogleCalendarSyncService] 已清除快取 Google Provider Token');
-    } catch (_) {}
-  }
+  /// 登出時清掉 Google 通行證
+  Future<void> clearProviderToken() => GoogleAccessTokenService.instance.clear();
 
   /// 登入後套用帳號（user_metadata）存的同步設定，換裝置或清除快取時自動恢復
   /// 優先向伺服器要最新的帳號資料（避免讀到瀏覽器本機的舊快取）
@@ -258,26 +247,11 @@ class GoogleCalendarSyncService extends ChangeNotifier {
     }
 
     try {
-      // 1. 優先從 Supabase 連線取得 Google Access Token (providerToken)
-      try {
-        final session = Supabase.instance.client.auth.currentSession;
-        final providerToken = session?.providerToken;
-        if (providerToken != null && providerToken.isNotEmpty) {
-          await cacheProviderToken(providerToken);
-          debugPrint('✅ [GoogleCalendarSyncService] 使用 Supabase Google Provider Token 連線');
-          return calendar.CalendarApi(_GoogleOAuthClient(providerToken));
-        }
-      } catch (_) {}
-
-      // 1.5 若 session 的 providerToken 在跳轉後遺失，嘗試從本地快取讀取
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final cachedToken = prefs.getString(_prefProviderTokenKey);
-        if (cachedToken != null && cachedToken.isNotEmpty) {
-          debugPrint('✅ [GoogleCalendarSyncService] 使用快取 Google Provider Token 連線');
-          return calendar.CalendarApi(_GoogleOAuthClient(cachedToken));
-        }
-      } catch (_) {}
+      // 1. Google 通行證：還新鮮就用，太舊就請雲端函式換新（L4，2026-11-08）
+      final String? accessToken = await GoogleAccessTokenService.instance.getValidAccessToken();
+      if (accessToken != null) {
+        return calendar.CalendarApi(_GoogleOAuthClient(accessToken));
+      }
 
       // 2. 備案：嘗試從 GoogleSignIn 取得（若為原生端或手動登入）
       var currentUser = _googleSignIn.currentUser;
@@ -290,7 +264,8 @@ class GoogleCalendarSyncService extends ChangeNotifier {
         }
       }
 
-      _lastErrorMessage = '尚未取得 Google 憑證（請重新登入或連線並允許日曆存取）';
+      _lastErrorMessage = GoogleAccessTokenService.instance.lastErrorMessage ??
+          '尚未取得 Google 憑證（請重新登入或連線並允許日曆存取）';
       debugPrint('⚠️ [GoogleCalendarSyncService] $_lastErrorMessage');
       return null;
     } catch (e) {
@@ -352,10 +327,12 @@ class GoogleCalendarSyncService extends ChangeNotifier {
         errorText.contains('insufficient authentication scopes') ||
         errorText.contains('insufficientPermissions')) {
       _lastErrorMessage = 'Google 日曆存取授權不足，請前往系統設定確認日曆權限';
-      await clearProviderToken();
+      await GoogleAccessTokenService.instance.markExpired();
     } else if (errorText.contains('401') || errorText.contains('invalid_token')) {
-      _lastErrorMessage = 'Google 憑證已失效，請點擊「切換帳號」重新授權';
-      await clearProviderToken();
+      // 通行證過期：標記一下，下一次推送會先自動換新
+      _lastErrorMessage = 'Google 通行證已過期，請再按一次「重新同步」';
+      _hasTokenExpired = true;
+      await GoogleAccessTokenService.instance.markExpired();
     } else {
       _lastErrorMessage = '$defaultPrefix: $error';
     }
@@ -443,8 +420,9 @@ class GoogleCalendarSyncService extends ChangeNotifier {
 
   /// 一鍵重新同步所有行程（單向推送補回）
   /// 萬一使用者在 Google 日曆誤刪，在 App 點此功能可將未來的行程重新推送
-  Future<int> resyncAllEvents(List<ScheduleEvent> events) async {
+  Future<int> resyncAllEvents(List<ScheduleEvent> events, {bool isRetry = false}) async {
     _lastErrorMessage = null;
+    _hasTokenExpired = false;
     if (!_isSyncEnabled) {
       _lastErrorMessage = '同步開關未開啟';
       return 0;
@@ -476,6 +454,12 @@ class GoogleCalendarSyncService extends ChangeNotifier {
           } catch (_) {}
         }
       }
+    }
+
+    // 通行證在途中過期、一筆都沒推成功：換新通行證後自動再試一次（只重試一次）
+    if (syncedCount == 0 && _hasTokenExpired && !isRetry) {
+      debugPrint('🔄 [GoogleCalendarSyncService] 通行證過期，換新後重試');
+      return resyncAllEvents(events, isRetry: true);
     }
 
     debugPrint('✅ [GoogleCalendarSyncService] 重新同步完成，成功推送 $syncedCount 筆行程');

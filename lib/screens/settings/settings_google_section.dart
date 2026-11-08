@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../main.dart';
+import '../../models/schedule_event.dart';
+import '../../services/calendar_sync_notice_service.dart';
 import '../../services/google_calendar_sync_service.dart';
 import '../../services/schedule_service.dart';
 import '../../theme/app_theme.dart';
@@ -117,53 +119,60 @@ class _SettingsGoogleSectionState extends State<SettingsGoogleSection> with Widg
         setState(() {});
         return;
       }
+      // 開始推送：不另外跳「正在同步」小提示（會和結果卡片疊在一起），改由「重新同步」按鈕顯示「同步中...」
       if (!mounted) return;
-      setState(() {});
-      CustomToast.show(context, '已開啟同步，正在建立日曆並推送行程...', ToastType.success);
-      try {
-        final events = await ScheduleService.instance.fetchEvents();
-        if (events.isNotEmpty) {
-          final count = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
-          if (mounted && count > 0) {
-            CustomToast.show(context, '已同步 $count 筆行程至「經選助手」日曆', ToastType.success);
-          }
-        }
-      } catch (_) {}
+      setState(() => _isResyncing = true);
+      await _pushAllEventsAndReport();
+      if (mounted) setState(() => _isResyncing = false);
     }
   }
 
   Future<void> _resyncAllEvents() async {
     setState(() => _isResyncing = true);
+    await _pushAllEventsAndReport();
+    if (mounted) setState(() => _isResyncing = false);
+  }
+
+  /// G8：把所有行程推上 Google 日曆。
+  /// 推送要等 Google 回應，等的時候使用者可能已經換頁，所以結果不在這裡跳提示，
+  /// 而是收進鈴鐺（[_reportResult]），在任何頁面都看得到；成功、0 筆、出錯都會通知
+  Future<void> _pushAllEventsAndReport() async {
+    List<ScheduleEvent> events;
     try {
-      final events = await ScheduleService.instance.fetchEvents();
-      if (events.isEmpty) {
-        if (!mounted) return;
-        CustomToast.show(context, '目前沒有行程可同步，請先至「行程」新增一筆測試行程喔！', ToastType.warning);
-        return;
-      }
-
-      final count = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
+      events = await ScheduleService.instance.fetchEvents();
+    } catch (error) {
+      await _reportResult(0, '讀取行程失敗：$error');
+      return;
+    }
+    if (events.isEmpty) {
+      // 沒有行程：馬上就知道，不用等，直接在這頁提示
       if (!mounted) return;
+      CustomToast.show(context, '目前沒有行程可同步，請先至「行程」新增一筆測試行程喔！', ToastType.warning);
+      return;
+    }
 
-      if (count > 0) {
-        CustomToast.show(
-          context,
-          '重新同步完成！成功推送 $count 筆行程至「經選助手」日曆',
-          ToastType.success,
-        );
-      } else {
-        final String? error = GoogleCalendarSyncService.instance.lastErrorMessage;
-        CustomToast.show(
-          context,
-          error != null ? '同步未成功：$error' : '未成功同步任何行程',
-          ToastType.error,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      CustomToast.show(context, '重新同步失敗：$e', ToastType.error);
-    } finally {
-      if (mounted) setState(() => _isResyncing = false);
+    int syncedCount = 0;
+    String? errorMessage;
+    try {
+      syncedCount = await GoogleCalendarSyncService.instance.resyncAllEvents(events);
+      if (syncedCount == 0) errorMessage = GoogleCalendarSyncService.instance.lastErrorMessage;
+    } catch (error) {
+      errorMessage = '$error';
+    }
+    await _reportResult(syncedCount, errorMessage);
+  }
+
+  // 結果收進鈴鐺；收不進去（例如資料庫還沒更新）而且還在設定頁時，改用小提示
+  Future<void> _reportResult(int syncedCount, String? errorMessage) async {
+    final bool isRecorded = await CalendarSyncNoticeService.instance.recordResult(
+      syncedCount: syncedCount,
+      errorMessage: errorMessage,
+    );
+    if (isRecorded || !mounted) return;
+    if (syncedCount > 0) {
+      CustomToast.show(context, '已同步 $syncedCount 筆行程至「經選助手」日曆', ToastType.success);
+    } else {
+      CustomToast.show(context, '同步未成功：${errorMessage ?? '沒有任何一筆行程同步成功'}', ToastType.error);
     }
   }
 

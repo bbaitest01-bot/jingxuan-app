@@ -7,6 +7,7 @@ import '../router/app_routes.dart';
 import 'app_settings.dart';
 import 'customer_service.dart';
 import 'google_calendar_sync_service.dart';
+import 'google_access_token_service.dart';
 import 'tag_categorizer.dart';
 import 'tag_manager_service.dart';
 
@@ -127,6 +128,11 @@ class AuthStatusService extends ChangeNotifier {
     final String? providerToken = session.providerToken;
     if (providerToken != null && providerToken.isNotEmpty) {
       await GoogleCalendarSyncService.instance.cacheProviderToken(providerToken);
+    }
+    // L4：剛用 Google 登入的那一次會帶「換證單」，交給資料庫保管，通行證過期時才能自動換新
+    final String? providerRefreshToken = session.providerRefreshToken;
+    if (providerRefreshToken != null && providerRefreshToken.isNotEmpty) {
+      await GoogleAccessTokenService.instance.saveRefreshToken(providerRefreshToken);
     }
 
     OfflineDataStore.ensureOwner(session.user.id);
