@@ -15,6 +15,9 @@ const GMAIL_SMTP_PASS = Deno.env.get("GMAIL_SMTP_PASS") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const REMINDER_CRON_SECRET = Deno.env.get("REMINDER_CRON_SECRET") ?? "";
+// 信裡「開啟經選助手」按鈕要去的網站（M8：原本寫死 /home，App 沒有這個網址）
+const APP_BASE_URL = (Deno.env.get("APP_BASE_URL") ?? "https://jingxuan-app.vercel.app").replace(/\/+$/, "");
+const APP_SCHEDULE_URL = `${APP_BASE_URL}/schedule`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,7 +147,7 @@ function buildEmailHtml(params: {
 
           <!-- 按鈕 -->
           <div style="text-align: center; margin: 28px 0 10px 0;">
-            <a href="https://jingxuan-app.vercel.app/home" target="_blank" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);">
+            <a href="${APP_SCHEDULE_URL}" target="_blank" style="display: inline-block; background-color: #0284c7; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);">
               開啟經選助手查看完整行程 →
             </a>
           </div>
@@ -195,12 +198,27 @@ serve(async (req: Request) => {
     const url = new URL(req.url);
     const isTestMode = body.action === "test" || url.searchParams.get("action") === "test";
 
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return jsonResponse({ error: "未設定 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY" }, 500);
+    }
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     // -------------------------------------------------------------------------
     // 1. 測試模式：發送測試信驗證連線與排版
+    //    M7：一定要是登入的業務員，而且只寄給「他自己的信箱」
+    //    （原本不用登入、可以指定任何信箱，會被拿來用組內 Gmail 亂寄信）
     // -------------------------------------------------------------------------
     if (isTestMode) {
-      const targetEmail = body.test_email || GMAIL_SMTP_USER;
-      console.log(`[Reminder] 發送測試信至 ${targetEmail}...`);
+      const accessToken = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+      if (!accessToken) {
+        return jsonResponse({ error: "請先登入再寄測試信" }, 401);
+      }
+      const { data: userData, error: userCheckError } = await supabaseAdmin.auth.getUser(accessToken);
+      const targetEmail = userData?.user?.email ?? "";
+      if (userCheckError || !targetEmail) {
+        return jsonResponse({ error: "請先登入再寄測試信" }, 401);
+      }
+      console.log(`[Reminder] 發送測試信給登入的業務員 ${userData.user.id}...`);
 
       const testHtml = buildEmailHtml({
         agentName: "測試業務員",
@@ -241,20 +259,16 @@ serve(async (req: Request) => {
 
     // -------------------------------------------------------------------------
     // 2. 排程模式：由 pg_cron 每整點觸發，檢查當前台北時間該寄給誰
+    //    M7：一定要帶對安全密碼（排程從 Vault 讀出來放在 x-reminder-cron-secret）；
+    //    沒設定密碼時一律拒絕，不再「沒設就不檢查」
     // -------------------------------------------------------------------------
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return jsonResponse({ error: "未設定 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY" }, 500);
+    if (!REMINDER_CRON_SECRET) {
+      return jsonResponse({ error: "未設定 REMINDER_CRON_SECRET，拒絕執行排程" }, 500);
     }
-
-    // 驗證排程呼叫安全密碼（若有設定 REMINDER_CRON_SECRET）
-    if (REMINDER_CRON_SECRET) {
-      const authHeader = req.headers.get("x-reminder-cron-secret");
-      if (authHeader !== REMINDER_CRON_SECRET && body.cron_secret !== REMINDER_CRON_SECRET) {
-        return jsonResponse({ error: "未經授權的排程呼叫" }, 401);
-      }
+    const cronSecretHeader = req.headers.get("x-reminder-cron-secret") ?? "";
+    if (cronSecretHeader !== REMINDER_CRON_SECRET) {
+      return jsonResponse({ error: "未經授權的排程呼叫" }, 401);
     }
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // 計算當前台北時間（UTC+8）
     const nowUtc = new Date();

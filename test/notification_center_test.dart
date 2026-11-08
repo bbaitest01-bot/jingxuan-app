@@ -76,6 +76,15 @@ void main() {
       expect(AppNotification.fromJson(buildRow(id: 'n2', type: 'customer_reassigned')), isNull);
     });
 
+    test('G8：Google 日曆同步結果認得成功與失敗，分類列有「日曆同步」', () {
+      final AppNotification? done = AppNotification.fromJson(buildRow(id: 'n3', type: 'calendar_sync_done'));
+      final AppNotification? failed = AppNotification.fromJson(buildRow(id: 'n4', type: 'calendar_sync_failed'));
+      expect(done?.type, NotificationType.calendarSyncDone);
+      expect(failed?.type, NotificationType.calendarSyncFailed);
+      expect(failed?.type.category, NotificationCategory.calendarSync);
+      expect(NotificationCenterPopover.visibleCategories, contains(NotificationCategory.calendarSync));
+    });
+
     test('收到新通知：加到最前面、未讀數 +1、送出跳出提示；同一則不重複', () async {
       final List<AppNotification> arrived = [];
       final subscription = service.arrivals.listen(arrived.add);

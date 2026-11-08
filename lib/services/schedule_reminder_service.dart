@@ -113,21 +113,16 @@ class ScheduleReminderService {
   }
 
   /// 立即寄送一封測試提醒信給目前登入的業務員
+  /// （M7：收件人由雲端函式依登入身分決定，App 不再指定信箱）
   Future<void> sendTestEmail() async {
     if (isOfflineMode) {
       throw Exception('離線預覽模式無法發送信件');
     }
 
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    final email = user?.email;
-
+    final SupabaseClient supabase = Supabase.instance.client;
     final FunctionResponse response = await supabase.functions.invoke(
       'send-daily-schedule-reminder',
-      body: {
-        'action': 'test',
-        if (email != null && email.isNotEmpty) 'test_email': email,
-      },
+      body: {'action': 'test'},
     );
 
     if (response.status != 200) {
