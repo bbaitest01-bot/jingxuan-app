@@ -153,7 +153,11 @@ class _OnboardingTourOverlayState extends State<OnboardingTourOverlay> {
     final Offset overlayOrigin = overlayBox.localToGlobal(Offset.zero);
     Rect? result;
     for (final String targetId in ids) {
-      final Rect? rect = TourTarget.rectOf(targetId);
+      Rect? rect = TourTarget.rectOf(targetId);
+      // 手機看不到左側選單：改亮左上角的 ☰（G4）
+      if (rect == null && targetId.startsWith(OnboardingMenuTarget.menuItemPrefix)) {
+        rect = TourTarget.rectOf(OnboardingMenuTarget.drawerButtonId);
+      }
       if (rect == null) continue;
       final Rect localRect = rect.shift(-overlayOrigin);
       if (result == null) {

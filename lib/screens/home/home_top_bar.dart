@@ -3,6 +3,7 @@ import '../../main.dart';
 import '../../services/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_bell_button.dart';
+import '../../widgets/tour_target.dart';
 import 'home_menu.dart';
 
 /// 電腦版右側內容區最上方的頂欄：頁面標題（宋體）、離線提示、通知小鈴鐺。
@@ -94,6 +95,8 @@ class HomeMobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     final AppColors colors = context.appColors;
 
     return AppBar(
+      // 手機的選單收在左上角 ☰ 裡：導覽要指「左邊選單」時改亮這顆（2026-11-09 G4）
+      leading: const TourTarget(id: OnboardingMenuTarget.drawerButtonId, child: DrawerButton()),
       title: Text(
         localizedMenuTitle(context, activeMenu),
         style: AppTextStyles.serif(fontSize: 20, color: colors.ink),

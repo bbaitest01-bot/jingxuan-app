@@ -61,7 +61,8 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   OnboardingTourStep(
     section: '今日行程',
     title: '今天要做什麼',
-    body: '今天要拜訪誰、幾點，都排在這裡。右上角可以切換月曆、時間軸、清單三種看法。',
+    // 2026-11-09 G5：亮的是整個行程區，原本說「右上角可以切換…」指不到，手機上還被說明卡蓋住
+    body: '今天要拜訪誰、幾點，都排在這裡。也可以按「路線規劃」排出順路的拜訪順序。',
     route: AppRoutes.schedule,
     targetIds: ['schedule.main'],
   ),
@@ -91,15 +92,16 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   OnboardingTourStep(
     section: '客戶管理',
     title: '點卡片看客戶',
-    body: '每位客戶是一張卡片。點一下，右邊會打開他的完整資料。',
+    body: '每位客戶是一張卡片。點一下，就會打開他的完整資料。',
     emptyBody: '加了客戶之後，每位客戶會變成一張卡片，點一下就能看他的完整資料。',
     targetIds: ['customers.first'],
     emptyTargetIds: ['customers.empty'],
   ),
   OnboardingTourStep(
     section: '客戶管理',
-    title: '側邊速查面板',
-    body: '點開卡片後，右側會展開速查面板，可快速切換基本資料、保單健檢與拜訪歷程；點右上角展開圖示能放大成完整頁面。',
+    title: '客戶資料一次看完',
+    // 2026-11-09 G5：加入保費、要保人／被保險人／受益人
+    body: '保單可以記保費和繳別，也分得清要保人、被保險人、受益人；「保單健檢」幫你找出保障缺口。點右上角的展開圖示能放大成完整頁面。',
     route: AppRoutes.customers,
     targetIds: ['customerDetail.sideSheet'],
     skipWhenMissing: true,
@@ -127,10 +129,23 @@ const List<OnboardingTourStep> onboardingTourSteps = [
     targetIds: ['visitRecords.first'],
     emptyTargetIds: ['visitRecords.empty'],
   ),
+  // 2026-11-09 G5：數據戰情（情境試算）、人脈拓撲（管理關係）各自一步，只亮選單、不切頁
+  OnboardingTourStep(
+    section: '其他頁面',
+    title: '人脈拓撲：管理關係',
+    body: '一眼看出誰介紹誰；按「管理關係」就能加上家人或介紹人。',
+    targetIds: ['menu.人脈拓撲'],
+  ),
+  OnboardingTourStep(
+    section: '其他頁面',
+    title: '數據戰情：情境試算',
+    body: '挑幾款商品並排比較，用「情境試算」看住院、癌症時大約能拿多少。',
+    targetIds: ['menu.數據戰情'],
+  ),
   OnboardingTourStep(
     section: '其他頁面',
     title: '其他好用的頁面',
-    body: '專案拜訪：一次規劃一批客戶。人脈拓撲：看誰介紹誰。數據戰情：客戶與保單統計。新聞頭條：每天的保險業重點。',
+    body: '專案拜訪：一次規劃一批客戶，記錄拜訪結果。新聞頭條：每天的保險業重點。',
     targetIds: ['menu.專案拜訪', 'menu.新聞頭條'],
   ),
   OnboardingTourStep(
@@ -142,7 +157,7 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   OnboardingTourStep(
     section: '系統設定',
     title: '忘了可以回來看',
-    body: '之後在「系統設定 → 教學中心」可以重看這段導覽。',
+    body: '之後在「系統設定 → 教學中心」可以重看這段導覽；每個功能也都有「觀看教學」，示範一步一步怎麼操作。',
     route: AppRoutes.settings,
     targetIds: ['settings.tutorial'],
   ),

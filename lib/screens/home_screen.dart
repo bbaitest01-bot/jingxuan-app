@@ -13,7 +13,6 @@ import 'settings_screen.dart';
 import 'profile_screen.dart';
 import 'trash_bin_screen.dart';
 import 'insurance_news_tab.dart';
-import '../widgets/onboarding_tour_overlay.dart';
 import '../widgets/tour_target.dart';
 import '../services/onboarding_tour_service.dart';
 import '../models/user_role.dart';
@@ -392,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? TourTarget(id: 'schedule.voice', child: VoiceSchedulerFab(onPressed: _openVoiceSchedulerDialog))
               : null,
         ),
-        const OnboardingTourOverlay(),
+        // 新手大導覽的聚光燈改放在 main.dart 的 MaterialApp builder（2026-11-09 G4），才會蓋在側邊欄、對話框上面
         // 接收通知、新通知跳出提示（4-E3a）
         const NotificationArrivalWatcher(),
       ],

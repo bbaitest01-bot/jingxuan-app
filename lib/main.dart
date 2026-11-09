@@ -10,6 +10,7 @@ import 'services/auth_status_service.dart';
 import 'services/google_calendar_sync_service.dart';
 import 'services/app_localizations.dart';
 import 'theme/app_theme.dart';
+import 'widgets/onboarding_tour_overlay.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -106,6 +107,16 @@ class _MyAppState extends State<MyApp> {
           routerConfig: _router,
           title: '經選助手',
           debugShowCheckedModeBanner: false,
+          // 新手大導覽的聚光燈放在所有頁面、側邊欄、對話框的上面（2026-11-09 G4）：
+          // 原本放在首頁裡，第 7 步自動打開的客戶側邊欄會蓋住說明卡，按「下一步」反而把側邊欄關掉
+          builder: (BuildContext context, Widget? child) {
+            return Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                const OnboardingTourOverlay(),
+              ],
+            );
+          },
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: AppSettings.instance.themeMode,
