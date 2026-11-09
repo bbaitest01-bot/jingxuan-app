@@ -49,16 +49,40 @@ class PolicyGrouping {
     return groups;
   }
 
-  static String _keyOf(CustomerEnrolledPolicy policy) {
-    final String groupId = policy.policyGroupId ?? '';
+  /// 有效保單幾「張」：主約和附約算同一張；整張都失效的不算（問題 D35）
+  static int countActivePolicies(List<CustomerEnrolledPolicy> policies) {
+    int activeCount = 0;
+    for (final PolicyGroup group in PolicyGrouping.group(policies)) {
+      if (!group.isAllLapsed) activeCount++;
+    }
+    return activeCount;
+  }
+
+  /// 同一張保單的辨識字串；只有資料庫原始欄位時（例：客戶卡片摘要）也用這個判斷
+  static String groupKeyFor({
+    required String policyId,
+    required String companyName,
+    String? policyGroupId,
+    String? policyNumber,
+  }) {
+    final String groupId = policyGroupId ?? '';
     if (groupId.isNotEmpty) {
       return 'group:$groupId';
     }
-    final String policyNumber = (policy.policyNumber ?? '').trim();
-    if (policyNumber.isNotEmpty) {
-      return 'number:${policy.companyName}:$policyNumber';
+    final String trimmedNumber = (policyNumber ?? '').trim();
+    if (trimmedNumber.isNotEmpty) {
+      return 'number:$companyName:$trimmedNumber';
     }
-    return 'single:${policy.id}';
+    return 'single:$policyId';
+  }
+
+  static String _keyOf(CustomerEnrolledPolicy policy) {
+    return groupKeyFor(
+      policyId: policy.id,
+      companyName: policy.companyName,
+      policyGroupId: policy.policyGroupId,
+      policyNumber: policy.policyNumber,
+    );
   }
 
   static PolicyGroup _buildGroup(String key, List<CustomerEnrolledPolicy> items) {
