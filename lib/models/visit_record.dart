@@ -96,6 +96,9 @@ class VisitRecord {
     return now.difference(startedAt) > organizeStaleAfter;
   }
 
+  /// AI 正在整理、還沒卡住：這段時間鎖定「整理後內容」與「儲存」，避免完成時蓋掉使用者的內容
+  bool isOrganizeRunning(DateTime now) => isProcessing && !isOrganizeStale(now);
+
   /// 是否要顯示「整理失敗」：真的失敗，或整理中卡住
   bool isOrganizeFailed(DateTime now) => status == statusFailed || isOrganizeStale(now);
 

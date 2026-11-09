@@ -287,10 +287,15 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
       icon: Icon(Icons.delete_outline, size: 18, color: Theme.of(context).colorScheme.error),
       label: Text('刪除', style: TextStyle(color: Theme.of(context).colorScheme.error)),
     );
+    // 整理中不能儲存：AI 完成時會寫入整理後內容，先存的內容會被蓋掉
+    final bool isOrganizing = record.isOrganizeRunning(DateTime.now());
+    String saveLabel = '儲存';
+    if (_isSaving) saveLabel = '儲存中…';
+    if (isOrganizing) saveLabel = '整理中…';
     final Widget saveButton = ElevatedButton.icon(
-      onPressed: _isSaving ? null : _save,
+      onPressed: (_isSaving || isOrganizing) ? null : _save,
       icon: const Icon(Icons.save_outlined, size: 18),
-      label: Text(_isSaving ? '儲存中…' : '儲存'),
+      label: Text(saveLabel),
       style: ElevatedButton.styleFrom(
         backgroundColor: primaryColor,
         foregroundColor: context.appColors.onAcc,
@@ -334,19 +339,21 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
         style: const TextStyle(fontSize: 14, height: 1.6),
       ),
     );
+    final bool isOrganizing = record.isOrganizeRunning(DateTime.now());
     final Widget organizedPanel = _ContentPanel(
       title: '整理後內容',
       subtitle: '錄音建立的紀錄會由 AI 自動整理到這裡；也可以自己修改',
       action: TextButton(
-        onPressed: () => _copyRawToOrganized(record),
+        onPressed: isOrganizing ? null : () => _copyRawToOrganized(record),
         child: const Text('複製原始轉錄'),
       ),
       child: TextField(
         controller: _organizedController,
+        readOnly: isOrganizing,
         minLines: 10,
         maxLines: null,
         decoration: InputDecoration(
-          hintText: '還沒有整理後內容',
+          hintText: isOrganizing ? 'AI 整理中，完成後就可以修改' : '還沒有整理後內容',
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),

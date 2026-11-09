@@ -50,8 +50,33 @@ async function markFailed(supabase: SupabaseClient, recordId: string, reason: st
   if (error) console.error('[organize-visit-record] 寫入失敗狀態失敗:', error);
 }
 
+// 背景整理結束時的寫回：只有「這一輪整理」還在進行才寫入。
+// 使用者重新整理（開始時間不同）或狀態已變更時不寫入，避免舊結果蓋掉新內容
+async function writeIfStillRunning(
+  supabase: SupabaseClient,
+  recordId: string,
+  startedAt: string,
+  changes: Record<string, unknown>,
+): Promise<{ message: string } | null> {
+  const { error } = await supabase
+    .from('visit_records')
+    .update(changes)
+    .eq('id', recordId)
+    .eq('status', 'processing')
+    .eq('processing_started_at', startedAt);
+  return error;
+}
+
+async function markRunFailed(supabase: SupabaseClient, recordId: string, startedAt: string, reason: string): Promise<void> {
+  const error = await writeIfStillRunning(supabase, recordId, startedAt, {
+    status: 'failed',
+    failure_reason: reason.slice(0, 500),
+  });
+  if (error) console.error('[organize-visit-record] 寫入失敗狀態失敗:', error);
+}
+
 // 呼叫 n8n 並把結果寫回
-async function organizeRecord(supabase: SupabaseClient, recordId: string, rawText: string): Promise<void> {
+async function organizeRecord(supabase: SupabaseClient, recordId: string, rawText: string, startedAt: string): Promise<void> {
   try {
     const response = await fetch(N8N_VISIT_WEBHOOK_URL, {
       method: 'POST',
@@ -61,7 +86,7 @@ async function organizeRecord(supabase: SupabaseClient, recordId: string, rawTex
     });
 
     if (!response.ok) {
-      await markFailed(supabase, recordId, `整理服務回應錯誤（${response.status}）`);
+      await markRunFailed(supabase, recordId, startedAt, `整理服務回應錯誤（${response.status}）`);
       return;
     }
 
@@ -69,27 +94,24 @@ async function organizeRecord(supabase: SupabaseClient, recordId: string, rawTex
     const refinedText = typeof result?.data?.refined_text === 'string' ? result.data.refined_text.trim() : '';
     if (result?.status !== 'success' || refinedText.length === 0) {
       const message = typeof result?.message === 'string' ? result.message : '整理結果是空的或格式不正確';
-      await markFailed(supabase, recordId, message);
+      await markRunFailed(supabase, recordId, startedAt, message);
       return;
     }
 
-    const { error } = await supabase
-      .from('visit_records')
-      .update({
-        organized_content: refinedText.slice(0, MAX_CONTENT_LENGTH),
-        status: 'done',
-        failure_reason: null,
-      })
-      .eq('id', recordId);
+    const error = await writeIfStillRunning(supabase, recordId, startedAt, {
+      organized_content: refinedText.slice(0, MAX_CONTENT_LENGTH),
+      status: 'done',
+      failure_reason: null,
+    });
     if (error) {
       console.error('[organize-visit-record] 寫回整理結果失敗:', error);
-      await markFailed(supabase, recordId, '整理完成但存檔失敗，請重新整理');
+      await markRunFailed(supabase, recordId, startedAt, '整理完成但存檔失敗，請重新整理');
     }
   } catch (err) {
     const isTimeout = err instanceof DOMException && err.name === 'TimeoutError';
     const reason = isTimeout ? '整理逾時（超過 60 秒沒有回應）' : '連不上整理服務';
     console.error('[organize-visit-record] 呼叫 n8n 失敗:', err);
-    await markFailed(supabase, recordId, reason);
+    await markRunFailed(supabase, recordId, startedAt, reason);
   }
 }
 
@@ -133,15 +155,16 @@ serve(async (req: Request) => {
     return jsonResponse({ success: false, message: '原始轉錄是空的' }, 400);
   }
 
-  // 3. 狀態改成「整理中」
+  // 3. 狀態改成「整理中」；開始時間同時是這一輪整理的識別
+  const startedAt = new Date().toISOString();
   const { error: updateError } = await supabase
     .from('visit_records')
-    .update({ status: 'processing', processing_started_at: new Date().toISOString(), failure_reason: null })
+    .update({ status: 'processing', processing_started_at: startedAt, failure_reason: null })
     .eq('id', recordId);
   if (updateError) return jsonResponse({ success: false, message: '無法開始整理' }, 500);
 
   // 4. 背景整理：先回覆 App，使用者關掉網頁也會繼續
-  const work = organizeRecord(supabase, recordId, rawText);
+  const work = organizeRecord(supabase, recordId, rawText, startedAt);
   if (typeof EdgeRuntime !== 'undefined') {
     EdgeRuntime.waitUntil(work);
   } else {

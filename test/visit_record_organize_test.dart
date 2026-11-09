@@ -47,6 +47,26 @@ void main() {
     });
   });
 
+  group('整理進行中的判斷（整理中鎖定內容與儲存）', () {
+    final DateTime now = DateTime(2026, 10, 16, 15, 30);
+
+    test('整理中且沒卡住才算進行中', () {
+      final VisitRecord running = buildRecord(status: 'processing', startedAt: now.subtract(const Duration(minutes: 1)));
+      expect(running.isOrganizeRunning(now), isTrue);
+    });
+
+    test('卡住超過 5 分鐘就解除鎖定，使用者可以自己修改', () {
+      final VisitRecord stuck = buildRecord(status: 'processing', startedAt: now.subtract(const Duration(minutes: 6)));
+      expect(stuck.isOrganizeRunning(now), isFalse);
+    });
+
+    test('完成、失敗、尚未整理都不鎖定', () {
+      expect(buildRecord(status: 'done').isOrganizeRunning(now), isFalse);
+      expect(buildRecord(status: 'failed').isOrganizeRunning(now), isFalse);
+      expect(buildRecord(status: 'raw').isOrganizeRunning(now), isFalse);
+    });
+  });
+
   group('單篇頁的整理狀態', () {
     testWidgets('整理中：顯示轉圈與說明', (WidgetTester tester) async {
       await pumpBanner(tester, buildRecord(status: 'processing', startedAt: DateTime.now()));
