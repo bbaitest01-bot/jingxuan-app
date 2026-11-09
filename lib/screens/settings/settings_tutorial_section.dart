@@ -6,7 +6,11 @@ import '../../widgets/walkthrough/walkthrough_player_dialog.dart';
 import 'settings_parts.dart';
 import '../../widgets/walkthrough/walkthrough_step.dart';
 import 'walkthrough/customers_walkthrough.dart';
+import 'walkthrough/insights_walkthrough.dart';
 import 'walkthrough/network_walkthrough.dart';
+import 'walkthrough/news_walkthrough.dart';
+import 'walkthrough/profile_walkthrough.dart';
+import 'walkthrough/projects_walkthrough.dart';
 import 'walkthrough/schedule_walkthrough.dart';
 import 'walkthrough/visit_records_walkthrough.dart';
 
@@ -29,12 +33,12 @@ class SettingsTutorialSection extends StatelessWidget {
   static const List<_TutorialPage> _pages = [
     _TutorialPage('今日行程', '全日拜訪日程、多站順路路線規劃與智慧語音排程', Icons.calendar_today_outlined),
     _TutorialPage('客戶管理', '卡片名單管理、快速建檔、保障健檢缺口與保單檢視', Icons.people_outline),
-    _TutorialPage('專案拜訪', '批量專案行銷、未訪名單篩選與拜訪成效折線圖', Icons.assignment_outlined),
+    _TutorialPage('專案拜訪', '開專案挑名單、記錄拜訪結果、看成效和待記錄', Icons.assignment_outlined),
     _TutorialPage('拜訪紀錄', '語音錄製、AI 自動錯字校正與通順語意匯出', Icons.record_voice_over_outlined),
     _TutorialPage('人脈拓撲', '黑曜石動態力導向星空圖、同姓找人與轉介紹鏈', Icons.hub_outlined),
-    _TutorialPage('數據戰情', '客戶概況分析、險種佔比與業績轉化視覺化圖表', Icons.bar_chart_outlined),
-    _TutorialPage('新聞頭條', '經選日報報紙版面、每日保險動態與 AI 情境插圖', Icons.newspaper_outlined),
-    _TutorialPage('個人帳號', '3D 反光數位名片、20 款抽屜模板與雙面圖片下載', Icons.account_circle_outlined),
+    _TutorialPage('數據戰情', '客戶概況、挑商品並排比較、情境試算與條款原文', Icons.bar_chart_outlined),
+    _TutorialPage('新聞頭條', '一句話看今日大勢、格子看熱度、點標題讀原文', Icons.newspaper_outlined),
+    _TutorialPage('個人帳號', '點名片翻面、從抽屜換模板、正反面一張圖下載', Icons.account_circle_outlined),
   ];
 
   // 已經做好操作示範的功能：功能名稱 → 取得步驟的函式；還沒做的顯示「製作中」
@@ -43,6 +47,10 @@ class SettingsTutorialSection extends StatelessWidget {
     '客戶管理': buildCustomersWalkthrough,
     '拜訪紀錄': buildVisitRecordsWalkthrough,
     '人脈拓撲': buildNetworkWalkthrough,
+    '新聞頭條': buildNewsWalkthrough,
+    '個人帳號': buildProfileWalkthrough,
+    '專案拜訪': buildProjectsWalkthrough,
+    '數據戰情': buildInsightsWalkthrough,
   };
 
   @override

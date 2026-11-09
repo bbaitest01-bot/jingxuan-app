@@ -113,6 +113,10 @@ flutter:
     - assets/images/walkthrough/customers/
     - assets/images/walkthrough/network/
     - assets/images/walkthrough/visit_records/
+    - assets/images/walkthrough/news/
+    - assets/images/walkthrough/profile/
+    - assets/images/walkthrough/projects/
+    - assets/images/walkthrough/insights/
 
   # .env 不再打包為 asset（Web 版會被公開下載）；金鑰改用 --dart-define 傳入
 
