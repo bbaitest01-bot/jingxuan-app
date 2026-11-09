@@ -85,6 +85,7 @@ class CustomerGridView extends StatelessWidget {
           child: CustomerCard(
             customer: customer,
             onOpen: (Rect cardRect) => actions.onZoom(customer, originRect: cardRect),
+            showComparisonMenu: !isSelectionMode,
           ),
         );
         // 新手導覽第 5 步亮第一張卡片，並記下客戶編號給第 6 步打開

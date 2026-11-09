@@ -1,42 +1,23 @@
 import 'package:flutter/material.dart';
+import '../main.dart' show isOfflineMode;
+import '../models/saved_comparison.dart';
 import '../services/benefit_item_service.dart';
 import '../services/benefit_plan_service.dart';
 import '../services/benefit_trial_calculator.dart';
 import '../services/insurance_product_service.dart';
+import '../services/saved_comparison_service.dart';
 import '../services/scenario/claim_scenario.dart';
 import '../services/scenario/claim_scenario_calculator.dart';
 import '../widgets/benefit_item_comparison.dart';
 import '../widgets/benefit_plan_comparison.dart';
-import '../widgets/benefit_trial_inputs.dart';
-import '../widgets/comparison_column_parts.dart';
+import '../widgets/comparison_product_column.dart';
 import '../widgets/comparison_scroll_bar.dart';
-import '../widgets/comparison_table_rows.dart';
 import '../widgets/custom_toast.dart';
 import '../widgets/insurance_product_card.dart';
-import '../widgets/scenario/no_benefit_notice.dart';
+import '../widgets/saved_comparison/saved_comparison_save_panel.dart';
+import '../widgets/saved_comparison/saved_comparison_update_panel.dart';
 import '../widgets/scenario/scenario_input_panel.dart';
-import '../widgets/scenario/scenario_result_card.dart';
 import '../theme/app_theme.dart';
-
-/// 比較表的一列：標題＋從商品取出要顯示的文字
-class _ComparisonRow {
-  final String label;
-  final String Function(InsuranceProduct product) valueOf;
-  // 給付項目的列：點格子可以看條款原文；其他列是 null
-  final InsuranceBenefitItem? Function(InsuranceProduct product)? itemOf;
-  // 點了要做別的事的列（例：資料來源打開官網）；其他列是 null
-  final void Function(BuildContext context, InsuranceProduct product)? onTapOf;
-
-  const _ComparisonRow(this.label, this.valueOf, {this.itemOf, this.onTapOf});
-}
-
-/// 比較表的一個區塊（例如「基本資料」）
-class _ComparisonSection {
-  final String title;
-  final List<_ComparisonRow> rows;
-
-  const _ComparisonSection(this.title, this.rows);
-}
 
 /// 保單比較：2～8 款真實商品並排比較；只有 1 款時當作「商品資料」頁
 ///
@@ -46,24 +27,32 @@ class _ComparisonSection {
 /// 2026-11-07 加「情境試算」：最上面填情境（住院、身故、癌症…），每欄算「這個情境大約可以拿多少」。
 class PolicyComparisonScreen extends StatefulWidget {
   final List<InsuranceProduct> initialProducts;
+  // 從客戶的比較清單打開時才有：要還原哪一筆、是哪位客戶的（D36）
+  final SavedComparison? savedComparison;
+  final String? customerName;
 
-  const PolicyComparisonScreen({super.key, required this.initialProducts});
+  const PolicyComparisonScreen({
+    super.key,
+    required this.initialProducts,
+    this.savedComparison,
+    this.customerName,
+  });
 
   @override
   State<PolicyComparisonScreen> createState() => _PolicyComparisonScreenState();
 }
 
 class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
-  static final _ComparisonSection _basicSection = _ComparisonSection('基本資料', [
-    _ComparisonRow('保險公司', (product) => product.companyName),
-    _ComparisonRow('商品代碼', (product) => product.displayCode),
-    _ComparisonRow('險種', (product) => product.insuranceTypeLabel),
-    _ComparisonRow('主約／附約', (product) => product.productKindLabel),
-    _ComparisonRow('官網分類', (product) => product.sourceCategory),
-    _ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
-    _ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
-    _ComparisonRow('資料來源', productSourceLabel, onTapOf: openProductSource),
-    _ComparisonRow('官網最後確認', (product) => formatApprovalDate(product.lastSeenAt)),
+  static final ComparisonSection _basicSection = ComparisonSection('基本資料', [
+    ComparisonRow('保險公司', (product) => product.companyName),
+    ComparisonRow('商品代碼', (product) => product.displayCode),
+    ComparisonRow('險種', (product) => product.insuranceTypeLabel),
+    ComparisonRow('主約／附約', (product) => product.productKindLabel),
+    ComparisonRow('官網分類', (product) => product.sourceCategory),
+    ComparisonRow('首次核准', (product) => formatApprovalDate(product.approvalDate)),
+    ComparisonRow('核准文號', (product) => product.approvalNumber ?? '—'),
+    ComparisonRow('資料來源', productSourceLabel, onTapOf: openProductSource),
+    ComparisonRow('官網最後確認', (product) => formatApprovalDate(product.lastSeenAt)),
   ]);
 
   late final List<InsuranceProduct> _products;
@@ -83,11 +72,16 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   bool _isPlansLoaded = false;
   // 比較表左右捲動的控制器：表格和上方滑軌共用，任一邊移動另一邊跟著動
   final ScrollController _columnScrollController = ScrollController();
+  // 目前打開的是哪一筆比較；「另存新的」之後會換成新的那筆
+  SavedComparison? _openedComparison;
+  // 手機轉向等情況換排法時，存檔框填到一半的內容不會消失
+  final GlobalKey _savePanelKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _products = List.of(widget.initialProducts);
+    _restoreSavedComparison();
     _loadBenefitPlans();
     _loadBenefitItems();
   }
@@ -96,6 +90,41 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   void dispose() {
     _columnScrollController.dispose();
     super.dispose();
+  }
+
+  /// 從比較清單打開時，放回當時填的情境、數字、張數（計畫要等限額表讀到才知道是第幾個）
+  void _restoreSavedComparison() {
+    final SavedComparison? comparison = widget.savedComparison;
+    if (comparison == null) return;
+    _openedComparison = comparison;
+    _scenarioInput = comparison.scenario;
+    for (final InsuranceProduct product in _products) {
+      final SavedComparisonItem? item = comparison.itemFor(product.id);
+      if (item == null) continue;
+      _copiesByProduct[product.id] = item.copies;
+      _trialInputByProduct[product.id] = item.toTrialInput(BenefitTrialCalculator.currencyUnitOf(product.productName));
+    }
+  }
+
+  /// 存的是計畫代號，這裡換回「第幾個」；計畫已經不存在就用第一個，並提醒業務員
+  void _restoreSelectedPlans(Map<String, List<InsuranceBenefitPlan>> plansByProduct) {
+    final SavedComparison? comparison = widget.savedComparison;
+    if (comparison == null) return;
+    bool isAnyPlanMissing = false;
+    for (final InsuranceProduct product in _products) {
+      final String? planCode = comparison.itemFor(product.id)?.planCode;
+      final List<InsuranceBenefitPlan> plans = plansByProduct[product.id] ?? const [];
+      if (planCode == null || plans.isEmpty) continue;
+      final int planIndex = plans.indexWhere((InsuranceBenefitPlan plan) => plan.planCode == planCode);
+      if (planIndex < 0) {
+        isAnyPlanMissing = true;
+        continue;
+      }
+      _selectedPlanIndex[product.id] = planIndex;
+    }
+    if (isAnyPlanMissing) {
+      CustomToast.show(context, '有商品原本選的計畫已不存在，已改用第一個計畫', ToastType.warning);
+    }
   }
 
   Future<void> _loadBenefitItems() async {
@@ -142,6 +171,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     final Map<String, List<InsuranceBenefitPlan>> plansByProduct =
         await BenefitPlanService().fetchPlansForProducts(productIds);
     if (!mounted) return;
+    _restoreSelectedPlans(plansByProduct);
     setState(() {
       _plansByProduct = plansByProduct;
       _isPlansLoaded = true;
@@ -158,10 +188,28 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     return plans[index];
   }
 
+  /// 目前畫面上每一款的選擇和數字，存到客戶時用（D36）
+  List<SavedComparisonItem> _currentSavedItems() {
+    final List<SavedComparisonItem> items = [];
+    for (final InsuranceProduct product in _products) {
+      final BenefitTrialInput trialInput = _trialInputOf(product);
+      items.add(SavedComparisonItem(
+        productId: product.id,
+        planCode: _selectedPlanOf(product)?.planCode,
+        copies: _copiesByProduct[product.id] ?? 1,
+        coverageAmount: trialInput.coverageAmount,
+        dailyAmount: trialInput.dailyAmount,
+        units: trialInput.units,
+        annualPremium: trialInput.annualPremium,
+      ));
+    }
+    return items;
+  }
+
   /// 基本資料＋理賠限額＋給付項目；限額的值跟著每欄選的計畫變。
   /// 比較的商品都沒有限額表（或都沒有給付項目）時，那一區不顯示
-  List<_ComparisonSection> _allSections() {
-    final List<_ComparisonSection> sections = [_basicSection];
+  List<ComparisonSection> _allSections() {
+    final List<ComparisonSection> sections = [_basicSection];
 
     bool anyProductHasPlans = false;
     final List<List<InsuranceBenefitItem>> itemLists = [];
@@ -173,24 +221,24 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
     }
 
     if (anyProductHasPlans) {
-      final List<_ComparisonRow> benefitRows = [];
+      final List<ComparisonRow> benefitRows = [];
       for (final String label in benefitRowLabels) {
-        benefitRows.add(_ComparisonRow(label, (product) => benefitRowText(label, _selectedPlanOf(product))));
+        benefitRows.add(ComparisonRow(label, (product) => benefitRowText(label, _selectedPlanOf(product))));
       }
-      sections.add(_ComparisonSection('理賠限額（實支實付）', benefitRows));
+      sections.add(ComparisonSection('理賠限額（實支實付）', benefitRows));
     }
 
     final List<String> itemKeys = BenefitItemService.orderedItemKeys(itemLists);
     if (itemKeys.isNotEmpty) {
-      final List<_ComparisonRow> itemRows = [_ComparisonRow('年繳保費（試算）', _annualPremiumText)];
+      final List<ComparisonRow> itemRows = [ComparisonRow('年繳保費（試算）', _annualPremiumText)];
       for (final String itemKey in itemKeys) {
-        itemRows.add(_ComparisonRow(
+        itemRows.add(ComparisonRow(
           itemKey,
           (product) => benefitItemCellText(_itemsOf(product), itemKey, _trialInputOf(product)),
           itemOf: (product) => BenefitItemService.findItem(_itemsOf(product), itemKey),
         ));
       }
-      sections.add(_ComparisonSection('給付項目（條款）', itemRows));
+      sections.add(ComparisonSection('給付項目（條款）', itemRows));
     }
     return sections;
   }
@@ -205,7 +253,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
 
   /// 試算功能需要理賠限額資料，第二層比價資料做好前先停用
   /// 「只看差異」打開時，所有商品值都一樣的列就不顯示
-  bool _isRowVisible(_ComparisonRow row) {
+  bool _isRowVisible(ComparisonRow row) {
     // 只有一款商品時沒有差異可比，全部顯示
     if (!_onlyShowDifferences || _products.length < 2) {
       return true;
@@ -218,17 +266,17 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   }
 
   /// 依「只看差異」篩過後要顯示的區塊（整區都沒有差異就整區隱藏）
-  List<_ComparisonSection> _visibleSections() {
-    final List<_ComparisonSection> visibleSections = [];
-    for (final _ComparisonSection section in _allSections()) {
-      final List<_ComparisonRow> visibleRows = [];
-      for (final _ComparisonRow row in section.rows) {
+  List<ComparisonSection> _visibleSections() {
+    final List<ComparisonSection> visibleSections = [];
+    for (final ComparisonSection section in _allSections()) {
+      final List<ComparisonRow> visibleRows = [];
+      for (final ComparisonRow row in section.rows) {
         if (_isRowVisible(row)) {
           visibleRows.add(row);
         }
       }
       if (visibleRows.isNotEmpty) {
-        visibleSections.add(_ComparisonSection(section.title, visibleRows));
+        visibleSections.add(ComparisonSection(section.title, visibleRows));
       }
     }
     return visibleSections;
@@ -237,17 +285,20 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
   @override
   Widget build(BuildContext context) {
     final AppColors colors = context.appColors;
-    final List<_ComparisonSection> sections = _visibleSections();
+    final List<ComparisonSection> sections = _visibleSections();
 
     final List<Widget> productColumns = [];
     for (int index = 0; index < _products.length; index++) {
       final InsuranceProduct product = _products[index];
-      productColumns.add(_ProductComparisonColumn(
+      productColumns.add(ProductComparisonColumn(
+        // 移除某一款時，其他欄填的數字才不會跑到隔壁
+        key: ValueKey<String>(product.id),
         product: product,
         sections: sections,
         plans: _plansByProduct[product.id] ?? const [],
         benefitItems: _itemsOf(product),
         onTrialChanged: (BenefitTrialInput input) => setState(() => _trialInputByProduct[product.id] = input),
+        initialTrialInput: _trialInputByProduct[product.id],
         scenarioResult: ClaimScenarioCalculator.calculate(
           input: _scenarioInput,
           plan: _selectedPlanOf(product),
@@ -297,9 +348,41 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       body: ComparisonScrollArea(
         controller: _columnScrollController,
         columnCount: _products.length,
-        columnStep: _ProductComparisonColumn.columnWidth + _ProductComparisonColumn.columnGap,
+        columnStep: ProductComparisonColumn.columnWidth + ProductComparisonColumn.columnGap,
         child: _buildComparisonBody(productColumns),
       ),
+    );
+  }
+
+  /// 情境試算；線上模式且有 2 款以上時，旁邊多一個存到客戶的框
+  Widget _buildScenarioArea() {
+    final Widget scenarioPanel = ScenarioInputPanel(
+      input: _scenarioInput,
+      onChanged: (ClaimScenarioInput input) => setState(() => _scenarioInput = input),
+    );
+    if (isOfflineMode || _products.length < SavedComparisonService.minimumProductCount) {
+      return scenarioPanel;
+    }
+    return ScenarioWithSavePanelLayout(scenarioPanel: scenarioPanel, savePanel: _buildSavePanel());
+  }
+
+  /// 打開舊比較時是「更新這筆／另存新的」，一般比較是選客戶存新的
+  Widget _buildSavePanel() {
+    final SavedComparison? openedComparison = _openedComparison;
+    if (openedComparison == null) {
+      return SavedComparisonSavePanel(
+        key: _savePanelKey,
+        currentScenario: () => _scenarioInput,
+        currentItems: _currentSavedItems,
+      );
+    }
+    return SavedComparisonUpdatePanel(
+      key: _savePanelKey,
+      comparison: openedComparison,
+      customerName: widget.customerName ?? '',
+      currentScenario: () => _scenarioInput,
+      currentItems: _currentSavedItems,
+      onSavedAsNew: (SavedComparison newComparison) => setState(() => _openedComparison = newComparison),
     );
   }
 
@@ -310,10 +393,7 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ScenarioInputPanel(
-            input: _scenarioInput,
-            onChanged: (ClaimScenarioInput input) => setState(() => _scenarioInput = input),
-          ),
+          _buildScenarioArea(),
           const SizedBox(height: 14),
           SingleChildScrollView(
             controller: _columnScrollController,
@@ -329,107 +409,6 @@ class _PolicyComparisonScreenState extends State<PolicyComparisonScreen> {
           Text(benefitItemNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
           const SizedBox(height: 4),
           Text(productDataSourceNotice, style: TextStyle(fontSize: 11, color: colors.ink3)),
-        ],
-      ),
-    );
-  }
-}
-
-/// 比較表中的一款商品（一直欄）
-class _ProductComparisonColumn extends StatelessWidget {
-  /// 一欄的寬度與欄跟欄的間距（上方滑軌的箭頭一次移「欄寬＋間距」）
-  static const double columnWidth = 295;
-  static const double columnGap = 16;
-
-  final InsuranceProduct product;
-  final List<_ComparisonSection> sections;
-  final List<InsuranceBenefitPlan> plans;
-  final List<InsuranceBenefitItem> benefitItems;
-  final ValueChanged<BenefitTrialInput> onTrialChanged;
-  final ClaimScenarioResult scenarioResult;
-  final int copies;
-  final ValueChanged<int> onCopiesChanged;
-  final bool isBenefitDataLoaded;
-  final int selectedPlanIndex;
-  final ValueChanged<int> onPlanChanged;
-  final VoidCallback onRemove;
-  final bool canRemove;
-
-  const _ProductComparisonColumn({
-    required this.product,
-    required this.sections,
-    required this.plans,
-    required this.benefitItems,
-    required this.onTrialChanged,
-    required this.scenarioResult,
-    required this.copies,
-    required this.onCopiesChanged,
-    required this.isBenefitDataLoaded,
-    required this.selectedPlanIndex,
-    required this.onPlanChanged,
-    required this.onRemove,
-    required this.canRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final AppColors colors = context.appColors;
-    final List<Widget> sectionWidgets = [];
-    for (final _ComparisonSection section in sections) {
-      sectionWidgets.add(ComparisonSectionHeader(title: section.title));
-      for (final _ComparisonRow row in section.rows) {
-        VoidCallback? onTap;
-        final InsuranceBenefitItem? item = row.itemOf?.call(product);
-        if (item != null) {
-          onTap = () => showBenefitItemSource(context, product, item);
-        }
-        final void Function(BuildContext context, InsuranceProduct product)? rowTap = row.onTapOf;
-        if (rowTap != null) {
-          onTap = () => rowTap(context, product);
-        }
-        sectionWidgets.add(ComparisonSpecRow(label: row.label, value: row.valueOf(product), onTap: onTap));
-      }
-    }
-
-    return Container(
-      width: columnWidth,
-      margin: const EdgeInsets.only(right: columnGap),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: colors.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ComparisonColumnHeader(product: product, onRemove: onRemove, canRemove: canRemove),
-          if (plans.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: BenefitPlanSelector(plans: plans, selectedIndex: selectedPlanIndex, onChanged: onPlanChanged),
-            ),
-          // 有給付項目（定額型）的商品才有試算
-          if (benefitItems.isNotEmpty)
-            BenefitTrialPanel(
-              fields: BenefitTrialCalculator.fieldsFor(benefitItems),
-              currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName),
-              onChanged: onTrialChanged,
-            ),
-          // 沒有給付項目也沒有限額表（豁免保費、批註…）：說明原因，不顯示情境結果
-          if (isBenefitDataLoaded && plans.isEmpty && benefitItems.isEmpty)
-            NoBenefitNotice(product: product)
-          else
-            // 情境試算的結果（放在試算下面：試算填的保額、日額會用到）
-            ScenarioResultCard(
-              result: scenarioResult,
-              currencyUnit: BenefitTrialCalculator.currencyUnitOf(product.productName),
-              copies: copies,
-              onCopiesChanged: onCopiesChanged,
-            ),
-          ...sectionWidgets,
-          Divider(height: 1, color: colors.line),
-          ComparisonColumnActions(product: product),
         ],
       ),
     );

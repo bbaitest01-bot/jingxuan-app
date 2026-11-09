@@ -1,3 +1,4 @@
+import '../../widgets/saved_comparison/saved_comparison_menu.dart';
 import 'package:flutter/material.dart';
 import '../../services/app_localizations.dart';
 import '../../services/tag_categorizer.dart';
@@ -104,6 +105,12 @@ class CustomerListRow extends StatelessWidget {
     final Color nameColor = context.appColors.ink;
     final Color infoColor = context.appColors.ink3;
     final Color iconColor = context.appColors.ink3;
+
+    final Widget comparisonMenuButton = SavedComparisonMenuButton(
+      customerId: customer['id'].toString(),
+      customerName: name,
+      isCompact: true,
+    );
 
     Widget child;
 
@@ -263,6 +270,7 @@ class CustomerListRow extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (!isSelectionMode) comparisonMenuButton,
               IconButton(
                 icon: Icon(Icons.fullscreen_rounded, color: primaryColor, size: 20),
                 tooltip: context.l10n('customer_card_zoom_tooltip'),
@@ -327,6 +335,7 @@ class CustomerListRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (!isSelectionMode) comparisonMenuButton,
               IconButton(
                 icon: Icon(Icons.fullscreen_rounded, color: primaryColor, size: 18),
                 onPressed: () => actions.onZoom(customer),
