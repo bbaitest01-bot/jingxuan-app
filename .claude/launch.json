@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flutter-web",
+      "runtimeExecutable": "C:\\Users\\user\\flutter\\bin\\flutter.bat",
+      "runtimeArgs": ["run", "-d", "web-server", "--web-port=8080", "--web-hostname=localhost"],
+      "port": 8080
+    },
+    {
+      "name": "oral-deck",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "C:\\Users\\user\\Desktop\\經選助手專題\\專題口試用簡報1112"],
+      "port": 8765
+    }
+  ]
+}
