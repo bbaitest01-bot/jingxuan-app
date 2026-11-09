@@ -72,7 +72,7 @@ GitHub：app → https://github.com/bbaitest01-bot/jingxuan-app ｜ vault → ht
 ## 6. 快捷指令
 
 「開工」(`/start`)、「收工」(`/finish`)、「回報」(`/report`)、「讓我看看」(`/preview`)、「確認狀況」(`/status`)、「精簡模式」(`/brief`)、「詳細模式」(`/verbose`)、「更新工具包」(`/toolpack-update`)、「對齊工具包」(`/toolpack-align`)（`.claude/commands/`）。
-純文件工作請在 `jingxuan-vault` 開啟，另有 「對齊」(`/align`)、「book」(`/book`)、「自我修復」(`/self-repair`)。
+純文件工作請在 `jingxuan-vault` 開啟，另有 「對齊」(`/align`)、「book」(`/book`)、「自我修復」(`/self-repair`)、「快照」(`/snapshot`)、「匯入測試台」(`/import-testbench`)。
 
 ## 7. 學習筆記（給新手組員看懂程式）
 
