@@ -94,8 +94,14 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
         tour.dismissActiveModal = () {
           if (mounted && _isTourSideSheetOpen) {
             _isTourSideSheetOpen = false;
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            // 手機的下方面板開在最近的 Navigator；電腦的側邊欄開在最外層的 Navigator
+            // （showGeneralDialog 預設），最近的關不掉就從最外層關（2026-11-09 G4）
+            final NavigatorState nearestNavigator = Navigator.of(context);
+            if (nearestNavigator.canPop()) {
+              nearestNavigator.pop();
+            } else {
+              final NavigatorState rootNavigator = Navigator.of(context, rootNavigator: true);
+              if (rootNavigator.canPop()) rootNavigator.pop();
             }
           }
         };

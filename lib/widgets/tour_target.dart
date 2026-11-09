@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 
+/// 左側選單在導覽裡的 id（2026-11-09 G4）
+///
+/// 電腦版每個選單項目是 `menu.客戶管理` 這樣的 id；手機的選單收在左上角 ☰ 裡看不到，
+/// 這時改亮 ☰ 按鈕（[drawerButtonId]），使用者才知道要從哪裡打開選單。
+class OnboardingMenuTarget {
+  static const String menuItemPrefix = 'menu.';
+  static const String drawerButtonId = 'mobile.drawerButton';
+}
+
 /// 新手導覽要「亮起來」的地方（2026-11-01）
 ///
 /// 用法：把按鈕包起來 `TourTarget(id: 'customers.add', child: 新增客戶按鈕)`，
