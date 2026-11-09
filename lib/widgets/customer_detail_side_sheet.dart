@@ -6,6 +6,7 @@ import '../router/app_routes.dart';
 import '../services/customer_policy_service.dart';
 import '../services/customer_service.dart';
 import '../services/insurance_product_service.dart';
+import '../services/policy_group_service.dart';
 import '../widgets/custom_toast.dart';
 import 'customer_policy_widgets.dart';
 import 'policy_detail/policy_group_list.dart';
@@ -685,7 +686,7 @@ class _CustomerDetailSideSheetState extends State<CustomerDetailSideSheet> with 
           const SizedBox(height: 16),
 
           EnrolledPoliciesHeader(
-            policyCount: _enrolledPolicies.length,
+            policyCount: PolicyGrouping.group(_enrolledPolicies).length,
             isSearchOpen: _showEnrollSearchBox,
             enrollButtonLabel: _enrollButtonLabel(),
             onScanPressed: _scanPolicy,

@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../services/onboarding_tour_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/tutorial_walkthrough_dialog.dart';
-import 'schedule_walkthrough_data.dart';
+import '../../widgets/walkthrough/walkthrough_player_dialog.dart';
 import 'settings_parts.dart';
+import '../../widgets/walkthrough/walkthrough_step.dart';
+import 'walkthrough/customers_walkthrough.dart';
+import 'walkthrough/network_walkthrough.dart';
+import 'walkthrough/schedule_walkthrough.dart';
+import 'walkthrough/visit_records_walkthrough.dart';
 
 /// 教學中心裡的一頁：名稱、重點說明、圖示
 class _TutorialPage {
@@ -18,7 +22,7 @@ class _TutorialPage {
 /// 系統設定第 3 區「教學中心」（2026-11-01 沛沛定案：單一按鈕「觀看教學」＋重點功能說明）
 ///
 /// - 大教學：「開始導覽」在真的畫面上一步步標出來
-/// - 各功能：點「觀看教學」彈出擬真滑鼠指標虛擬操作播放器
+/// - 各功能：點「觀看教學」播放真實畫面的操作示範（滑鼠、點擊、放大）
 class SettingsTutorialSection extends StatelessWidget {
   const SettingsTutorialSection({super.key});
 
@@ -32,6 +36,14 @@ class SettingsTutorialSection extends StatelessWidget {
     _TutorialPage('新聞頭條', '經選日報報紙版面、每日保險動態與 AI 情境插圖', Icons.newspaper_outlined),
     _TutorialPage('個人帳號', '3D 反光數位名片、20 款抽屜模板與雙面圖片下載', Icons.account_circle_outlined),
   ];
+
+  // 已經做好操作示範的功能：功能名稱 → 取得步驟的函式；還沒做的顯示「製作中」
+  static const Map<String, List<WalkthroughStep> Function()> _walkthroughBuilders = {
+    '今日行程': buildScheduleWalkthrough,
+    '客戶管理': buildCustomersWalkthrough,
+    '拜訪紀錄': buildVisitRecordsWalkthrough,
+    '人脈拓撲': buildNetworkWalkthrough,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -66,15 +78,11 @@ class SettingsTutorialSection extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               ..._pages.map((_TutorialPage page) {
-                // 今日行程已完成擬真滑鼠播放器，其他功能標記製作中
+                final List<WalkthroughStep> Function()? buildSteps = _walkthroughBuilders[page.name];
                 VoidCallback? onWatch;
-                if (page.name == '今日行程') {
+                if (buildSteps != null) {
                   onWatch = () {
-                    TutorialWalkthroughDialog.show(
-                      context,
-                      categoryName: page.name,
-                      steps: buildScheduleWalkthroughSteps(context),
-                    );
+                    WalkthroughPlayerDialog.show(context, categoryName: page.name, steps: buildSteps());
                   };
                 }
 

@@ -21,6 +21,20 @@ class ScheduleViewData {
     required this.isLoading,
     required this.viewMode,
   });
+
+  /// 選到的那一天有哪些行程（跨日行程只要有碰到這一天就算）。
+  /// [events] 在月網格是整個月的，路線規劃只能用這一天的（問題 S20）
+  List<ScheduleEvent> get eventsOnSelectedDay {
+    final DateTime dayStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final DateTime nextDayStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day + 1);
+    final List<ScheduleEvent> eventsOnDay = [];
+    for (final ScheduleEvent event in events) {
+      final bool startsBeforeDayEnds = event.startAt.isBefore(nextDayStart);
+      final bool endsAfterDayStarts = event.endAt.isAfter(dayStart);
+      if (startsBeforeDayEnds && endsAfterDayStarts) eventsOnDay.add(event);
+    }
+    return eventsOnDay;
+  }
 }
 
 /// 今日行程各畫面可以「做的事」。畫面只負責呼叫，實際處理都在 HomeScreen。

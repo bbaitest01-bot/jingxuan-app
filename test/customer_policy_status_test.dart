@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:insurance_helper/router/app_routes.dart';
 import 'package:insurance_helper/screens/customers/detail/customer_detail_sections.dart';
 import 'package:insurance_helper/services/coverage_check_service.dart';
+import 'package:insurance_helper/services/customer_card_summary_service.dart';
 import 'package:insurance_helper/services/customer_policy_service.dart';
 import 'package:insurance_helper/services/policy_detail_service.dart';
 import 'package:insurance_helper/services/policy_party_service.dart';
@@ -69,6 +70,38 @@ Future<void> pumpWidgetInPage(WidgetTester tester, Widget child) async {
 }
 
 void main() {
+  group('保單張數：主約和附約算同一張（D35）', () {
+    final List<CustomerEnrolledPolicy> policies = [
+      buildPolicy(id: 'main', groupId: 'g1', role: 'main', status: 'active'),
+      buildPolicy(id: 'rider1', groupId: 'g1', role: 'rider', status: 'active'),
+      buildPolicy(id: 'rider2', groupId: 'g1', role: 'rider', status: 'active'),
+      buildPolicy(id: 'cancer', status: 'lapsed'),
+    ];
+
+    test('一張主約＋2 附約、一張失效：有效 1 張、全部 2 張', () {
+      expect(PolicyGrouping.countActivePolicies(policies), 1);
+      expect(PolicyGrouping.group(policies).length, 2);
+    });
+
+    test('主約失效但附約還有效：這張還算有效', () {
+      final List<CustomerEnrolledPolicy> partlyLapsed = [
+        buildPolicy(id: 'main', groupId: 'g1', role: 'main', status: 'lapsed'),
+        buildPolicy(id: 'rider1', groupId: 'g1', role: 'rider', status: 'active'),
+      ];
+      expect(PolicyGrouping.countActivePolicies(partlyLapsed), 1);
+    });
+
+    test('客戶卡片：同一張算一次，沒有編號的單獨算一張', () {
+      final Map<String, int> counts = CustomerCardSummaryService.countPoliciesByCustomer([
+        {'id': '1', 'customer_id': 'a', 'company_name': '國泰人壽', 'policy_group_id': 'g1', 'policy_number': null},
+        {'id': '2', 'customer_id': 'a', 'company_name': '國泰人壽', 'policy_group_id': 'g1', 'policy_number': null},
+        {'id': '3', 'customer_id': 'a', 'company_name': '南山人壽', 'policy_group_id': null, 'policy_number': null},
+        {'id': '4', 'customer_id': 'b', 'company_name': '南山人壽', 'policy_group_id': null, 'policy_number': null},
+      ]);
+      expect(counts, {'a': 2, 'b': 1});
+    });
+  });
+
   group('保單狀態細分（2026-11-07 主管回饋）', () {
     test('沒有 status 欄位時當作有效；六種狀態的中文', () {
       expect(buildPolicy().isActive, isTrue);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/benefit_plan_service.dart';
 import '../../services/coverage_check_service.dart';
 import '../../services/customer_policy_service.dart';
+import '../../services/policy_group_service.dart';
 import '../../services/policy_party_service.dart';
 import '../../theme/app_theme.dart';
 import '../custom_toast.dart';
@@ -100,10 +101,7 @@ class _CustomerCoverageCheckSectionState extends State<CustomerCoverageCheckSect
       plansById: _plansById,
     );
 
-    int activeCount = 0;
-    for (final CustomerEnrolledPolicy policy in _coveringPolicies) {
-      if (policy.isActive) activeCount++;
-    }
+    final int activeCount = PolicyGrouping.countActivePolicies(_coveringPolicies);
 
     return Container(
       padding: const EdgeInsets.all(14),

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import 'customer_policy_service.dart';
 import 'customer_stage_service.dart';
+import 'policy_group_service.dart';
 
 /// 客戶卡片上的兩行摘要：保單狀況、下次行程（2026-10-30 沛沛選卡片 C：卡片不空也不擠）；
 /// 2026-11-01 點開後飛出來的放大卡片，名字下面多一行介紹人
@@ -66,7 +67,10 @@ class CustomerCardSummaryService {
     try {
       // 權限只會給自己名下客戶的保單
       final List<dynamic> policyRows =
-          await _supabase.from('customer_policies').select('customer_id').inFilter('status', PolicyStatus.withCoverage);
+          await _supabase
+          .from('customer_policies')
+          .select('id, customer_id, company_name, policy_group_id, policy_number')
+          .inFilter('status', PolicyStatus.withCoverage);
       final List<dynamic> visitResultRows =
           await _supabase.from('visit_results').select('customer_id').eq('profile_id', user.id);
       final List<dynamic> scheduleRows = await _supabase
@@ -84,6 +88,27 @@ class CustomerCardSummaryService {
     }
   }
 
+  /// 每位客戶有幾「張」保單：主約和附約算同一張（問題 D35）。
+  /// [policyRows] 要先篩好（客戶卡片只傳有保障的項目，所以算出來就是有效保單張數）
+  static Map<String, int> countPoliciesByCustomer(List<dynamic> policyRows) {
+    final Map<String, Set<String>> policyKeysByCustomer = {};
+    for (final dynamic row in policyRows) {
+      final String customerId = row['customer_id'].toString();
+      final String policyKey = PolicyGrouping.groupKeyFor(
+        policyId: row['id'].toString(),
+        companyName: row['company_name']?.toString() ?? '',
+        policyGroupId: row['policy_group_id']?.toString(),
+        policyNumber: row['policy_number']?.toString(),
+      );
+      policyKeysByCustomer.putIfAbsent(customerId, () => {}).add(policyKey);
+    }
+    final Map<String, int> policyCountByCustomer = {};
+    policyKeysByCustomer.forEach((String customerId, Set<String> policyKeys) {
+      policyCountByCustomer[customerId] = policyKeys.length;
+    });
+    return policyCountByCustomer;
+  }
+
   static Map<String, CustomerCardSummary> _buildSummaries(
     List<dynamic> policyRows,
     List<dynamic> visitResultRows,
@@ -91,11 +116,7 @@ class CustomerCardSummaryService {
     List<dynamic> customerRows,
     DateTime now,
   ) {
-    final Map<String, int> policyCountByCustomer = {};
-    for (final dynamic row in policyRows) {
-      final String customerId = row['customer_id'].toString();
-      policyCountByCustomer[customerId] = (policyCountByCustomer[customerId] ?? 0) + 1;
-    }
+    final Map<String, int> policyCountByCustomer = countPoliciesByCustomer(policyRows);
     // 有拜訪結果或有排行程＝跟進過（和客戶階段的規則一樣）
     final Set<String> followedCustomerIds = {};
     for (final dynamic row in visitResultRows) {

@@ -255,7 +255,7 @@ class _RoutePlannerButton extends StatelessWidget {
     }
 
     return FilledButton.icon(
-      onPressed: () => actions.openRoutePlanner(date: data.selectedDate, events: data.events),
+      onPressed: () => actions.openRoutePlanner(date: data.selectedDate, events: data.eventsOnSelectedDay),
       icon: Icon(Icons.alt_route, size: iconSize),
       label: Text('路線規劃', style: TextStyle(fontWeight: FontWeight.bold, fontSize: fontSize)),
       style: style,
