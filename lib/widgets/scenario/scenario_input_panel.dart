@@ -82,7 +82,7 @@ class _ScenarioInputPanelState extends State<ScenarioInputPanel> {
         children: [
           Text('情境試算：如果發生這件事，每款大約可以拿多少？', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.ink)),
           const SizedBox(height: 2),
-          Text('填一次，下面每一款都用同一個情境算；不會存檔。金額依各欄「試算」填的保額、日額、單位計算',
+          Text('填一次，下面每一款都用同一個情境算；存到客戶才會保留。金額依各欄「試算」填的保額、日額、單位計算',
               style: TextStyle(fontSize: 11, color: colors.ink3)),
           const SizedBox(height: 10),
           Wrap(spacing: 6, runSpacing: 6, children: typeChips),

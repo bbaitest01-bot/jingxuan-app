@@ -5,6 +5,7 @@ import '../router/app_routes.dart';
 import '../services/app_localizations.dart';
 import '../services/app_settings.dart';
 import '../services/customer_card_summary_service.dart';
+import '../services/saved_comparison_service.dart';
 import '../services/customer_service.dart';
 import '../services/customer_stage_service.dart';
 import '../services/onboarding_tour_service.dart';
@@ -182,6 +183,7 @@ class _CustomerManagementTabState extends State<CustomerManagementTab> with Auto
 
       // 卡片上的保單、下次行程摘要另外讀（不等它，讀到卡片會自己更新）
       CustomerCardSummaryService.instance.refresh();
+      SavedComparisonService.instance.refreshCounts();
       final List<Map<String, dynamic>> customers = await CustomerService.instance.fetchActiveCustomers();
       if (!mounted) return;
       setState(() {

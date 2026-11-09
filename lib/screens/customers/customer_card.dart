@@ -4,6 +4,7 @@ import '../../services/tag_categorizer.dart';
 import 'customer_card_details.dart';
 import 'customer_status_widgets.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/saved_comparison/saved_comparison_menu.dart';
 
 /// 客戶卡片（2026-10-30 組長提出：拿掉翻面，點一下就打開側邊欄）
 ///
@@ -19,12 +20,16 @@ class CustomerCard extends StatelessWidget {
   /// 點開後飛出來的放大卡片：改用 [CustomerCardDetailsBody] 的對齊表格（2026-11-01 沛沛）
   final bool showExtraDetails;
 
+  /// 批量管理時右上角是勾選圈，不顯示比較清單按鈕
+  final bool showComparisonMenu;
+
   const CustomerCard(
       {super.key,
       required this.customer,
       required this.onOpen,
       this.hideWhenFlying = true,
-      this.showExtraDetails = false});
+      this.showExtraDetails = false,
+      this.showComparisonMenu = true});
 
   /// 正在飛到左邊的客戶：原本位置的卡片先藏起來。
   /// 用通知的方式只讓那一張卡片重畫，不讓整頁重畫（2026-10-30 量到起飛時整頁重畫會掉格）
@@ -101,7 +106,7 @@ class CustomerCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _CustomerCardHeader(customer: customer, displayName: displayName),
+        _CustomerCardHeader(customer: customer, displayName: displayName, showComparisonMenu: showComparisonMenu),
         const SizedBox(height: 10),
         Divider(height: 1, color: colors.line),
         const SizedBox(height: 8),
@@ -117,8 +122,9 @@ class CustomerCard extends StatelessWidget {
 class _CustomerCardHeader extends StatelessWidget {
   final Map<String, dynamic> customer;
   final String displayName;
+  final bool showComparisonMenu;
 
-  const _CustomerCardHeader({required this.customer, required this.displayName});
+  const _CustomerCardHeader({required this.customer, required this.displayName, required this.showComparisonMenu});
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +160,10 @@ class _CustomerCardHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (showComparisonMenu) ...[
+          const SizedBox(width: 8),
+          SavedComparisonMenuButton(customerId: customer['id'].toString(), customerName: name),
+        ],
       ],
     );
   }

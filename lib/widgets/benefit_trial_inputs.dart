@@ -4,14 +4,22 @@ import '../services/benefit_trial_calculator.dart';
 import '../theme/app_theme.dart';
 
 /// 比較頁每一欄上方的「試算」：保額、日額、單位數（看商品用到哪個）＋年繳保費
-/// 只在這次比較用，不存檔；填好後給付項目的格子會算出真正金額
+/// 按「存到客戶」才會保留；填好後給付項目的格子會算出真正金額
 class BenefitTrialPanel extends StatefulWidget {
   final BenefitTrialFields fields;
   // 台幣「元」或外幣「美元」…（輸入框單位跟著變）
   final String currencyUnit;
   final ValueChanged<BenefitTrialInput> onChanged;
+  // 從比較清單打開時要先填好的數字；一般比較是 null
+  final BenefitTrialInput? initialInput;
 
-  const BenefitTrialPanel({super.key, required this.fields, required this.onChanged, this.currencyUnit = '元'});
+  const BenefitTrialPanel({
+    super.key,
+    required this.fields,
+    required this.onChanged,
+    this.currencyUnit = '元',
+    this.initialInput,
+  });
 
   @override
   State<BenefitTrialPanel> createState() => _BenefitTrialPanelState();
@@ -22,6 +30,28 @@ class _BenefitTrialPanelState extends State<BenefitTrialPanel> {
   final TextEditingController _dailyController = TextEditingController();
   final TextEditingController _unitsController = TextEditingController();
   final TextEditingController _premiumController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final BenefitTrialInput? initialInput = widget.initialInput;
+    if (initialInput == null) return;
+    // 保額存的是元，輸入框用萬元
+    final int? coverageAmount = initialInput.coverageAmount;
+    if (coverageAmount != null) {
+      _coverageController.text = (coverageAmount ~/ 10000).toString();
+    }
+    _dailyController.text = _textOf(initialInput.dailyAmount);
+    _unitsController.text = _textOf(initialInput.units);
+    _premiumController.text = _textOf(initialInput.annualPremium);
+  }
+
+  static String _textOf(int? number) {
+    if (number == null) {
+      return '';
+    }
+    return number.toString();
+  }
 
   @override
   void dispose() {
@@ -77,7 +107,7 @@ class _BenefitTrialPanelState extends State<BenefitTrialPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('試算（填了才算，不會存檔）', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
+          Text('試算（填了才算，存到客戶才會保留）', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.ink3)),
           const SizedBox(height: 6),
           ...inputs,
         ],
