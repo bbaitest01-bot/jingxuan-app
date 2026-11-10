@@ -12,7 +12,8 @@
 -- 前提：帳號要先存在（demo1／demo2 在 Supabase → Authentication → Users 建立；
 --       jingxuan.helper@gmail.com 先用 Google 登入 App 一次）。
 -- 執行：Supabase SQL Editor 整份貼上 → Run；最後會列出每個帳號的筆數。
--- 名字：@jingxuan.test 的帳號重置成「林示範」；allowed_real_emails 的帳號保留在 App 自己改的名字。
+-- 名字：@jingxuan.test 的帳號重置成「林示範」；口試 demo 帳號重置成「王小明」（2026-11-10）。
+-- 劇情：對照 vault 02_專題報告/口試demo/細部流程_第三版.md，改數字前先看那份。
 -- Google 日曆：假資料是直接寫進資料庫，不會自動出現在 Google 日曆；
 --       執行完要用該帳號登入 App → 系統設定 → Google 連線 → 打開「行程放到 Google 日曆」
 --       （打開時會自動把現有行程推上去；已經打開的話按「重新同步」）。
@@ -34,13 +35,17 @@ DECLARE
   demo_user_id UUID;
   today_local TIMESTAMP := date_trunc('day', now() AT TIME ZONE 'Asia/Taipei');
   daily_project_id UUID;
-  checkup_project_id UUID;
+  reimbursement_project_id UUID;
   newborn_project_id UUID;
   identity_category_id UUID;
   insurance_category_id UUID;
   interest_category_id UUID;
   health_category_id UUID;
   followup_category_id UUID;
+  -- 王美華比較清單的三款商品（商品 id 每個資料庫不同，用名稱查）
+  fubon_product_id TEXT;
+  cathay_product_id TEXT;
+  nanshan_product_id TEXT;
 BEGIN
   FOREACH demo_email IN ARRAY demo_emails LOOP
     -- 只准處理示範帳號，避免誤刪真的業務員資料
@@ -69,18 +74,19 @@ BEGIN
 
     -- 新手導覽「看過了」的紀錄清掉，主管登入會自動跳出導覽（2026-11-01）
     -- 同步清掉 auth.users 上的頭像與第三方圖片資訊
+    -- 口試 demo 帳號改成「已看過」，避免導覽在現場跳出來擋住畫面（2026-11-10）
     UPDATE auth.users
-    SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb)
+    SET raw_user_meta_data = (COALESCE(raw_user_meta_data, '{}'::jsonb)
       - 'onboarding_tour_seen'
       - 'avatar_url'
-      - 'picture'
+      - 'picture')
+      || CASE WHEN demo_email = ANY (allowed_real_emails) THEN '{"onboarding_tour_seen": true}'::jsonb ELSE '{}'::jsonb END
     WHERE id = demo_user_id;
 
     -- 2. 業務員本人（個人帳號、名片、大頭貼）；權限一律是一般業務員
     UPDATE public.profiles SET
-      -- 名字：主管的 demo1、demo2 重置成「林示範」；不是 @jingxuan.test 的真實帳號（口試 demo）
-      -- 保留自己在 App 改的名字，重置不會蓋掉（2026-11-05）
-      full_name = CASE WHEN demo_email LIKE '%@jingxuan.test' THEN '林示範' ELSE full_name END,
+      -- 名字：主管的 demo1、demo2 重置成「林示範」；口試 demo 帳號由報告者扮演「王小明」（2026-11-10）
+      full_name = CASE WHEN demo_email LIKE '%@jingxuan.test' THEN '林示範' ELSE '王小明' END,
       avatar_url = NULL,
       qr_code_url = NULL,
       card_theme = 'classic:0',
@@ -90,9 +96,9 @@ BEGIN
       company = '經選保險經紀人',
       job_title = '資深業務經理',
       website = 'https://example.com',
-      address = '台北市信義區示範路 100 號',
+      address = '台中市西屯區示範路 100 號',
       bio = '從業 8 年，專長家庭保障規劃與醫療險健檢。相信保險是讓家人安心的承諾。',
-      line_id = 'demo_lin',
+      line_id = 'demo_agent',
       license_no = 'DEMO-000001',
       honor_title = '家庭保障規劃顧問',
       badges = ARRAY['壽險管理人員', '外幣保單證照', '投資型保險證照'],
@@ -110,47 +116,51 @@ BEGIN
       (demo_user_id, identity_category_id, '樂齡(60+)'), (demo_user_id, identity_category_id, '高資產'),
       (demo_user_id, identity_category_id, '新手爸媽'), (demo_user_id, identity_category_id, '公司負責人'),
       (demo_user_id, identity_category_id, '醫療從業'),
+      (demo_user_id, identity_category_id, '單身'), (demo_user_id, identity_category_id, '大學生'),
       (demo_user_id, insurance_category_id, '醫療險'), (demo_user_id, insurance_category_id, '意外險'),
       (demo_user_id, insurance_category_id, '防癌險'), (demo_user_id, insurance_category_id, '壽險'),
       (demo_user_id, insurance_category_id, '長照險'),
       (demo_user_id, interest_category_id, '露營'), (demo_user_id, interest_category_id, '高爾夫'),
       (demo_user_id, interest_category_id, '爬山'), (demo_user_id, interest_category_id, '咖啡'),
+      (demo_user_id, interest_category_id, '馬拉松'), (demo_user_id, interest_category_id, '籃球'),
       (demo_user_id, health_category_id, '健康'), (demo_user_id, health_category_id, '高血壓'),
       (demo_user_id, followup_category_id, '高意願'), (demo_user_id, followup_category_id, '定期聯繫'),
       (demo_user_id, followup_category_id, '觀望中'), (demo_user_id, followup_category_id, '轉介紹');
 
-    -- 4. 客戶 18 位＋垃圾桶 2 位（保戶、跟進中、未開發由保單、行程、拜訪結果自動判斷）
+    -- 4. 客戶 19 位＋垃圾桶 2 位（保戶、跟進中、未開發由保單、行程、拜訪結果自動判斷）
+    --    生日、職業等放自訂擴充屬性，客戶頁「基本資料」會顯示（2026-11-10）
     WITH inserted AS (
       INSERT INTO public.customers (profile_id, name, nickname, gender, phone, email, tags, notes, client_status, custom_attributes, created_at, deleted_at)
-      SELECT demo_user_id, v.name, v.nickname, v.gender, v.phone, v.email, v.tags, v.notes, v.status, '{}'::jsonb,
+      SELECT demo_user_id, v.name, v.nickname, v.gender, v.phone, v.email, v.tags, v.notes, v.status, v.custom_attributes::jsonb,
              now() - make_interval(days => v.created_days_ago),
              CASE WHEN v.deleted_days_ago IS NULL THEN NULL ELSE now() - make_interval(days => v.deleted_days_ago) END
       FROM (VALUES
         -- 保戶
-        ('王大明', '大明哥', 'male',   '0900-000-101', 'daming@example.com',  ARRAY['中年(36-60)','醫療險','壽險','意外險','定期聯繫'], '45 歲，科技公司工程師，已婚有兩個小孩。重視家庭保障，每年一起做保單健檢。', 'positive', 400, NULL::int),
-        ('王美華', NULL,     'female', '0900-000-102', 'meihua@example.com',  ARRAY['中年(36-60)','醫療險','壽險'],                      '43 歲，國小老師，王大明的太太。想了解實支實付夠不夠。', 'considering', 380, NULL),
-        ('陳志豪', '陳醫師', 'male',   '0900-000-103', 'drchen@example.com',  ARRAY['中年(36-60)','醫療從業','高資產','高爾夫','轉介紹'], '38 歲，家醫科診所醫師，吳雅婷在同一間診所。人脈很廣，介紹過好幾位朋友，也是王大明的高爾夫球友。', 'positive', 360, NULL),
-        ('李淑芬', NULL,     'female', '0900-000-104', 'shufen@example.com',  ARRAY['中年(36-60)','長照險','爬山'],                      '52 歲，高中老師，開始規劃退休與長照。', 'negative', 300, NULL),
-        ('張家瑋', NULL,     'male',   '0900-000-105', 'jiawei@example.com',  ARRAY['青年(18-35)','意外險','露營'],                      '30 歲，業務，王大明介紹。常騎車跑客戶，先買了意外險。', 'positive', 240, NULL),
-        ('吳雅婷', '雅婷',   'female', '0900-000-106', 'yating@example.com',  ARRAY['青年(18-35)','新手爸媽','防癌險'],                  '34 歲，護理師，今年剛生寶寶，想幫小孩規劃。', 'positive', 200, NULL),
-        ('吳建宏', NULL,     'male',   '0900-000-107', 'jianhong@example.com',ARRAY['樂齡(60+)','醫療險','高血壓'],                      '60 歲，剛退休，吳雅婷的爸爸。有高血壓，關心手術與住院。', 'positive', 500, NULL),
+        ('陳大明', '大明哥', 'male',   '0900-000-101', 'daming@example.com',  ARRAY['中年(36-60)','醫療險','壽險','意外險','定期聯繫'], '45 歲，科技公司工程師，已婚有兩個小孩。重視家庭保障，每年一起做保單健檢。', 'positive', 400, NULL::int, '{"生日": "1981/04/12", "職業": "科技公司工程師", "興趣": "高爾夫", "方便聯絡時間": "平日晚上"}'),
+        ('王美華', NULL,     'female', '0900-000-102', 'meihua@example.com',  ARRAY['中年(36-60)','醫療險','壽險'],                      '43 歲，國小老師，陳大明的太太，兒子是陳小寶。住院醫療只有 20 萬，擔心自費藥材不夠，想保到老。', 'considering', 380, NULL, '{"生日": "1983/05/17", "職業": "國小老師", "居住地": "台中市沙鹿區", "方便聯絡時間": "平日下午四點後", "月預算": "2,000 元"}'),
+        ('陳志豪', '陳醫師', 'male',   '0900-000-103', 'drchen@example.com',  ARRAY['中年(36-60)','醫療從業','高資產','高爾夫','轉介紹'], '38 歲，家醫科診所醫師，吳雅婷在同一間診所。人脈很廣，介紹過好幾位朋友，也是陳大明的高爾夫球友。', 'positive', 360, NULL, '{"生日": "1988/09/03", "職業": "家醫科醫師", "興趣": "高爾夫", "方便聯絡時間": "午休時間"}'),
+        ('李淑芬', NULL,     'female', '0900-000-104', 'shufen@example.com',  ARRAY['中年(36-60)','長照險','爬山'],                      '52 歲，高中老師，開始規劃退休與長照。', 'negative', 300, NULL, '{"生日": "1974/02/21", "職業": "高中老師", "興趣": "爬山"}'),
+        ('張家瑋', NULL,     'male',   '0900-000-105', 'jiawei@example.com',  ARRAY['青年(18-35)','意外險','露營'],                      '30 歲，業務，陳大明介紹。常騎車跑客戶，先買了意外險。', 'positive', 240, NULL, '{"生日": "1996/06/30", "職業": "業務", "興趣": "露營"}'),
+        ('吳雅婷', '雅婷',   'female', '0900-000-106', 'yating@example.com',  ARRAY['青年(18-35)','新手爸媽','防癌險'],                  '34 歲，護理師，今年剛生寶寶，想幫小孩規劃。', 'positive', 200, NULL, '{"生日": "1992/03/15", "職業": "護理師", "方便聯絡時間": "輪休日"}'),
+        ('吳建宏', NULL,     'male',   '0900-000-107', 'jianhong@example.com',ARRAY['樂齡(60+)','醫療險','高血壓'],                      '60 歲，剛退休，吳雅婷的爸爸。有高血壓，關心手術與住院。', 'positive', 500, NULL, '{"生日": "1966/11/14", "職業": "已退休", "興趣": "社區長青班"}'),
         -- 跟進中
-        ('林佳穎', NULL,     'female', '0900-000-108', 'jiaying@example.com', ARRAY['青年(18-35)','咖啡','高意願'],                      '29 歲，平面設計師，陳醫師介紹。今天約咖啡廳談醫療險。', 'considering', 30, NULL),
-        ('劉俊傑', NULL,     'male',   '0900-000-109', 'junjie@example.com',  ARRAY['中年(36-60)','觀望中'],                            '41 歲，連鎖餐飲店長，陳醫師介紹（以前在醫院餐廳認識）。', 'considering', 25, NULL),
-        ('蔡宜君', NULL,     'female', '0900-000-110', 'yijun@example.com',   ARRAY['中年(36-60)','高意願'],                            '36 歲，會計，林佳穎的同事。昨天拜訪過，對實支實付有興趣。', 'considering', 20, NULL),
-        ('許文彬', '許董',   'male',   '0900-000-111', 'wenbin@example.com',  ARRAY['中年(36-60)','公司負責人','高資產','高爾夫'],       '48 歲，貿易公司老闆，和陳醫師是獅子會社友。想談員工團保與個人資產傳承。', 'considering', 15, NULL),
-        ('鄭雅文', NULL,     'female', '0900-000-112', 'yawen@example.com',   ARRAY['青年(18-35)','定期聯繫'],                          '27 歲，研究生，蔡宜君的表妹介紹來的。預算有限，先從意外險開始。', NULL, 12, NULL),
-        ('楊志明', NULL,     'male',   '0900-000-113', 'zhiming@example.com', ARRAY['中年(36-60)','觀望中'],                            '55 歲，公務員，李淑芬的同事。目前覺得公保就夠。', 'negative', 40, NULL),
+        ('林佳穎', NULL,     'female', '0900-000-108', 'jiaying@example.com', ARRAY['青年(18-35)','咖啡','高意願'],                      '29 歲，平面設計師，陳醫師介紹。今天約咖啡廳談醫療險。', 'considering', 30, NULL, '{"生日": "1997/07/08", "職業": "平面設計師", "興趣": "咖啡", "月預算": "1,500 元"}'),
+        ('劉俊傑', NULL,     'male',   '0900-000-109', 'junjie@example.com',  ARRAY['中年(36-60)','觀望中'],                            '41 歲，連鎖餐飲店長，陳醫師介紹（以前在醫院餐廳認識）。', 'considering', 25, NULL, '{"生日": "1985/10/02", "職業": "連鎖餐飲店長", "方便聯絡時間": "下午兩點到四點"}'),
+        ('蔡宜君', NULL,     'female', '0900-000-110', 'yijun@example.com',   ARRAY['中年(36-60)','高意願'],                            '36 歲，會計，林佳穎的同事。昨天拜訪過，對實支實付有興趣。', 'considering', 20, NULL, '{"生日": "1990/01/26", "職業": "會計", "月預算": "2,000 元"}'),
+        ('許文彬', '許董',   'male',   '0900-000-111', 'wenbin@example.com',  ARRAY['中年(36-60)','公司負責人','高資產','高爾夫'],       '48 歲，貿易公司老闆，和陳醫師是獅子會社友。想談員工團保與個人資產傳承。', 'considering', 15, NULL, '{"生日": "1978/08/19", "職業": "貿易公司負責人", "興趣": "高爾夫"}'),
+        ('鄭雅文', NULL,     'female', '0900-000-112', 'yawen@example.com',   ARRAY['青年(18-35)','定期聯繫'],                          '27 歲，研究生，蔡宜君的表妹介紹來的。預算有限，先從意外險開始。', NULL, 12, NULL, '{"生日": "1999/04/04", "職業": "研究生"}'),
+        ('楊志明', NULL,     'male',   '0900-000-113', 'zhiming@example.com', ARRAY['中年(36-60)','觀望中'],                            '55 歲，公務員，李淑芬的同事。目前覺得公保就夠。', 'negative', 40, NULL, '{"生日": "1971/03/09", "職業": "公務員"}'),
+        ('陳小寶', '小寶',   'male',   '0988423616',   'xiaobao@example.com', ARRAY['馬拉松','籃球','單身','大學生'],                    '20 歲，大學生，王美華與陳大明的兒子。喜歡運動，最近剛跑完馬拉松，接下來還有兩場籃球賽，有舊傷。目前只有車險，想了解適合的保單與需要提供什麼證明。', 'considering', 0, NULL, '{"生日": "2006/08/06", "就讀科系": "體育學系", "運動項目": "馬拉松、籃球", "舊傷部位": "左膝", "現有保單": "僅車險"}'),
         -- 未開發
-        ('周怡君', NULL,     'female', '0900-000-114', 'yijun.chou@example.com', ARRAY['青年(18-35)'],                                  '31 歲，在活動上交換名片，還沒聯絡。', NULL, 10, NULL),
-        ('謝承恩', NULL,     'male',   '0900-000-115', 'chengen@example.com',    ARRAY['青年(18-35)','露營'],                           '26 歲，張家瑋的露營朋友。', NULL, 8, NULL),
-        ('洪麗玲', NULL,     'female', '0900-000-116', 'liling@example.com',     ARRAY['中年(36-60)'],                                  '47 歲，家庭主婦，社區媽媽群認識。', NULL, 6, NULL),
-        ('郭建志', NULL,     'male',   '0900-000-117', 'jianzhi@example.com',    ARRAY['中年(36-60)','轉介紹'],                         '39 歲，陳醫師介紹的牙醫師朋友，下週再聯絡。', NULL, 3, NULL),
-        ('曾美玲', '曾媽媽', 'female', '0900-000-118', 'meiling@example.com',    ARRAY['樂齡(60+)','健康'],                             '65 歲，王美華的媽媽，吳建宏在社區長青班的同學，經他介紹。身體健康，想了解長照。', NULL, 5, NULL),
+        ('周怡君', NULL,     'female', '0900-000-114', 'yijun.chou@example.com', ARRAY['青年(18-35)'],                                  '31 歲，在活動上交換名片，還沒聯絡。', NULL, 10, NULL, '{"生日": "1995/06/11", "認識管道": "活動交換名片"}'),
+        ('謝承恩', NULL,     'male',   '0900-000-115', 'chengen@example.com',    ARRAY['青年(18-35)','露營'],                           '26 歲，張家瑋的露營朋友。', NULL, 8, NULL, '{"生日": "2000/05/25", "興趣": "露營"}'),
+        ('洪麗玲', NULL,     'female', '0900-000-116', 'liling@example.com',     ARRAY['中年(36-60)'],                                  '47 歲，家庭主婦，社區媽媽群認識。', NULL, 6, NULL, '{"生日": "1979/09/18", "職業": "家庭主婦"}'),
+        ('郭建志', NULL,     'male',   '0900-000-117', 'jianzhi@example.com',    ARRAY['中年(36-60)','轉介紹'],                         '39 歲，陳醫師介紹的牙醫師朋友，下週再聯絡。', NULL, 3, NULL, '{"生日": "1987/02/07", "職業": "牙醫師"}'),
+        ('曾美玲', '曾媽媽', 'female', '0900-000-118', 'meiling@example.com',    ARRAY['樂齡(60+)','健康'],                             '65 歲，王美華的媽媽，吳建宏在社區長青班的同學，經他介紹。身體健康，想了解長照。', NULL, 5, NULL, '{"生日": "1961/07/22", "職業": "已退休", "興趣": "社區長青班"}'),
         -- 垃圾桶（示範可以還原）
-        ('黃小測', NULL,     'male',   '0900-000-119', NULL,                     ARRAY[]::text[],                                       '重複建立的客戶，已移到垃圾桶。', NULL, 50, 2),
-        ('范假名', NULL,     'female', '0900-000-120', NULL,                     ARRAY[]::text[],                                       '電話打錯的名單，已移到垃圾桶。', NULL, 45, 4)
-      ) AS v(name, nickname, gender, phone, email, tags, notes, status, created_days_ago, deleted_days_ago)
+        ('黃小測', NULL,     'male',   '0900-000-119', NULL,                     ARRAY[]::text[],                                       '重複建立的客戶，已移到垃圾桶。', NULL, 50, 2, '{}'),
+        ('范假名', NULL,     'female', '0900-000-120', NULL,                     ARRAY[]::text[],                                       '電話打錯的名單，已移到垃圾桶。', NULL, 45, 4, '{}')
+      ) AS v(name, nickname, gender, phone, email, tags, notes, status, created_days_ago, deleted_days_ago, custom_attributes)
       RETURNING id, name
     )
     INSERT INTO demo_customer_ids (customer_name, id) SELECT name, id FROM inserted;
@@ -160,11 +170,13 @@ BEGIN
     INSERT INTO public.customer_relationships (user_id, source_customer_id, target_customer_id, relationship_type, relationship_detail)
     SELECT demo_user_id, s.id, t.id, v.relationship_type, v.detail
     FROM (VALUES
-      ('王大明', '王美華', 'family', '夫妻'),
+      ('陳大明', '王美華', 'family', '夫妻'),
       ('曾美玲', '王美華', 'family', '母女'),
+      ('王美華', '陳小寶', 'family', '母子'),
+      ('陳大明', '陳小寶', 'family', '父子'),
       ('吳建宏', '吳雅婷', 'family', '父女'),
       ('陳志豪', '許文彬', 'social', '獅子會社友'),
-      ('陳志豪', '王大明', 'social', '高爾夫球友'),
+      ('陳志豪', '陳大明', 'social', '高爾夫球友'),
       ('陳志豪', '吳雅婷', 'workplace', '同診所'),
       ('林佳穎', '蔡宜君', 'workplace', '同事'),
       ('李淑芬', '楊志明', 'workplace', '同校老師'),
@@ -182,9 +194,10 @@ BEGIN
       ('林佳穎', '陳志豪'),
       ('劉俊傑', '陳志豪'),
       ('郭建志', '陳志豪'),
-      ('張家瑋', '王大明'),
+      ('張家瑋', '陳大明'),
       ('鄭雅文', '蔡宜君'),
-      ('曾美玲', '吳建宏')
+      ('曾美玲', '吳建宏'),
+      ('陳小寶', '王美華')
     ) AS v(customer_name, referrer_name)
     JOIN demo_customer_ids referred ON referred.customer_name = v.customer_name
     JOIN demo_customer_ids referrer ON referrer.customer_name = v.referrer_name
@@ -208,11 +221,11 @@ BEGIN
            (SELECT plan.id FROM public.insurance_product_benefit_plans plan WHERE plan.product_id = p.id AND plan.plan_code = v.plan_code LIMIT 1),
            v.source, now() - make_interval(days => v.effective_days_ago)
     FROM (VALUES
-      -- 王大明：一張國泰保單＝主約＋2 附約（示範「一張保單一張卡片」）；另一張防癌險停效（lapsed，可復效）
-      ('王大明', '國泰人壽新GO心保障100定期壽險',                      'active', 'DEMO-A0001', 'main',  '300萬',   1800, 24000, 3000000, NULL,  'scan'),
-      ('王大明', '國泰人壽新實全心意PLUS住院醫療健康保險附約（外溢型）', 'active', 'DEMO-A0001', 'rider', 'M20',     1800, 9800,  NULL,    'M20', 'scan'),
-      ('王大明', '國泰人壽超全方位傷害暨兒童傷害失能保險附約',          'active', 'DEMO-A0001', 'rider', '100萬',   1800, 2100,  1000000, NULL,  'scan'),
-      ('王大明', '國泰人壽鍾愛守護防癌定期保險',                        'lapsed', NULL,         NULL,    '50萬',    3200, 6500,  500000,  NULL,  'manual'),
+      -- 陳大明：一張國泰保單＝主約＋2 附約（示範「一張保單一張卡片」）；另一張防癌險停效（lapsed，可復效）
+      ('陳大明', '國泰人壽新GO心保障100定期壽險',                      'active', 'DEMO-A0001', 'main',  '300萬',   1800, 24000, 3000000, NULL,  'scan'),
+      ('陳大明', '國泰人壽新實全心意PLUS住院醫療健康保險附約（外溢型）', 'active', 'DEMO-A0001', 'rider', 'M20',     1800, 9800,  NULL,    'M20', 'scan'),
+      ('陳大明', '國泰人壽超全方位傷害暨兒童傷害失能保險附約',          'active', 'DEMO-A0001', 'rider', '100萬',   1800, 2100,  1000000, NULL,  'scan'),
+      ('陳大明', '國泰人壽鍾愛守護防癌定期保險',                        'lapsed', NULL,         NULL,    '50萬',    3200, 6500,  500000,  NULL,  'manual'),
       -- 王美華：富邦主約＋實支附約
       ('王美華', '富邦人壽新平準終身壽險',                              'active', 'DEMO-F0002', 'main',  '100萬',   1500, 31000, 1000000, NULL,  'scan'),
       ('王美華', '富邦人壽佳實在一年期住院醫療健康保險附約',            'active', 'DEMO-F0002', 'rider', '計劃2',   1500, 8200,  NULL,    '計劃2', 'scan'),
@@ -229,30 +242,31 @@ BEGIN
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name
     JOIN public.insurance_products p ON p.product_name = v.product_name;
 
-    -- 6-1. 保單的三個人（2026-11-07）：王大明那張國泰保單是太太王美華出錢（要保人）、受益人也是她；
-    --      被保險人還是王大明自己，所以兩人的健檢數字都不變
+    -- 6-1. 保單的三個人（2026-11-07）：陳大明那張國泰保單是太太王美華出錢（要保人）、受益人也是她；
+    --      被保險人還是陳大明自己，所以兩人的健檢數字都不變
     UPDATE public.customer_policies cp
     SET policyholder_customer_id = wife.id,
         beneficiary_customer_id = wife.id
     FROM demo_customer_ids wife, demo_customer_ids husband
     WHERE wife.customer_name = '王美華'
-      AND husband.customer_name = '王大明'
+      AND husband.customer_name = '陳大明'
       AND cp.customer_id = husband.id
       AND cp.policy_number = 'DEMO-A0001';
 
-    -- 7. 保單健檢目標（王大明壽險有缺口、實支夠；陳醫師重大疾病有缺口）
+    -- 7. 保單健檢目標（陳大明壽險有缺口、實支夠；陳醫師重大疾病有缺口）
     --    王美華＝口試 demo 客戶：富邦佳實在計劃2 是病房 2,000／住院醫療 20 萬，
     --    目標 3,000／50 萬 → 健檢看到實支不夠，再接保單比價（2026-11-05）
     INSERT INTO public.customer_coverage_targets (customer_id, category, target_amount)
     SELECT c.id, v.category, v.target_amount
     FROM (VALUES
-      ('王大明', 'life', 5000000), ('王大明', 'accident', 1000000), ('王大明', 'reimbursement_hospital', 200000),
+      ('陳大明', 'life', 5000000), ('陳大明', 'accident', 1000000), ('陳大明', 'reimbursement_hospital', 200000),
       ('王美華', 'life', 2000000), ('王美華', 'reimbursement_room', 3000), ('王美華', 'reimbursement_hospital', 500000),
       ('陳志豪', 'critical_illness', 3000000), ('陳志豪', 'life', 5000000)
     ) AS v(customer_name, category, target_amount)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
-    -- 8. 行程（以今天為準：今天 4 個、這週 4 個、過去 2 個已完成）
+    -- 8. 行程（以今天為準：今天 4 個、之後 5 個、過去 2 個已完成）
+    --    今天的地點用真實地標，路線規劃才導得過去（2026-11-10）
     --    今天 13:00 王美華＝口試 demo 的客戶（口試約 14:00）：demo 時這個行程已經開始，
     --    會出現在專案拜訪「還沒記錄結果」，現場按「記錄結果」示範（2026-11-05 改）
     INSERT INTO public.schedule_events (profile_id, customer_id, title, start_at, end_at, location, event_type, tag, is_completed)
@@ -261,29 +275,32 @@ BEGIN
            (today_local + make_interval(days => v.day_offset, mins => v.start_minute + v.duration_minutes)) AT TIME ZONE 'Asia/Taipei',
            v.location, v.event_type, v.tag, v.is_completed
     FROM (VALUES
-      (NULL::text, '團隊晨會',                   0, 540,  60,  '通訊處會議室',        'personal', '內勤', false),
-      ('林佳穎',   '林佳穎 醫療險需求訪談',       0, 630,  60,  '信義區示範咖啡廳',    'customer_visit', '首談', false),
-      ('王美華',   '王美華 實支實付比較',         0, 780,  60,  '王美華家（板橋）',    'customer_visit', '跟進', false),
-      ('許文彬',   '許董 員工團保與傳承規劃',     0, 870,  90,  '許董公司（內湖）',    'meeting',  '規劃', false),
-      ('王大明',   '王大明 保單送件',             1, 600,  30,  '台北分公司',          'follow_up', '送件', false),
+      (NULL::text, '團隊晨會',                   0, 540,  60,  '台中市西屯區台灣大道三段', 'personal', '內勤', false),
+      ('林佳穎',   '林佳穎 醫療險需求訪談',       0, 630,  60,  '東海藝術街',          'customer_visit', '首談', false),
+      ('王美華',   '王美華 實支實付比較',         0, 780,  60,  '台中市沙鹿區中山路',  'customer_visit', '跟進', false),
+      ('許文彬',   '許董 員工團保與傳承規劃',     0, 870,  90,  '台中工業區',          'meeting',  '規劃', false),
+      ('陳大明',   '陳大明 保單送件',             1, 600,  30,  '台中分公司',          'follow_up', '送件', false),
       ('吳建宏',   '吳建宏 生日關懷',             2, 570,  60,  NULL,                 'follow_up', '關懷', false),
-      ('劉俊傑',   '劉俊傑 第二次拜訪',           3, 900,  60,  '中山區餐廳',          'customer_visit', '跟進', false),
+      ('劉俊傑',   '劉俊傑 第二次拜訪',           3, 900,  60,  '逢甲商圈餐廳',        'customer_visit', '跟進', false),
+      ('陳小寶',   '陳小寶 傷害險需求訪談',       4, 660,  60,  '靜宜大學',            'customer_visit', '首談', false),
       ('鄭雅文',   '鄭雅文 意外險說明',           5, 720,  60,  '學校附近',            'customer_visit', '跟進', false),
       ('蔡宜君',   '蔡宜君 實支實付說明',        -1, 840,  60,  '蔡宜君公司樓下',      'customer_visit', '跟進', true),
       ('楊志明',   '楊志明 退休規劃聊聊',        -3, 600,  60,  '學校',                'customer_visit', '首談', true)
     ) AS v(customer_name, title, day_offset, start_minute, duration_minutes, location, event_type, tag, is_completed)
     LEFT JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
-    -- 9. 專案拜訪：日常拜訪（每人預設一個）＋年底保單健檢＋新生兒家庭關懷
+    -- 9. 專案拜訪：日常拜訪（每人預設一個）＋年底實支缺口補強＋新生兒家庭關懷
+    --    「年底實支缺口補強」放好 9 次，現場記錄王美華後變 10/10（2026-11-10）
     SELECT id INTO daily_project_id FROM public.visit_projects WHERE profile_id = demo_user_id AND is_default;
     IF daily_project_id IS NULL THEN
       INSERT INTO public.visit_projects (profile_id, title, purpose, period_type, target_count, is_default)
       VALUES (demo_user_id, '日常拜訪', '', 'month', 20, true) RETURNING id INTO daily_project_id;
     END IF;
+    UPDATE public.visit_projects SET target_count = 30 WHERE id = daily_project_id;
     INSERT INTO public.visit_projects (profile_id, title, purpose, period_type, start_date, end_date, target_count, is_default)
-    VALUES (demo_user_id, '年底保單健檢', '年底前幫既有保戶檢視保障缺口，順便更新保單資料', 'range',
+    VALUES (demo_user_id, '年底實支缺口補強', '年底前幫客戶補足實支實付的住院醫療缺口', 'range',
             (today_local - interval '20 days')::date, (today_local + interval '40 days')::date, 10, false)
-    RETURNING id INTO checkup_project_id;
+    RETURNING id INTO reimbursement_project_id;
     INSERT INTO public.visit_projects (profile_id, title, purpose, period_type, start_date, end_date, target_count, is_default)
     VALUES (demo_user_id, '新生兒家庭關懷', '今年有新生兒的家庭，介紹小孩的醫療與意外保障', 'range',
             (today_local - interval '10 days')::date, (today_local + interval '50 days')::date, 5, false)
@@ -292,23 +309,50 @@ BEGIN
     INSERT INTO public.visit_project_customers (visit_project_id, customer_id, is_visited)
     SELECT v.project_id, c.id, v.is_visited
     FROM (VALUES
-      (checkup_project_id, '王大明', true), (checkup_project_id, '王美華', true), (checkup_project_id, '陳志豪', true),
-      (checkup_project_id, '李淑芬', true), (checkup_project_id, '吳建宏', false),
+      (reimbursement_project_id, '陳大明', true), (reimbursement_project_id, '王美華', true), (reimbursement_project_id, '陳志豪', true),
+      (reimbursement_project_id, '吳建宏', true), (reimbursement_project_id, '蔡宜君', true), (reimbursement_project_id, '李淑芬', true),
+      (reimbursement_project_id, '劉俊傑', true), (reimbursement_project_id, '吳雅婷', true), (reimbursement_project_id, '許文彬', true),
       (newborn_project_id, '吳雅婷', true), (newborn_project_id, '鄭雅文', false), (newborn_project_id, '周怡君', false)
     ) AS v(project_id, customer_name, is_visited)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
+    -- 本月 32 筆：工作日都有資料、每天數量不同，成效圖才有起伏（資料太少時會一天有一天掉回 0，看起來像三角形）
+    -- 每筆都寫備註，沒意願的也寫原因（2026-11-10）
     INSERT INTO public.visit_results (profile_id, project_id, customer_id, visited_on, result, note)
     SELECT demo_user_id, v.project_id, c.id, (today_local - make_interval(days => v.days_ago))::date, v.result, v.note
     FROM (VALUES
-      (checkup_project_id, '王大明', 12, 'positive',    '壽險保額不足，同意加保 200 萬'),
-      (checkup_project_id, '王美華', 12, 'considering', '想先比較實支實付計畫'),
-      (checkup_project_id, '陳志豪', 8,  'positive',    '重大疾病想再加 100 萬，下次帶建議書'),
-      (checkup_project_id, '李淑芬', 5,  'negative',    '今年預算已用完，明年再談'),
-      (newborn_project_id, '吳雅婷', 6,  'positive',    '幫寶寶投保醫療與意外，已送件'),
-      (daily_project_id,   '蔡宜君', 1,  'considering', '對實支實付有興趣，下週給試算'),
-      (daily_project_id,   '楊志明', 3,  'negative',    '覺得公保就夠，半年後再關心'),
-      (daily_project_id,   '劉俊傑', 9,  'considering', '要跟太太討論')
+      (reimbursement_project_id, '王美華', 10, 'considering', '想先比較三家實支實付，下次帶比較表'),
+      (daily_project_id, '張家瑋', 10, 'positive', '騎車通勤想加意外醫療，下週試算'),
+      (daily_project_id, '鄭雅文', 10, 'negative', '預算不足，等畢業工作後再談'),
+      (reimbursement_project_id, '陳大明', 9, 'positive', '實支 M20 想升級，下週送件'),
+      (reimbursement_project_id, '陳志豪', 9, 'positive', '看過高額自費案例，願意再補一張，下次帶建議書'),
+      (daily_project_id, '林佳穎', 9, 'positive', '陳醫師介紹，願意談醫療險，下次約見面'),
+      (daily_project_id, '劉俊傑', 9, 'considering', '要跟太太討論'),
+      (daily_project_id, '李淑芬', 9, 'negative', '家人反對現在加保，想先存退休金'),
+      (reimbursement_project_id, '吳建宏', 8, 'negative', '有高血壓，擔心核保加費，先維持現狀'),
+      (daily_project_id, '許文彬', 8, 'considering', '想先了解團保條件，再決定個人規劃'),
+      (reimbursement_project_id, '蔡宜君', 7, 'considering', '公司團保只有基本額度，下週給試算'),
+      (newborn_project_id, '吳雅婷', 7, 'positive', '幫寶寶投保醫療與意外，已送件'),
+      (daily_project_id, '張家瑋', 7, 'positive', '願意介紹露營朋友，先約聊聊'),
+      (daily_project_id, '鄭雅文', 7, 'considering', '預算有限，想先看意外險'),
+      (reimbursement_project_id, '李淑芬', 6, 'negative', '今年預算已用完，明年再談'),
+      (daily_project_id, '陳大明', 6, 'positive', '壽險保額不足，同意加保 200 萬'),
+      (daily_project_id, '陳志豪', 6, 'positive', '重大疾病想再加 100 萬，下次帶建議書'),
+      (newborn_project_id, '吳雅婷', 6, 'positive', '想多了解小孩意外險，約下週'),
+      (daily_project_id, '林佳穎', 6, 'considering', '怕保費太高，想先看試算'),
+      (daily_project_id, '吳建宏', 6, 'considering', '擔心高血壓影響核保，先問醫師'),
+      (daily_project_id, '許文彬', 5, 'positive', '同意安排員工團保說明會'),
+      (reimbursement_project_id, '劉俊傑', 3, 'considering', '要跟太太討論，下週回覆'),
+      (daily_project_id, '陳志豪', 3, 'positive', '再介紹兩位朋友，下週聯絡'),
+      (daily_project_id, '張家瑋', 3, 'considering', '想等年終再決定加保'),
+      (daily_project_id, '楊志明', 3, 'negative', '覺得公保就夠，半年後再關心'),
+      (reimbursement_project_id, '吳雅婷', 2, 'positive', '想把住院醫療補到 30 萬，約下週簽'),
+      (daily_project_id, '李淑芬', 2, 'negative', '已有其他業務員在服務，先不換'),
+      (reimbursement_project_id, '許文彬', 1, 'positive', '同意提高個人實支額度，併團保一起談'),
+      (daily_project_id, '吳雅婷', 1, 'positive', '同事也想了解，幫忙介紹'),
+      (daily_project_id, '陳大明', 1, 'positive', '保單送件資料都備齊'),
+      (daily_project_id, '蔡宜君', 1, 'considering', '對實支實付有興趣，下週給試算'),
+      (daily_project_id, '吳建宏', 1, 'negative', '血壓控制不穩，擔心核保不過，暫緩')
     ) AS v(project_id, customer_name, days_ago, result, note)
     JOIN demo_customer_ids c ON c.customer_name = v.customer_name;
 
@@ -321,18 +365,20 @@ BEGIN
       AND vr.project_id = daily_project_id
       AND s.profile_id = demo_user_id
       AND s.customer_id = vr.customer_id
+      -- 同一位客戶有好幾筆結果，要對到同一天那一筆（一個行程只能接一筆結果）
+      AND vr.visited_on = (s.start_at AT TIME ZONE 'Asia/Taipei')::date
       AND s.is_completed;
 
-    -- 10. 拜訪紀錄（5 篇已整理：原始轉錄有辨識錯字，整理後只修錯字與標點；1 篇還沒整理）
+    -- 10. 拜訪紀錄（6 篇已整理：原始轉錄有辨識錯字，整理後只修錯字與標點；1 篇還沒整理）
     WITH inserted AS (
       INSERT INTO public.visit_records (profile_id, customer_id, title, raw_transcript, organized_content, status, created_at, updated_at)
       SELECT demo_user_id, c.id, v.title, v.raw_transcript, v.organized_content, v.status,
              now() - make_interval(days => v.days_ago), now() - make_interval(days => v.days_ago)
       FROM (VALUES
         -- 原始轉錄模擬語音辨識常見的錯（同音錯字、沒有標點）；整理後內容＝AI「非錯勿動」：只修錯字與標點，不加原文沒說的話
-        ('王大明', '王大明 年度保單健檢', 12,
-         '今天跟大明哥看了一下他的保單 壽險三百萬 他覺得小孩還小 房帶還有一千多萬 三百萬好像不太夠 時支實付是M二十 住院的部份應該還可以 他說太太那邊也想看一下',
-         '今天跟大明哥看了一下他的保單，壽險三百萬。他覺得小孩還小，房貸還有一千多萬，三百萬好像不太夠。實支實付是 M20，住院的部分應該還可以。他說太太那邊也想看一下。', 'done'),
+        ('陳大明', '陳大明 年度保單健檢', 12,
+         '今天跟大明哥看了一下他的保單 壽險三百萬 他覺得小孩還在念書 房帶還有一千多萬 三百萬好像不太夠 時支實付是M二十 住院的部份應該還可以 他說太太那邊也想看一下',
+         '今天跟大明哥看了一下他的保單，壽險三百萬。他覺得小孩還在念書，房貸還有一千多萬，三百萬好像不太夠。實支實付是 M20，住院的部分應該還可以。他說太太那邊也想看一下。', 'done'),
         ('陳志豪', '陳醫師 重大疾病規劃', 8,
          '陳醫師說他在診所看到很多重大急病的病人 自己的重大急病只有兩百萬 想再加 另外他說有幾個朋友也想找人規畫 會幫我介紹',
          '陳醫師說他在診所看到很多重大疾病的病人，自己的重大疾病只有兩百萬，想再加。另外他說有幾個朋友也想找人規劃，會幫我介紹。', 'done'),
@@ -345,6 +391,9 @@ BEGIN
         ('許文彬', '許董 第一次見面', 15,
          '許董是獅子會的社友 公司大概三十個員工 想了解員工團寶 另外也在想資產要怎麼留給小孩',
          '許董是獅子會的社友，公司大概三十個員工，想了解員工團保。另外也在想資產要怎麼留給小孩。', 'done'),
+        ('王美華', '王美華 健檢與實支需求', 10,
+         '今天跟美華姐看了他的保單 他現在是富邦佳實在計劃二 住院醫療只有二十萬 他擔心以後用到自費的藥跟醫材會不夠 開刀他倒是沒那麼擔心 他希望可以保到老 不要每年續約 預算一個月兩千左右 下次帶時支實付的三家比較給他看',
+         '今天跟美華姐看了她的保單，她現在是富邦佳實在計劃二，住院醫療只有二十萬。她擔心以後用到自費的藥跟醫材會不夠，開刀她倒是沒那麼擔心。她希望可以保到老，不要每年續約，預算一個月兩千左右。下次帶實支實付的三家比較給她看。', 'done'),
         (NULL::text, '週五通訊處分享會筆記', 4,
          '今天分享會講到年底是保單健儉的好時機 很多客戶年底有獎金 可以趁機提醒加保 另外提到長照鹹的需求越來越多',
          NULL, 'raw')
@@ -355,12 +404,12 @@ BEGIN
     INSERT INTO demo_record_ids (title, id) SELECT title, id FROM inserted;
 
     -- 10b. 口試 demo：王美華今天 13:00 拜訪完、回程在車上錄的紀錄（時間寫今天 13:50，已整理好）
-    --      內容接 demo 的保單比價，最後提到媽媽曾美玲 → 接人脈拓撲（2026-11-05）
+    --      內容接 demo 的保單比價，最後提到兒子陳小寶 → 接人脈拓撲（2026-11-10）
     WITH inserted AS (
       INSERT INTO public.visit_records (profile_id, customer_id, title, raw_transcript, organized_content, status, created_at, updated_at)
       SELECT demo_user_id, c.id, '王美華 實支實付比較',
-             '今天跟王小姐比較了三家的時支實付 他現在是富邦計劃二 住院醫療只有二十萬 他擔心以後用到自費的醫材會不夠 看了國泰富邦南山各一款 他比較想要終身型的 覺得富邦實在滿益比較適合 預算一個月兩千左右 請我下次帶建議書過去 另外他說媽媽也想了解長照 可以約時間',
-             '今天跟王小姐比較了三家的實支實付。她現在是富邦計劃二，住院醫療只有二十萬，她擔心以後用到自費的醫材會不夠。看了國泰、富邦、南山各一款，她比較想要終身型的，覺得富邦實在滿溢比較適合，預算一個月兩千左右，請我下次帶建議書過去。另外她說媽媽也想了解長照，可以約時間。',
+             '今天跟美華姐拜訪完之後最後決定選國泰人壽點石成金住院醫療終身保險 計畫選三十萬 那這次拜訪他也帶了他的兒子一起來 說他兒子對運動很感興趣 但是也有就傷 最近剛跑完馬拉鬆 有大量的練習 接下來還有兩場籃球賽要比 所以想詢問有什麼保單適合他的兒子 那是否需要提供什麼正明嗎 還說到陳小寶目前的保單只有車鹹',
+             '今天跟美華姐拜訪完之後，最後決定選國泰人壽點實成金住院醫療終身保險，計畫選三十萬。那這次拜訪她也帶了她的兒子一起來，說她兒子對運動很感興趣，但是也有舊傷，最近剛跑完馬拉松，有大量的練習，接下來還有兩場籃球賽要比，所以想詢問有什麼保單適合她的兒子，那是否需要提供什麼證明嗎？還說到陳小寶目前的保單只有車險。',
              'done',
              (today_local + interval '13 hours 50 minutes') AT TIME ZONE 'Asia/Taipei',
              (today_local + interval '13 hours 52 minutes') AT TIME ZONE 'Asia/Taipei'
@@ -390,6 +439,26 @@ BEGIN
     FROM demo_record_ids r
     WHERE r.title = '王美華 實支實付比較';
 
+    -- 12. 比較清單：王美華的三家實支實付比較（客戶卡片右上角「比較清單 1」，2026-11-10）
+    --     國泰先存 20 萬方案，現場改 30 萬；手術自費先 20 萬，現場改 0（講稿見細部流程第三版）
+    SELECT id::text INTO fubon_product_id FROM public.insurance_products WHERE product_name = '富邦人壽佳實在一年期住院醫療健康保險附約' LIMIT 1;
+    SELECT id::text INTO cathay_product_id FROM public.insurance_products WHERE product_name = '國泰人壽點實成金住院醫療終身保險（外溢型）' LIMIT 1;
+    SELECT id::text INTO nanshan_product_id FROM public.insurance_products WHERE product_name = '南山人壽實健溢百住院醫療終身保險' LIMIT 1;
+    IF fubon_product_id IS NULL OR cathay_product_id IS NULL OR nanshan_product_id IS NULL THEN
+      RAISE EXCEPTION '比較清單的商品找不到，請確認商品名稱';
+    END IF;
+    INSERT INTO public.customer_saved_comparisons (customer_id, name, scenario, items)
+    SELECT c.id, '實支實付三家比較',
+           jsonb_build_object('type', 'hospital', 'hospital_days', 5, 'room_difference_per_day', 3000,
+                              'medical_expense', 300000, 'surgery_expense', 200000),
+           jsonb_build_array(
+             jsonb_build_object('product_id', fubon_product_id, 'plan_code', '計劃3', 'copies', 1),
+             jsonb_build_object('product_id', cathay_product_id, 'plan_code', '20萬', 'copies', 1),
+             jsonb_build_object('product_id', nanshan_product_id, 'plan_code', '計劃30', 'copies', 1)
+           )
+    FROM demo_customer_ids c
+    WHERE c.customer_name = '王美華';
+
     RAISE NOTICE '已放好 % 的假資料', demo_email;
   END LOOP;
 END $$;
@@ -397,7 +466,7 @@ END $$;
 DROP TABLE IF EXISTS demo_customer_ids;
 DROP TABLE IF EXISTS demo_record_ids;
 
--- 檢查：每個示範帳號應該是 客戶 20（含垃圾桶 2）、保單 13、行程 10、專案 3、拜訪結果 8、拜訪紀錄 7、通知 3
+-- 檢查：每個示範帳號應該是 客戶 21（含垃圾桶 2）、保單 13、行程 11、專案 3、拜訪結果 32、拜訪紀錄 8、通知 3、比較清單 1
 --       （帳號這次沒有重置的話，會顯示上次的筆數）
 SELECT u.email,
   (SELECT count(*) FROM public.customers c WHERE c.profile_id = u.id) AS customers,
@@ -407,6 +476,7 @@ SELECT u.email,
   (SELECT count(*) FROM public.visit_results vr WHERE vr.profile_id = u.id) AS visit_results,
   (SELECT count(*) FROM public.visit_records r WHERE r.profile_id = u.id) AS visit_records,
   (SELECT count(*) FROM public.notifications n WHERE n.profile_id = u.id) AS notifications,
+  (SELECT count(*) FROM public.customer_saved_comparisons sc JOIN public.customers c ON c.id = sc.customer_id WHERE c.profile_id = u.id) AS saved_comparisons,
   (SELECT p.avatar_url FROM public.profiles p WHERE p.id = u.id) AS avatar_url,
   (u.raw_user_meta_data->>'onboarding_tour_seen') AS onboarding_tour_seen
 FROM auth.users u
