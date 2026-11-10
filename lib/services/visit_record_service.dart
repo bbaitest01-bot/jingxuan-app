@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../main.dart';
 import '../models/visit_record.dart';
+import '../models/visit_record_insights.dart';
 
 /// 選連結客戶時的一筆選項
 class VisitCustomerOption {
@@ -219,6 +220,30 @@ class VisitRecordService {
         .from('visit_records')
         .update({'title': cleanTitle, 'organized_content': contentToSave})
         .eq('id', id)
+        .eq('profile_id', userId)
+        .select(_selectColumns)
+        .single();
+    return VisitRecord.fromJson(row);
+  }
+
+  /// 更新一筆待辦草稿的狀態（已建立行程／已略過）；其他草稿不變
+  Future<VisitRecord> updateFollowUpDraftState(VisitRecord record, String draftId, String newState) async {
+    final List<VisitFollowUpDraft> updatedDrafts = [];
+    for (final VisitFollowUpDraft draft in record.followUpDrafts) {
+      updatedDrafts.add(draft.draftId == draftId ? draft.withState(newState) : draft);
+    }
+
+    final String? userId = _currentUserId;
+    if (userId == null) return record.withFollowUpDrafts(updatedDrafts);
+
+    final List<Map<String, dynamic>> draftRows = [];
+    for (final VisitFollowUpDraft draft in updatedDrafts) {
+      draftRows.add(draft.toJson());
+    }
+    final Map<String, dynamic> row = await _supabase
+        .from('visit_records')
+        .update({'follow_up_drafts': draftRows})
+        .eq('id', record.id)
         .eq('profile_id', userId)
         .select(_selectColumns)
         .single();

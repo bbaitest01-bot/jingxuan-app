@@ -1,3 +1,5 @@
+import 'visit_record_insights.dart';
+
 /// 一篇拜訪紀錄（資料表 visit_records，第 4 階段 4-A）
 class VisitRecord {
   final String id;
@@ -17,6 +19,9 @@ class VisitRecord {
   final DateTime? deletedAt;
   // 開始 AI 整理的時間（4-E1）；用來判斷「整理中」是不是卡住了
   final DateTime? processingStartedAt;
+  // AI 整理的重點與待辦草稿（全景地圖 4-Q）
+  final VisitKeyPoints? keyPoints;
+  final List<VisitFollowUpDraft> followUpDrafts;
 
   const VisitRecord({
     required this.id,
@@ -33,6 +38,8 @@ class VisitRecord {
     this.failureReason,
     this.deletedAt,
     this.processingStartedAt,
+    this.keyPoints,
+    this.followUpDrafts = const [],
   });
 
   /// 「整理中」超過這麼久還沒結束，就當作失敗，讓使用者可以重新整理（R8）
@@ -83,6 +90,8 @@ class VisitRecord {
       updatedAt: _parseTime(json['updated_at']),
       deletedAt: json['deleted_at'] == null ? null : _parseTime(json['deleted_at']),
       processingStartedAt: json['processing_started_at'] == null ? null : _parseTime(json['processing_started_at']),
+      keyPoints: VisitKeyPoints.tryParse(json['key_points']),
+      followUpDrafts: VisitFollowUpDraft.parseList(json['follow_up_drafts']),
     );
   }
 
@@ -118,6 +127,8 @@ class VisitRecord {
       createdAt: createdAt,
       updatedAt: DateTime.now(),
       deletedAt: time,
+      keyPoints: keyPoints,
+      followUpDrafts: followUpDrafts,
     );
   }
 
@@ -135,6 +146,30 @@ class VisitRecord {
       failureReason: failureReason,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
+      keyPoints: keyPoints,
+      followUpDrafts: followUpDrafts,
+    );
+  }
+
+  /// 換掉待辦草稿（更新草稿狀態後使用）
+  VisitRecord withFollowUpDrafts(List<VisitFollowUpDraft> drafts) {
+    return VisitRecord(
+      id: id,
+      profileId: profileId,
+      customerId: customerId,
+      customerName: customerName,
+      isCustomerDeleted: isCustomerDeleted,
+      title: title,
+      rawTranscript: rawTranscript,
+      organizedContent: organizedContent,
+      status: status,
+      failureReason: failureReason,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      deletedAt: deletedAt,
+      processingStartedAt: processingStartedAt,
+      keyPoints: keyPoints,
+      followUpDrafts: drafts,
     );
   }
 

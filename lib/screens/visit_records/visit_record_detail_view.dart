@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/schedule_event.dart';
 import '../../models/visit_record.dart';
+import '../../models/visit_record_insights.dart';
+import '../home/schedule/schedule_dialogs.dart';
 import '../../router/app_routes.dart';
 import '../../services/visit_record_service.dart';
 import '../../widgets/custom_toast.dart';
 import 'visit_record_customer_picker.dart';
+import 'visit_record_insights_panel.dart';
 import 'visit_record_organize_banner.dart';
 import 'visit_record_widgets.dart';
 import '../../theme/app_theme.dart';
@@ -28,6 +32,8 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
   bool _isSaving = false;
   bool _isLinkingCustomer = false;
   bool _isRequestingOrganize = false;
+  // 正在更新狀態的待辦草稿編號
+  String? _busyDraftId;
   String? _errorMessage;
   // AI 整理中時，每幾秒看一次狀態（4-E1）
   Timer? _statusTimer;
@@ -181,6 +187,31 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
     CustomToast.show(context, '已複製原始轉錄，修改後記得按「儲存」', ToastType.success);
   }
 
+  // 打開行程視窗（內容已帶入）；使用者按儲存建立後，才把草稿標成已建立
+  Future<void> _createEventFromDraft(VisitRecord record, VisitFollowUpDraft draft) async {
+    final String? customerId = record.isCustomerDeleted ? null : record.customerId;
+    final ScheduleEvent event = draft.buildScheduleEvent(now: DateTime.now(), customerId: customerId);
+    final dynamic result = await showScheduleEventEditor(context, initialDate: event.startAt, event: event);
+    if (result != 'created' || !mounted) return;
+    await _changeDraftState(record, draft, VisitFollowUpDraft.stateAccepted);
+  }
+
+  Future<void> _changeDraftState(VisitRecord record, VisitFollowUpDraft draft, String newState) async {
+    setState(() => _busyDraftId = draft.draftId);
+    try {
+      final VisitRecord updated = await VisitRecordService.instance.updateFollowUpDraftState(record, draft.draftId, newState);
+      if (!mounted) return;
+      setState(() {
+        _record = updated;
+        _busyDraftId = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busyDraftId = null);
+      CustomToast.show(context, '更新待辦草稿失敗：$e', ToastType.error);
+    }
+  }
+
   void _backToList() => context.go(AppRoutes.visitRecords);
 
   // 刪除：先確認，再移到垃圾桶（30 天內可還原），回到列表
@@ -254,6 +285,12 @@ class _VisitRecordDetailViewState extends State<VisitRecordDetailView> {
                 record: record,
                 isRequesting: _isRequestingOrganize,
                 onRetry: () => _retryOrganize(record),
+              ),
+              VisitRecordInsightsPanel(
+                record: record,
+                busyDraftId: _busyDraftId,
+                onCreateEvent: (VisitFollowUpDraft draft) => _createEventFromDraft(record, draft),
+                onDismiss: (VisitFollowUpDraft draft) => _changeDraftState(record, draft, VisitFollowUpDraft.stateDismissed),
               ),
               _buildContentPanels(record, isWide),
             ],
