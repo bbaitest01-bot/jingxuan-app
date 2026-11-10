@@ -20,6 +20,7 @@ const N8N_VISIT_SECRET = Deno.env.get('N8N_VISIT_SECRET') ?? '';
 // 等 n8n 最多 60 秒；超過就當作失敗，使用者可以按「重新整理」
 const N8N_TIMEOUT_MS = 60000;
 const MAX_CONTENT_LENGTH = 20000;
+const MAX_FOLLOW_UP_DRAFTS = 5;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -75,13 +76,64 @@ async function markRunFailed(supabase: SupabaseClient, recordId: string, started
   if (error) console.error('[organize-visit-record] 寫入失敗狀態失敗:', error);
 }
 
+// 紀錄建立當天（台灣時間）：n8n 用來判斷年份與相對日期
+function toTaipeiDate(isoTime: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(isoTime));
+}
+
+// 重點只接受物件，其他形狀當作沒有（壞掉也不影響校對結果）
+function cleanKeyPoints(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function followUpKey(draft: Record<string, unknown>): string {
+  return `${draft.date ?? ''}|${draft.time ?? ''}|${draft.title ?? ''}`;
+}
+
+// 合併待辦草稿：已建立行程、已略過的保留，避免重新整理後重複建立；
+// 待處理的由這次結果取代。總數不超過資料庫上限
+function mergeFollowUpDrafts(existing: unknown, incoming: unknown): Record<string, unknown>[] | null {
+  const existingDrafts = Array.isArray(existing) ? (existing as Record<string, unknown>[]) : [];
+  const keptDrafts = existingDrafts.filter((draft) => draft?.draft_state === 'accepted' || draft?.draft_state === 'dismissed');
+  const keptKeys = new Set(keptDrafts.map(followUpKey));
+
+  const incomingDrafts = Array.isArray(incoming) ? (incoming as Record<string, unknown>[]) : [];
+  const newDrafts = incomingDrafts
+    .filter((draft) => typeof draft?.title === 'string' && !keptKeys.has(followUpKey(draft)))
+    .map((draft) => ({
+      draft_id: crypto.randomUUID(),
+      title: draft.title,
+      date: draft.date ?? null,
+      time: draft.time ?? null,
+      location: draft.location ?? null,
+      source_quote: draft.source_quote ?? null,
+      draft_state: 'pending',
+    }));
+
+  const merged = [...keptDrafts, ...newDrafts].slice(0, MAX_FOLLOW_UP_DRAFTS);
+  return merged.length === 0 ? null : merged;
+}
+
 // 呼叫 n8n 並把結果寫回
-async function organizeRecord(supabase: SupabaseClient, recordId: string, rawText: string, startedAt: string): Promise<void> {
+async function organizeRecord(
+  supabase: SupabaseClient,
+  recordId: string,
+  rawText: string,
+  startedAt: string,
+  recordDate: string,
+  existingDrafts: unknown,
+): Promise<void> {
   try {
     const response = await fetch(N8N_VISIT_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-visit-secret': N8N_VISIT_SECRET },
-      body: JSON.stringify({ raw_text: rawText }),
+      body: JSON.stringify({ raw_text: rawText, record_date: recordDate }),
       signal: AbortSignal.timeout(N8N_TIMEOUT_MS),
     });
 
@@ -100,6 +152,8 @@ async function organizeRecord(supabase: SupabaseClient, recordId: string, rawTex
 
     const error = await writeIfStillRunning(supabase, recordId, startedAt, {
       organized_content: refinedText.slice(0, MAX_CONTENT_LENGTH),
+      key_points: cleanKeyPoints(result?.data?.key_points),
+      follow_up_drafts: mergeFollowUpDrafts(existingDrafts, result?.data?.follow_ups),
       status: 'done',
       failure_reason: null,
     });
@@ -142,7 +196,7 @@ serve(async (req: Request) => {
 
   const { data: record, error: readError } = await supabase
     .from('visit_records')
-    .select('id, raw_transcript, deleted_at')
+    .select('id, raw_transcript, deleted_at, created_at, follow_up_drafts')
     .eq('id', recordId)
     .eq('profile_id', userId)
     .maybeSingle();
@@ -164,7 +218,8 @@ serve(async (req: Request) => {
   if (updateError) return jsonResponse({ success: false, message: '無法開始整理' }, 500);
 
   // 4. 背景整理：先回覆 App，使用者關掉網頁也會繼續
-  const work = organizeRecord(supabase, recordId, rawText, startedAt);
+  const recordDate = toTaipeiDate(String(record.created_at));
+  const work = organizeRecord(supabase, recordId, rawText, startedAt, recordDate, record.follow_up_drafts);
   if (typeof EdgeRuntime !== 'undefined') {
     EdgeRuntime.waitUntil(work);
   } else {
