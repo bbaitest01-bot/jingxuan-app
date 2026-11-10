@@ -110,7 +110,8 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   OnboardingTourStep(
     section: '拜訪紀錄',
     title: '接下來：拜訪紀錄',
-    body: '拜訪客戶結束後，用說的就能記錄，AI 自動幫你整理重點與待辦。我們進去看看！',
+    // 2026-11-10：AI 只做「錄音轉文字＋修錯字、修順句子」（organize-visit-record 回傳一段 refined_text），沒有分重點與待辦
+    body: '拜訪客戶結束後，用說的就能記錄，AI 會把錄音轉成文字並修順句子。我們進去看看！',
     targetIds: ['menu.拜訪紀錄'],
     nextButtonLabel: '進去看 👉',
   ),
@@ -123,9 +124,9 @@ const List<OnboardingTourStep> onboardingTourSteps = [
   ),
   OnboardingTourStep(
     section: '拜訪紀錄',
-    title: 'AI 自動整理',
-    body: '錄音會自動整理成拜訪重點和下次要做的事，點進去就能看。',
-    emptyBody: '錄完之後，AI 會自動整理成拜訪重點和下次要做的事，出現在這個列表。',
+    title: 'AI 轉成文字、修順句子',
+    body: '錄音會自動轉成文字，AI 再修正錯字、把句子修順；點進去就能看，也可以自己再改。',
+    emptyBody: '錄完之後，AI 會把錄音轉成文字、修正錯字並把句子修順，出現在這個列表。',
     targetIds: ['visitRecords.first'],
     emptyTargetIds: ['visitRecords.empty'],
   ),
