@@ -27,12 +27,15 @@ class VisitResultService {
     return _supabase.auth.currentUser?.id;
   }
 
-  /// 自己的拜訪結果，新的在前；[projectId] 有值時只列該專案；最多 [limit] 筆
-  Future<List<VisitResult>> fetchMyResults({String? projectId, int limit = 50}) async {
+  /// 自己的拜訪結果，新的在前；[projectId] 有值時只列該專案；
+  /// [result] 有值時只列該結果（positive／considering／negative）；最多 [limit] 筆
+  Future<List<VisitResult>> fetchMyResults({String? projectId, String? result, int limit = 50}) async {
     final String? userId = _currentUserId;
     if (userId == null) {
-      final List<VisitResult> results = _offlineResults.where((result) {
-        return projectId == null || result.projectId == projectId;
+      final List<VisitResult> results = _offlineResults.where((VisitResult offlineResult) {
+        final bool matchesProject = projectId == null || offlineResult.projectId == projectId;
+        final bool matchesResult = result == null || offlineResult.result == result;
+        return matchesProject && matchesResult;
       }).toList();
       results.sort(VisitResult.compareNewestFirst);
       return results.take(limit).toList();
@@ -40,6 +43,7 @@ class VisitResultService {
 
     var query = _supabase.from('visit_results').select(_selectColumns).eq('profile_id', userId);
     if (projectId != null) query = query.eq('project_id', projectId);
+    if (result != null) query = query.eq('result', result);
     final List<dynamic> rows = await query
         .order('visited_on', ascending: false)
         .order('created_at', ascending: false)
