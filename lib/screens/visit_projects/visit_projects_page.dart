@@ -37,6 +37,8 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
   // 還沒記錄結果的行程（上方清單）
   PendingVisitLists _pendingLists = const PendingVisitLists(pending: [], recentlyDone: []);
   String? _filterProjectId;
+  // 只看哪一種結果（✔ △ ✖）；null 代表全部
+  String? _filterResult;
   int _resultLimit = visitResultPageSize;
   bool _isLoading = true;
   String? _errorMessage;
@@ -63,6 +65,7 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
       // 多讀一筆，才知道還有沒有「顯示更多」
       final List<VisitResult> resultRecords = await VisitResultService.instance.fetchMyResults(
         projectId: _filterProjectId,
+        result: _filterResult,
         limit: _resultLimit + 1,
       );
       final PendingVisitLists pendingLists = await VisitPendingService.instance.fetchLists(DateTime.now());
@@ -156,6 +159,14 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
   void _changeFilter(String? projectId) {
     setState(() {
       _filterProjectId = projectId;
+      _resultLimit = visitResultPageSize;
+    });
+    _loadProjects();
+  }
+
+  void _changeResultFilter(String? result) {
+    setState(() {
+      _filterResult = result;
       _resultLimit = visitResultPageSize;
     });
     _loadProjects();
@@ -286,9 +297,11 @@ class _VisitProjectsPageState extends State<VisitProjectsPage> {
         results: _resultRecords.take(_resultLimit).toList(),
         projects: _projects,
         filterProjectId: _filterProjectId,
+        filterResult: _filterResult,
         hasMore: _resultRecords.length > _resultLimit,
         today: today,
         onFilterChanged: _changeFilter,
+        onResultFilterChanged: _changeResultFilter,
         onEdit: _openEditResult,
         onShowMore: _showMoreResults,
       );

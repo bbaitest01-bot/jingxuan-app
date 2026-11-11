@@ -92,9 +92,11 @@ void main() {
           results: [result],
           projects: const [],
           filterProjectId: null,
+          filterResult: null,
           hasMore: false,
           today: DateTime(2026, 10, 16),
           onFilterChanged: (_) {},
+          onResultFilterChanged: (_) {},
           onEdit: (_) {},
           onShowMore: () {},
         ),
@@ -127,6 +129,29 @@ void main() {
       expect(statusOf('c1'), 'positive');
       await openTab(tester, '總覽');
       expect(find.text('1 / 20 次'), findsOneWidget);
+    });
+
+    testWidgets('按 ✖ 無意願只列無意願的，再按一次回到全部', (WidgetTester tester) async {
+      await pumpPage(tester);
+      await openTab(tester, '拜訪紀錄');
+      await recordVisit(tester, customerName: '王大明', resultText: '✔ 有意願／已成交');
+      // 等「已記錄」提示消失，才不會擋到下一次的「記錄拜訪」按鈕
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      await recordVisit(tester, customerName: '陳美玲', resultText: '✖ 無意願／暫不考慮');
+      expect(find.text('王大明'), findsOneWidget);
+      expect(find.text('陳美玲'), findsOneWidget);
+
+      await tester.tap(find.text('✖ 無意願'));
+      await tester.pumpAndSettle();
+      expect(find.text('王大明'), findsNothing);
+      expect(find.text('陳美玲'), findsOneWidget);
+      expect(find.textContaining('只看「無意願」，共 1 筆'), findsOneWidget);
+
+      await tester.tap(find.text('✖ 無意願'));
+      await tester.pumpAndSettle();
+      expect(find.text('王大明'), findsOneWidget);
+      expect(find.text('陳美玲'), findsOneWidget);
     });
 
     testWidgets('沒選結果時擋下並提示', (WidgetTester tester) async {
