@@ -1,3 +1,4 @@
+-- 版本：11/11 定稿 A型（跑完看最下面結果表的 script_version 欄）
 -- ============================================================================
 -- 示範帳號假資料（2026-10-30，給保險業主管試用與新手教學）
 --
@@ -440,10 +441,10 @@ BEGIN
     WHERE r.title = '王美華 實支實付比較';
 
     -- 12. 比較清單：王美華的三家實支實付比較（客戶卡片右上角「比較清單 1」，2026-11-10）
-    --     國泰先存 20 萬方案，現場改 30 萬；手術自費先 20 萬，現場改 0（講稿見細部流程第三版）
+    --     大中小三張（2026-11-11 組長決定簡化）：三張都選各自最高的方案；同一個情境下富邦 39.5 萬、國泰 31.5 萬、南山 21.5 萬，現場不改數字
     SELECT id::text INTO fubon_product_id FROM public.insurance_products WHERE product_name = '富邦人壽佳實在一年期住院醫療健康保險附約' LIMIT 1;
     SELECT id::text INTO cathay_product_id FROM public.insurance_products WHERE product_name = '國泰人壽點實成金住院醫療終身保險（外溢型）' LIMIT 1;
-    SELECT id::text INTO nanshan_product_id FROM public.insurance_products WHERE product_name = '南山人壽實健溢百住院醫療終身保險' LIMIT 1;
+    SELECT id::text INTO nanshan_product_id FROM public.insurance_products WHERE product_name = '南山人壽實踐幸福住院醫療健康保險附約' LIMIT 1;
     IF fubon_product_id IS NULL OR cathay_product_id IS NULL OR nanshan_product_id IS NULL THEN
       RAISE EXCEPTION '比較清單的商品找不到，請確認商品名稱';
     END IF;
@@ -453,8 +454,8 @@ BEGIN
                               'medical_expense', 300000, 'surgery_expense', 200000),
            jsonb_build_array(
              jsonb_build_object('product_id', fubon_product_id, 'plan_code', '計劃3', 'copies', 1),
-             jsonb_build_object('product_id', cathay_product_id, 'plan_code', '20萬', 'copies', 1),
-             jsonb_build_object('product_id', nanshan_product_id, 'plan_code', '計劃30', 'copies', 1)
+             jsonb_build_object('product_id', cathay_product_id, 'plan_code', '30萬', 'copies', 1),
+             jsonb_build_object('product_id', nanshan_product_id, 'plan_code', 'A型', 'copies', 1)
            )
     FROM demo_customer_ids c
     WHERE c.customer_name = '王美華';
@@ -468,7 +469,8 @@ DROP TABLE IF EXISTS demo_record_ids;
 
 -- 檢查：每個示範帳號應該是 客戶 21（含垃圾桶 2）、保單 13、行程 11、專案 3、拜訪結果 32、拜訪紀錄 8、通知 3、比較清單 1
 --       （帳號這次沒有重置的話，會顯示上次的筆數）
-SELECT u.email,
+-- script_version：每次改這份腳本就改這裡的文字，跑完看結果表第一欄就知道跑的是哪一版
+SELECT '11/11 定稿 A型' AS script_version, u.email,
   (SELECT count(*) FROM public.customers c WHERE c.profile_id = u.id) AS customers,
   (SELECT count(*) FROM public.customer_policies cp JOIN public.customers c ON c.id = cp.customer_id WHERE c.profile_id = u.id) AS policies,
   (SELECT count(*) FROM public.schedule_events s WHERE s.profile_id = u.id) AS schedules,
